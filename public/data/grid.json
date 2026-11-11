@@ -1,0 +1,328 @@
+{
+ "version": 1,
+ "date": "1939-08-31",
+ "crs": "EPSG:3035",
+ "cellSize": 9000,
+ "cols": 456,
+ "rows": 356,
+ "originX": 2500000,
+ "originY": 4550000,
+ "layout": "zeilenweise von Nord nach Süd, je Zeile West nach Ost; index = row * cols + col",
+ "layers": [
+  {
+   "name": "territory",
+   "type": "uint8",
+   "offset": 0,
+   "note": "0 = Meer, sonst territories[id-1]"
+  },
+  {
+   "name": "terrain",
+   "type": "uint8",
+   "offset": 162336
+  }
+ ],
+ "neighbors": "4er-Nachbarschaft N/O/S/W, nur Landfelder",
+ "terrainTypes": [
+  "Ebene",
+  "Gebirge"
+ ],
+ "territories": [
+  {
+   "id": 1,
+   "key": "ALB",
+   "name": "Albanien (italienisch besetzt)",
+   "owner": "ITA"
+  },
+  {
+   "id": 2,
+   "key": "AND",
+   "name": "Andorra",
+   "owner": "AND"
+  },
+  {
+   "id": 3,
+   "key": "BEL",
+   "name": "Belgien",
+   "owner": "BEL"
+  },
+  {
+   "id": 4,
+   "key": "BGR",
+   "name": "Bulgarien",
+   "owner": "BGR"
+  },
+  {
+   "id": 5,
+   "key": "CHE",
+   "name": "Schweiz",
+   "owner": "CHE"
+  },
+  {
+   "id": 6,
+   "key": "CYP",
+   "name": "Zypern",
+   "owner": "GBR"
+  },
+  {
+   "id": 7,
+   "key": "DAN",
+   "name": "Freie Stadt Danzig",
+   "owner": "DAN"
+  },
+  {
+   "id": 8,
+   "key": "DEU",
+   "name": "Deutsches Reich",
+   "owner": "DEU"
+  },
+  {
+   "id": 9,
+   "key": "DNK",
+   "name": "Dänemark",
+   "owner": "DNK"
+  },
+  {
+   "id": 10,
+   "key": "DOD",
+   "name": "Dodekanes (italienisch)",
+   "owner": "ITA"
+  },
+  {
+   "id": 11,
+   "key": "DZA",
+   "name": "Algerien",
+   "owner": "FRA"
+  },
+  {
+   "id": 12,
+   "key": "ESP",
+   "name": "Spanien",
+   "owner": "ESP"
+  },
+  {
+   "id": 13,
+   "key": "EST",
+   "name": "Estland",
+   "owner": "EST"
+  },
+  {
+   "id": 14,
+   "key": "FIN",
+   "name": "Finnland",
+   "owner": "FIN"
+  },
+  {
+   "id": 15,
+   "key": "FRA",
+   "name": "Frankreich",
+   "owner": "FRA"
+  },
+  {
+   "id": 16,
+   "key": "FRO",
+   "name": "Färöer",
+   "owner": "DNK"
+  },
+  {
+   "id": 17,
+   "key": "GBR",
+   "name": "Vereinigtes Königreich",
+   "owner": "GBR"
+  },
+  {
+   "id": 18,
+   "key": "GRC",
+   "name": "Griechenland",
+   "owner": "GRC"
+  },
+  {
+   "id": 19,
+   "key": "HUN",
+   "name": "Ungarn",
+   "owner": "HUN"
+  },
+  {
+   "id": 20,
+   "key": "IRL",
+   "name": "Irland",
+   "owner": "IRL"
+  },
+  {
+   "id": 21,
+   "key": "ITA",
+   "name": "Italien",
+   "owner": "ITA"
+  },
+  {
+   "id": 22,
+   "key": "KARP",
+   "name": "Karpatenukraine (ungarisch)",
+   "owner": "HUN"
+  },
+  {
+   "id": 23,
+   "key": "LIE",
+   "name": "Liechtenstein",
+   "owner": "LIE"
+  },
+  {
+   "id": 24,
+   "key": "LTU",
+   "name": "Litauen",
+   "owner": "LTU"
+  },
+  {
+   "id": 25,
+   "key": "LUX",
+   "name": "Luxemburg",
+   "owner": "LUX"
+  },
+  {
+   "id": 26,
+   "key": "LVA",
+   "name": "Lettland",
+   "owner": "LVA"
+  },
+  {
+   "id": 27,
+   "key": "MAR",
+   "name": "Französisch-Marokko",
+   "owner": "FRA"
+  },
+  {
+   "id": 28,
+   "key": "MEMEL",
+   "name": "Memelland",
+   "owner": "DEU"
+  },
+  {
+   "id": 29,
+   "key": "MLT",
+   "name": "Malta",
+   "owner": "GBR"
+  },
+  {
+   "id": 30,
+   "key": "NLD",
+   "name": "Niederlande",
+   "owner": "NLD"
+  },
+  {
+   "id": 31,
+   "key": "NOR",
+   "name": "Norwegen",
+   "owner": "NOR"
+  },
+  {
+   "id": 32,
+   "key": "OLSA",
+   "name": "Olsagebiet (polnisch)",
+   "owner": "POL"
+  },
+  {
+   "id": 33,
+   "key": "POL",
+   "name": "Polen",
+   "owner": "POL"
+  },
+  {
+   "id": 34,
+   "key": "PROT",
+   "name": "Protektorat Böhmen und Mähren",
+   "owner": "DEU"
+  },
+  {
+   "id": 35,
+   "key": "PRT",
+   "name": "Portugal",
+   "owner": "PRT"
+  },
+  {
+   "id": 36,
+   "key": "ROU",
+   "name": "Rumänien",
+   "owner": "ROU"
+  },
+  {
+   "id": 37,
+   "key": "SMA",
+   "name": "Spanisch-Marokko",
+   "owner": "ESP"
+  },
+  {
+   "id": 38,
+   "key": "SMR",
+   "name": "San Marino",
+   "owner": "SMR"
+  },
+  {
+   "id": 39,
+   "key": "SOV",
+   "name": "Sowjetunion",
+   "owner": "SOV"
+  },
+  {
+   "id": 40,
+   "key": "SVK",
+   "name": "Slowakei",
+   "owner": "SVK"
+  },
+  {
+   "id": 41,
+   "key": "SWE",
+   "name": "Schweden",
+   "owner": "SWE"
+  },
+  {
+   "id": 42,
+   "key": "TUN",
+   "name": "Tunesien",
+   "owner": "FRA"
+  },
+  {
+   "id": 43,
+   "key": "TUR",
+   "name": "Türkei",
+   "owner": "TUR"
+  },
+  {
+   "id": 44,
+   "key": "YUG",
+   "name": "Jugoslawien",
+   "owner": "YUG"
+  }
+ ],
+ "nations": {
+  "DEU": "Deutsches Reich",
+  "POL": "Polen",
+  "DAN": "Freie Stadt Danzig",
+  "SVK": "Slowakei",
+  "HUN": "Ungarn",
+  "ITA": "Italien",
+  "FRA": "Frankreich",
+  "GBR": "Vereinigtes Königreich",
+  "IRL": "Irland",
+  "NLD": "Niederlande",
+  "BEL": "Belgien",
+  "LUX": "Luxemburg",
+  "CHE": "Schweiz",
+  "LIE": "Liechtenstein",
+  "AND": "Andorra",
+  "SMR": "San Marino",
+  "ESP": "Spanien",
+  "PRT": "Portugal",
+  "YUG": "Jugoslawien",
+  "GRC": "Griechenland",
+  "BGR": "Bulgarien",
+  "ROU": "Rumänien",
+  "SOV": "Sowjetunion",
+  "EST": "Estland",
+  "LVA": "Lettland",
+  "LTU": "Litauen",
+  "FIN": "Finnland",
+  "SWE": "Schweden",
+  "NOR": "Norwegen",
+  "DNK": "Dänemark",
+  "TUR": "Türkei"
+ }
+}

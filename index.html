@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Durchbruch</title>
+  <meta name="description" content="Durchbruch – Echtzeit-Strategie, Europa ab 31. August 1939" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231A1C14'/%3E%3Cpath d='M3 11 8 4l5 7' fill='none' stroke='%23C8A156' stroke-width='2'/%3E%3C/svg%3E" />
+</head>
+<body class="mode-front">
+  <div id="app">
+    <header id="topbar">
+      <div class="brand">
+        <span class="title">Durchbruch</span>
+        <span class="date" id="date">31. August 1939</span>
+      </div>
+      <nav id="modes" role="tablist" aria-label="Kartenmodus">
+        <button type="button" role="tab" data-mode="front" aria-selected="true"><kbd>1</kbd><span>Front</span></button>
+        <button type="button" role="tab" data-mode="economy" aria-selected="false"><kbd>2</kbd><span>Wirtschaft</span></button>
+        <button type="button" role="tab" data-mode="intel" aria-selected="false"><kbd>3</kbd><span>Geheimdienst</span></button>
+      </nav>
+      <ul id="kpis" aria-label="Kennzahlen">
+        <li data-kpi="money"><span class="k-label">Geld</span><span class="k-value">2.450</span><span class="k-unit">Mio. RM</span></li>
+        <li data-kpi="resources"><span class="k-label">Rohstoffe</span><span class="k-value">1.180</span><span class="k-unit">kt</span></li>
+        <li data-kpi="manpower"><span class="k-label">Arbeitskräfte</span><span class="k-value">21,4</span><span class="k-unit">Mio.</span></li>
+        <li data-kpi="morale"><span class="k-label">Moral</span><span class="k-value">78</span><span class="k-unit">%</span></li>
+      </ul>
+    </header>
+
+    <aside id="panel" aria-live="polite" data-map-overlay>
+      <section class="nation" id="nation">
+        <img class="flag" id="nation-flag" alt="" />
+        <div>
+          <div class="eyebrow" data-label="nation">Eigene Nation</div>
+          <div class="nation-name" id="nation-name">Deutsches Reich</div>
+        </div>
+      </section>
+      <section class="field" id="field">
+        <h2 data-label="field">Ausgewähltes Feld</h2>
+        <p class="hint" id="field-hint">Feld auf der Karte anklicken.</p>
+        <dl id="field-info" hidden>
+          <dt>Besitzer</dt><dd><img class="flag mini" id="f-flag" alt="" /><span id="f-owner"></span></dd>
+          <dt>Gebiet</dt><dd id="f-territory"></dd>
+          <dt>Terrain</dt><dd id="f-terrain"></dd>
+          <dt>Feld</dt><dd id="f-cell"></dd>
+          <dt>Lage</dt><dd id="f-coord"></dd>
+          <dt>Nachbarn</dt><dd id="f-neighbors"></dd>
+        </dl>
+      </section>
+      <section class="mode-section" data-for="front">
+        <h2>Lage</h2>
+        <ul class="sectors">
+          <li><span class="dot"></span>Ostfront · Polen</li>
+          <li><span class="dot"></span>Westfront · Frankreich</li>
+        </ul>
+      </section>
+      <section class="mode-section" data-for="economy">
+        <h2>Bahnnetz</h2>
+        <ul class="legend">
+          <li><span class="sw rail"></span>Hauptstrecken Europa</li>
+          <li><span class="sw rail-de"></span>Strecken im Reich</li>
+          <li><span class="sw reich"></span>Deutsches Reich</li>
+        </ul>
+      </section>
+      <section class="mode-section" data-for="intel">
+        <div class="stamp">Geheim</div>
+        <h2>Akte</h2>
+        <p class="hint">Aufklärung noch nicht verfügbar.</p>
+      </section>
+    </aside>
+
+    <main id="map">
+      <canvas id="map-canvas" aria-label="Karte Europa 1939"></canvas>
+      <div id="loading">Karte wird geladen …</div>
+    </main>
+
+    <footer id="statusbar">
+      <span id="s-coord">–</span>
+      <span id="s-zoom">–</span>
+      <span class="keys">Mausrad: Zoom · Ziehen: Verschieben · Klick: Feld · 1/2/3: Modus · G: Felder · 0: Ansicht</span>
+      <span class="credits" title="Grenzen: CShapes 2.0 (Weidmann, Schvitz, Girardin; GPL ≥ 2) · Natural Earth (gemeinfrei) · Höhenmodell: ETOPO1 (NOAA) über Fatiando a Terra, CC BY 4.0">Quellen: CShapes 2.0 · Natural Earth · ETOPO1/Fatiando (CC BY 4.0)</span>
+    </footer>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

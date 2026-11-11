@@ -1,0 +1,46 @@
+/* Modus 2 – Wirtschaft: gebürsteter Stahl */
+body.mode-economy {
+  --bg: #2b3035;
+  --text: #e6e9ec;
+  --accent: #E0A83A;
+  --font-head: "Saira Stencil One", Impact, sans-serif;
+  --font-text: "Saira Condensed", "Arial Narrow", sans-serif;
+  --brushed: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='300'%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0012 0.95' numOctaves='3' seed='4'/%3E%3CfeColorMatrix type='matrix' values='0.33 0.33 0.33 0 0 0.33 0.33 0.33 0 0 0.33 0.33 0.33 0 0 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23b)'/%3E%3C/svg%3E");
+}
+body.mode-economy #app {
+  grid-template-columns: 1fr 320px;
+  grid-template-areas: "top top" "map panel" "status status";
+}
+body.mode-economy #topbar,
+body.mode-economy #panel,
+body.mode-economy #statusbar {
+  background-color: #40474e;
+  background-image: var(--brushed), linear-gradient(180deg, #4B535A, #353B41);
+  background-blend-mode: soft-light, normal;
+}
+body.mode-economy #topbar { border-bottom: 2px solid #22272b; box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.12), 0 3px 8px rgba(0, 0, 0, 0.45); }
+body.mode-economy #panel { border-left: 2px solid #22272b; box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.12); }
+body.mode-economy #statusbar { border-top: 2px solid #22272b; }
+/* Warnstreifen als Akzent an der Kopfleiste */
+body.mode-economy #topbar::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 6px;
+  background: repeating-linear-gradient(-45deg, #E0A83A 0 10px, #22272b 10px 20px);
+  opacity: 0.9;
+}
+body.mode-economy .brand .title { font-family: var(--font-head); color: #e6e9ec; letter-spacing: 0.04em; font-size: 28px; }
+body.mode-economy .brand .date { font-family: var(--font-text); }
+body.mode-economy #panel h2 { font-family: var(--font-head); color: var(--accent); letter-spacing: 0.05em; text-transform: uppercase; font-size: 16px; }
+body.mode-economy #modes { background: #2a2f34; border: 1px solid #1d2125; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6); }
+body.mode-economy #modes button { font-family: var(--font-text); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+body.mode-economy #modes button[aria-selected="true"] { background: var(--accent); color: #1d2125; border-color: #8a6420; }
+body.mode-economy #kpis li { background: rgba(20, 23, 26, 0.55); border-left: 3px solid var(--accent); }
+body.mode-economy #kpis .k-value { font-weight: 600; color: #fff; }
+body.mode-economy #kpis .k-label { color: var(--accent); }
+body.mode-economy .nation-name { font-family: var(--font-head); }
+body.mode-economy dl { font-family: var(--font-text); font-size: 15px; }
+body.mode-economy dt { text-transform: uppercase; font-size: 12.5px; letter-spacing: 0.06em; padding-top: 2px; }
+body.mode-economy .mode-section[data-for="economy"] { display: block; }
+body.mode-economy .legend .rail { background: repeating-linear-gradient(90deg, rgba(222, 226, 230, 0.8) 0 6px, transparent 6px 8px); height: 2px; }
+body.mode-economy .legend .rail-de { background: #2a1d08; height: 3px; box-shadow: 0 0 0 2px #d39b3c; }
+body.mode-economy .legend .reich { background: #d39b3c; }
+body.mode-economy #loading { color: var(--accent); font-family: var(--font-head); }
