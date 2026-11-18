@@ -2,6 +2,7 @@
 // befestigt und zieht Truppen aus Räumen ab, denen die Einkesselung droht.
 import { components } from './pockets.js';
 import { phantomStrength } from './intel.js';
+import { warInfo } from './diplomacy.js';
 
 export function runAi(sim) {
   for (const n of sim.nations.keys()) {
@@ -22,8 +23,8 @@ function aiNation(sim, n) {
   const fronts = [...sim.fronts.values()].filter((f) => f.alive && f.side[n]).sort((x, y) => x.id - y.id);
   if (!fronts.length) return;
 
-  // 1. Halten und befestigen
-  for (const f of fronts) if (f.side[n].order !== 'hold') f.side[n].order = 'hold';
+  // 1. Halten und befestigen – oder angreifen, wenn die Lage es erlaubt (Phase 5)
+  for (const f of fronts) decidePosture(sim, n, f);
 
   // 2. innerhalb der Front: Gewicht je Abschnitt nach Länge und Gefahr (gestriger Vormarsch)
   for (const f of fronts) {
@@ -37,7 +38,9 @@ function aiNation(sim, n) {
   }
 
   // 3. drohende Kessel erkennen
-  const threatened = detectThreats(sim, n, fronts);
+  // Leistung: Einkesselung droht nur, wenn die Nation zuletzt Gebiet verloren hat
+  const st = sim.nations.get(n);
+  const threatened = st.lastLossDay === undefined || sim.day - st.lastLossDay <= 2 ? detectThreats(sim, n, fronts) : new Set();
   let moves = A.maxTransfersPerDay;
   const safe = fronts.filter((f) => !f.encircled[n] && !threatened.has(f.id));
 
@@ -156,4 +159,35 @@ function detectThreats(sim, n, fronts) {
     if (!near) threatened.add(f.id);
   }
   return threatened;
+}
+
+/**
+ * Angriffshaltung (Phase 5): Wer den Krieg begonnen hat, greift ab einem Kräfteverhältnis von
+ * `offensive` an; wer angegriffen wurde, erst ab `defensive` (nach einer Anlaufzeit). Gegnerische
+ * Befestigung zählt mit. Gegen den Spieler wirkt die Schwierigkeit (aiAttack) auf die Schwelle.
+ */
+function decidePosture(sim, n, f) {
+  const D = sim.bal.diplomacy;
+  const side = f.side[n];
+  const o = sim.enemyOn(f, n);
+  const w = warInfo(sim, n, o);
+  const offensive = !!w && w.aggressor === n && !w.obligation; // Bündnispflicht: verteidigende Haltung
+  if (!offensive && w && sim.day - w.day < D.aiDefensiveDelayDays) { side.order = side.order === 'attack' ? 'hold' : side.order === 'prepare' ? 'hold' : side.order; return; }
+  let thr = offensive ? D.aiAttackRatio.offensive : D.aiAttackRatio.defensive;
+  if (o === sim.player && sim.diff) thr *= sim.diff().aiAttack;
+  const own = sim.sideStrength(f.id, n).str;
+  const enemy = sim.sideStrength(f.id, o).str;
+  const cells = sim.frontCellsOf(f, o);
+  let fort = 0;
+  for (const c of cells) fort += sim.fort[c];
+  fort = cells.length ? fort / cells.length : 0;
+  const ratio = own / (Math.max(0.5, enemy) * (1 + sim.bal.orders.fortBonus * fort));
+  if (side.order === 'attack') {
+    if (ratio < thr * D.aiStopFactor) side.order = 'hold';
+    return;
+  }
+  if (ratio >= thr) {
+    if (side.prep >= D.aiPrepMin) sim.attack(f.id, n);
+    else side.order = 'prepare';
+  } else if (side.order !== 'hold') side.order = 'hold';
 }

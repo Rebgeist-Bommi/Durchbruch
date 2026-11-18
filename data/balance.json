@@ -175,7 +175,28 @@
     },
     "fortification": {
       "POL": 0.25
-    }
+    },
+    "borderFortification": [
+      {
+        "nation": "DEU",
+        "against": "FRA",
+        "value": 0.6,
+        "name": "Westwall"
+      },
+      {
+        "nation": "FRA",
+        "against": "DEU",
+        "value": 0.7,
+        "name": "Maginot-Linie"
+      },
+      {
+        "nation": "FRA",
+        "against": "ITA",
+        "value": 0.5,
+        "name": "Alpenbefestigungen"
+      }
+    ],
+    "_borderFortification": "Bauwerke historisch (Westwall, Maginot-Linie); Befestigungswerte sind Spielwerte"
   },
   "orders": {
     "_todo": "Spielwerte",
@@ -839,6 +860,352 @@
     "ruecksichtslos": {
       "odds": 0.12,
       "lossAtt": 0.35
+    }
+  },
+  "difficulty": {
+    "_todo": "Spielwerte. Startwerte sind auf allen Stufen gleich; die Stufe wirkt nur über KI (aiAttack: Faktor auf die Angriffsschwelle der KI, kleiner = angriffslustiger), Erträge (income), Nachschub (supply), Moral (morale: Gleichgewichtswert in Punkten) und Geheimdienst (intel: Erfolgschance in Punkten) des Spielers.",
+    "default": "normal",
+    "levels": {
+      "leicht": {
+        "label": "Leicht",
+        "aiAttack": 1.4,
+        "income": 1.15,
+        "supply": 1.1,
+        "morale": 6,
+        "intel": 0.08
+      },
+      "normal": {
+        "label": "Normal",
+        "aiAttack": 1.0,
+        "income": 1.0,
+        "supply": 1.0,
+        "morale": 0,
+        "intel": 0.0
+      },
+      "schwer": {
+        "label": "Schwer",
+        "aiAttack": 0.75,
+        "income": 0.9,
+        "supply": 0.9,
+        "morale": -6,
+        "intel": -0.08
+      }
+    }
+  },
+  "sandbox": {
+    "_todo": "Spielwerte",
+    "money": 99999,
+    "resources": 99999,
+    "pool": 5000000
+  },
+  "morale": {
+    "_todo": "Spielwerte # TODO historisch prüfen (Start- und Gleichgewichtswerte je Nation)",
+    "start": {
+      "DEU": 70,
+      "POL": 75,
+      "FRA": 60,
+      "GBR": 65,
+      "ITA": 55,
+      "SOV": 60,
+      "NLD": 60,
+      "FIN": 75,
+      "default": 60
+    },
+    "drift": 0.04,
+    "warWeariness": 0.04,
+    "cityGain": [
+      0,
+      3,
+      1.5,
+      0.5,
+      0.2
+    ],
+    "cityLoss": [
+      0,
+      5,
+      2.5,
+      0.8,
+      0.3
+    ],
+    "capitalGain": 6,
+    "capitalLoss": 12,
+    "pocketGain": 2,
+    "pocketLoss": 4,
+    "capitulationGain": 8,
+    "allyCapitulationLoss": 6,
+    "warDeclaredRally": 3,
+    "lossPerPctMen": 2.0,
+    "propaganda": {
+      "cost": 40,
+      "gain": 6,
+      "decay": 0.6,
+      "windowDays": 30
+    },
+    "lowFrom": 50,
+    "combatPenalty": 0.3,
+    "prodPenalty": 0.25,
+    "desertBelow": 30,
+    "desertPerDay": 0.004,
+    "highFrom": 60,
+    "capitulationBonus": 0.15
+  },
+  "diplomacy": {
+    "_todo": "Beziehungswerte und Regeln sind Spielwerte # TODO historisch prüfen. Verträge zum Stichtag siehe SOURCES.md.",
+    "nations": [
+      "POL",
+      "FRA",
+      "GBR",
+      "ITA",
+      "SOV",
+      "NLD",
+      "FIN"
+    ],
+    "relations": {
+      "DEU-ITA": 60,
+      "DEU-SOV": 20,
+      "DEU-POL": -60,
+      "DEU-FRA": -40,
+      "DEU-GBR": -30,
+      "DEU-NLD": 0,
+      "DEU-FIN": 10,
+      "FRA-GBR": 80,
+      "FRA-POL": 50,
+      "GBR-POL": 50,
+      "POL-SOV": -50,
+      "FIN-SOV": -40,
+      "FRA-ITA": -20,
+      "GBR-ITA": -10,
+      "FRA-SOV": -10,
+      "GBR-SOV": -10,
+      "ITA-SOV": -20
+    },
+    "alliances": [
+      [
+        "DEU",
+        "ITA"
+      ],
+      [
+        "GBR",
+        "FRA"
+      ],
+      [
+        "GBR",
+        "POL"
+      ],
+      [
+        "FRA",
+        "POL"
+      ]
+    ],
+    "pacts": [
+      [
+        "DEU",
+        "SOV"
+      ]
+    ],
+    "allyDelayDays": 2,
+    "offerCooldownDays": 30,
+    "acceptAlliance": 50,
+    "acceptPact": 10,
+    "commonEnemyBonus": 30,
+    "threatBonus": 20,
+    "breachPenalty": 25,
+    "breachRelation": -50,
+    "breachRelationOthers": -15,
+    "warRelation": -40,
+    "warRelationOthers": -5,
+    "allianceRelation": 15,
+    "pactRelation": 8,
+    "peaceRelation": 10,
+    "ceasefireDays": 30,
+    "aiAttackRatio": {
+      "offensive": 1.5,
+      "defensive": 4.0
+    },
+    "aiPrepMin": 0.5,
+    "aiDefensiveDelayDays": 14,
+    "aiStopFactor": 0.6
+  },
+  "events": {
+    "_todo": "Auslöser, Fristen und Wirkungen sind Spielwerte; Ereignisse sind nur historische Anlässe, ihr Eintreten hängt von der Spiellage ab.",
+    "partition": {
+      "fromDay": 14,
+      "polandLost": 0.3,
+      "invasionDelay": 3,
+      "bugExtraDelay": 4,
+      "acceptRelation": 15,
+      "bugRelation": -10,
+      "refuseRelation": -30,
+      "lines": {
+        "narew": {
+          "label": "Linie Pissa–Narew–Weichsel–San",
+          "points": [
+            [
+              21.85,
+              53.6
+            ],
+            [
+              21.88,
+              53.25
+            ],
+            [
+              21.57,
+              53.08
+            ],
+            [
+              21.4,
+              52.88
+            ],
+            [
+              21.08,
+              52.7
+            ],
+            [
+              20.72,
+              52.43
+            ],
+            [
+              21.03,
+              52.23
+            ],
+            [
+              21.2,
+              51.98
+            ],
+            [
+              21.85,
+              51.56
+            ],
+            [
+              21.97,
+              51.42
+            ],
+            [
+              21.85,
+              50.89
+            ],
+            [
+              21.8,
+              50.68
+            ],
+            [
+              22.13,
+              50.52
+            ],
+            [
+              22.68,
+              50.02
+            ],
+            [
+              22.77,
+              49.78
+            ],
+            [
+              22.2,
+              49.56
+            ],
+            [
+              22.65,
+              49.0
+            ]
+          ]
+        },
+        "bug": {
+          "label": "Linie Pissa–Narew–Bug–San",
+          "points": [
+            [
+              21.85,
+              53.6
+            ],
+            [
+              21.88,
+              53.25
+            ],
+            [
+              22.0,
+              52.69
+            ],
+            [
+              22.66,
+              52.4
+            ],
+            [
+              23.65,
+              52.08
+            ],
+            [
+              23.55,
+              51.55
+            ],
+            [
+              23.8,
+              51.17
+            ],
+            [
+              23.9,
+              50.8
+            ],
+            [
+              24.27,
+              50.48
+            ],
+            [
+              23.4,
+              50.2
+            ],
+            [
+              22.77,
+              49.78
+            ],
+            [
+              22.2,
+              49.56
+            ],
+            [
+              22.65,
+              49.0
+            ]
+          ]
+        }
+      }
+    },
+    "winterWar": {
+      "fromDay": 85,
+      "chance": 0.15,
+      "maxRelation": 0
+    },
+    "italy": {
+      "fromDay": 30,
+      "minRelation": 40,
+      "franceLost": 0.12,
+      "franceMorale": 40,
+      "chance": 0.1
+    },
+    "frenchPeace": {
+      "afterPolandDays": 14,
+      "maxFrenchMorale": 40,
+      "peaceMorale": 4,
+      "refuseMorale": -2,
+      "relation": 20
+    },
+    "generalRefuses": {
+      "chance": 0.6,
+      "maxRatio": 1.2,
+      "replacePrepLoss": 0.2,
+      "enforceMorale": -2
+    },
+    "food": {
+      "fromDay": 45,
+      "maxMorale": 55,
+      "repeatDays": 120,
+      "foodArmament": -0.25,
+      "foodDays": 60,
+      "foodMorale": 10,
+      "armsMorale": -6,
+      "rationCost": 80,
+      "rationMorale": 4,
+      "rationArmament": -0.1,
+      "rationDays": 30
     }
   }
 }

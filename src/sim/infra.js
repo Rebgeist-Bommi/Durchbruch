@@ -141,7 +141,7 @@ function isHome(sim, n, i) {
  * Nachschub je kriegführender Nation: Abstand (in Feldern über Land) zum nächsten intakten
  * Bahnknoten, der über intakte eigene Strecken mit dem Kernnetz verbunden ist.
  */
-export function computeRailSupply(sim) {
+export function computeRailSupply(sim, only = 0, regional = false) {
   const R = sim.bal.supply;
   const N = sim.N;
   const nb = sim.nb;
@@ -150,9 +150,48 @@ export function computeRailSupply(sim) {
   const q = sim._sq || (sim._sq = new Int32Array(N));
   const conn = sim._conn || (sim._conn = new Int32Array(N));
   sim._connStamp = (sim._connStamp || 0) + 1;
+  // Leistung: Nachschub nur für Nationen mit Landfront (ohne Front wird er nirgends gebraucht)
+  const withFront = new Set();
+  for (const f of sim.fronts.values()) if (f.alive) { withFront.add(f.a); withFront.add(f.b); }
   for (const n of [...sim.nations.keys()].sort((x, y) => x - y)) {
-    if (!sim.inWar[n] || !sim.enemiesOf(n).length) continue;
+    if (only && n !== only) continue;
+    if (!sim.inWar[n] || !sim.enemiesOf(n).length || !withFront.has(n)) continue;
+    (sim._supplyDay || (sim._supplyDay = new Map())).set(n, sim.day);
+    if (!regional) (sim._supplyFullDay || (sim._supplyFullDay = new Map())).set(n, sim.day);
     const [r0, r1, c0, c1] = sim.nationRange(n);
+    // Phase 5 (Leistung): Für den Kampf genügt das Gebiet um die Fronten. Rechteck um alle
+    // Frontfelder (+6 für Vorstöße), erweitert um Reichweite + Knotenradius: Für alle Felder in
+    // Frontnähe ergeben sich exakt dieselben Werte wie bei der Berechnung über das ganze Land.
+    let gr0 = 0;
+    let gr1 = rows - 1;
+    let gc0 = 0;
+    let gc1 = cols - 1;
+    if (regional) {
+      let fr0 = rows;
+      let fr1 = -1;
+      let fc0 = cols;
+      let fc1 = -1;
+      for (const f of sim.fronts.values()) {
+        if (!f.alive || (f.a !== n && f.b !== n)) continue;
+        for (const sec of f.sections) {
+          for (const list of [sec.cellsA, sec.cellsB]) {
+            for (const i of list) {
+              const r = (i / cols) | 0;
+              const c = i - r * cols;
+              if (r < fr0) fr0 = r;
+              if (r > fr1) fr1 = r;
+              if (c < fc0) fc0 = c;
+              if (c > fc1) fc1 = c;
+            }
+          }
+        }
+      }
+      const m = Math.ceil(R.rangeCells * (1 + modsOf(sim, n).supply)) + 2 + R.capRadius + 6;
+      gr0 = Math.max(0, fr0 - m);
+      gr1 = Math.min(rows - 1, fr1 + m);
+      gc0 = Math.max(0, fc0 - m);
+      gc1 = Math.min(cols - 1, fc1 + m);
+    }
     const stamp = sim._connStamp * 64 + n;
     // 1. verbundenes Netz: Breitensuche über intakte eigene Bahnfelder ab dem Kernnetz (8er)
     let head = 0;
@@ -194,6 +233,7 @@ export function computeRailSupply(sim) {
       if (node.state !== INTACT || conn[i] !== stamp) continue;
       const r = (i / cols) | 0;
       const c = i - r * cols;
+      if (r < gr0 || r > gr1 || c < gc0 || c > gc1) continue;
       for (let dr = -CR; dr <= CR; dr++) {
         const rr = r + dr;
         if (rr < 0 || rr >= rows) continue;
@@ -213,6 +253,9 @@ export function computeRailSupply(sim) {
     for (const node of sim.nodes) {
       const i = node.cell;
       if (node.state !== INTACT || conn[i] !== stamp) continue;
+      const r = (i / cols) | 0;
+      const c = i - r * cols;
+      if (r < gr0 || r > gr1 || c < gc0 || c > gc1) continue;
       dist[i] = 0;
       q[tail++] = i;
     }
@@ -226,6 +269,11 @@ export function computeRailSupply(sim) {
       for (let k = i * 4, e = k + 4; k < e; k++) {
         const j = nb[k];
         if (j < 0 || dist[j] <= d) continue;
+        if (regional) {
+          const r = (j / cols) | 0;
+          const c = j - r * cols;
+          if (r < gr0 || r > gr1 || c < gc0 || c > gc1) continue;
+        }
         dist[j] = d;
         q[tail++] = j;
       }
@@ -237,6 +285,19 @@ export function computeRailSupply(sim) {
  * Nachschubfaktor: voll bis `fullCells` Felder vom nächsten nutzbaren Knoten, dann linear bis
  * `minFactor` bei `rangeCells`; die Bahnstufe der Region wirkt schwach mit (levelWeight).
  */
+/**
+ * Phase 5 (Leistung): Nachschub einer Nation bei Bedarf berechnen – höchstens einmal je Spieltag,
+ * beim ersten Angriff der Nation an diesem Tag (oder für die Anzeige).
+ */
+export function ensureSupply(sim, n) {
+  if (sim._supplyDay?.get(n) !== sim.day) computeRailSupply(sim, n, true);
+}
+
+/** Für die Anzeige: Nachschub über das ganze Land (ändert keine Werte in Frontnähe). */
+export function ensureSupplyFull(sim, n) {
+  if (sim._supplyFullDay?.get(n) !== sim.day) computeRailSupply(sim, n, false);
+}
+
 export function railSupply(sim, n, cell) {
   const R = sim.bal.supply;
   const d = sim.supplyDist?.get(n)?.[cell] ?? 65535;
@@ -248,7 +309,8 @@ export function railSupply(sim, n, cell) {
   const lvl = levelOfCell(sim, cell);
   const cnt = sim.nodeCount?.get(n)?.[cell] ?? R.capNodes;
   const cap = 1 - R.capWeight + R.capWeight * Math.min(1, cnt / R.capNodes);
-  return base * cap * (1 - R.levelWeight * (5 - lvl) / 4);
+  const v = base * cap * (1 - R.levelWeight * (5 - lvl) / 4);
+  return n === sim.player && sim.diff ? Math.min(1, v * sim.diff().supply) : v; // Phase 5: Schwierigkeit
 }
 
 /** Ausbau einer Region um eine Stufe (Kosten und Dauer aus balance.json). */

@@ -1,0 +1,172 @@
+/* Phase 5: Moral, Diplomatie, Entscheidungen, Zeitung, Hauptmenü, Abschlussbildschirm */
+
+/* ---------- Statusleiste: Spiel-Schaltflächen ---------- */
+.gamebar { display: flex; gap: 3px; flex-shrink: 0; }
+.gamebar button {
+  font-size: 12px; padding: 1px 8px; cursor: pointer; background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.22); color: inherit; position: relative;
+}
+.gamebar .badge {
+  position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; border-radius: 50%;
+  background: #e0452a; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- Moral (linke Leiste) ---------- */
+#moral .m-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; }
+#moral .m-val { font-size: 20px; font-variant-numeric: tabular-nums; color: var(--accent); }
+#moral .m-bar { position: relative; height: 8px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.15); margin: 4px 0; }
+#moral .m-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #8b2a1c, #c8a156 50%, #9fbf6a); }
+#moral .m-bar b { position: absolute; top: -3px; bottom: -3px; width: 1px; background: rgba(255, 255, 255, 0.55); }
+#moral .m-eff { font-size: 12.5px; opacity: 0.85; margin: 4px 0 0; }
+#moral .btn { margin-top: 6px; }
+
+/* ---------- Modale Fenster (gemeinsam) ---------- */
+.modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.6); }
+.sheet {
+  position: relative; width: 100%; max-height: calc(100dvh - 32px); overflow-y: auto;
+  background: #2e2117; color: #E4D9BC; border: 2px solid #C8A156; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75);
+  font-family: "Spectral", Georgia, serif; padding: 20px 24px;
+}
+.sheet .close {
+  position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; cursor: pointer; font-size: 19px; line-height: 1;
+  background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.3); color: inherit;
+}
+.sheet-head h2, .decision-sheet h2 { margin: 0 0 6px; font-family: "IM Fell English SC", Georgia, serif; font-weight: 400; color: #C8A156; font-size: 26px; }
+
+/* ---------- Entscheidung ---------- */
+.decision-sheet { max-width: 560px; background-image: linear-gradient(180deg, #3a2a1c, #2a1e15); }
+.dc-stamp {
+  display: inline-block; transform: rotate(-3deg); border: 2px solid #b5402a; color: #e06a4f; padding: 1px 10px;
+  font-family: "Saira Stencil One", sans-serif; letter-spacing: 0.15em; font-size: 13px; text-transform: uppercase; margin-bottom: 8px;
+}
+.dc-date { margin: 0 0 8px; opacity: 0.75; font-size: 13.5px; }
+.dc-text { font-size: 15.5px; line-height: 1.5; margin: 0 0 14px; }
+.dc-options { display: grid; gap: 8px; }
+.dc-options button {
+  text-align: left; cursor: pointer; padding: 10px 14px; background: rgba(0, 0, 0, 0.3); color: inherit;
+  border: 1px solid rgba(200, 161, 86, 0.55); font-size: 15px;
+}
+.dc-options button:hover, .dc-options button:focus-visible { background: rgba(200, 161, 86, 0.18); border-color: #C8A156; outline: none; }
+.dc-options b { display: block; font-weight: 600; color: #f0dca8; }
+.dc-options span { display: block; font-size: 13px; opacity: 0.8; margin-top: 2px; }
+.dc-note { font-size: 12.5px; opacity: 0.65; margin: 12px 0 0; }
+
+/* ---------- Diplomatie ---------- */
+.diplo-sheet { max-width: 880px; }
+.dp-intro { font-size: 13.5px; opacity: 0.85; margin: 0 0 10px; }
+.dp-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.dp-table th { text-align: left; font-weight: 400; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.7; padding: 4px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); }
+.dp-table td { padding: 7px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); vertical-align: middle; }
+.dp-table .nm { white-space: nowrap; }
+.dp-table .capit { opacity: 0.5; }
+.rel { display: grid; grid-template-columns: 110px auto; gap: 8px; align-items: center; }
+.rel-bar { position: relative; height: 8px; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.15); }
+.rel-bar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(255, 255, 255, 0.5); }
+.rel-bar i { position: absolute; top: 0; bottom: 0; }
+.rel-bar i.pos { left: 50%; background: #8fae5a; }
+.rel-bar i.neg { right: 50%; background: #c0503a; }
+.rel-val { font-variant-numeric: tabular-nums; font-size: 13px; min-width: 3ch; text-align: right; }
+.dst { display: inline-block; padding: 1px 7px; font-size: 12px; border: 1px solid rgba(255, 255, 255, 0.3); white-space: nowrap; }
+.dst.krieg { background: #a8321f; border-color: #a8321f; color: #fff; }
+.dst.buendnis { background: #4f6b2e; border-color: #4f6b2e; color: #fff; }
+.dst.pakt { background: #5c5a3a; border-color: #8a8556; color: #fff; }
+.dp-act { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.dp-act button { font-size: 12.5px; padding: 4px 8px; cursor: pointer; background: rgba(0, 0, 0, 0.3); color: inherit; border: 1px solid rgba(255, 255, 255, 0.3); white-space: nowrap; }
+.dp-act button.war { border-color: #c0503a; }
+.dp-act button.confirm { background: #a8321f; border-color: #a8321f; color: #fff; }
+.dp-act button:disabled { opacity: 0.35; cursor: default; }
+.dp-out { font-size: 11.5px; opacity: 0.75; display: block; margin-top: 2px; }
+.dp-msg { min-height: 1.4em; margin: 10px 0 0; font-size: 14px; color: #f0dca8; }
+.dp-foot { font-size: 12.5px; opacity: 0.75; margin: 8px 0 0; }
+
+/* ---------- Zeitung „Der Tagesanzeiger“ ---------- */
+.paper-sheet {
+  max-width: 780px; padding: 26px 32px 22px;
+  background-color: #e9e0c9; color: #1d1a14; border: 1px solid #8c7d5c;
+  background-image: radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.45), transparent 60%), radial-gradient(ellipse at 80% 90%, rgba(120, 90, 40, 0.18), transparent 55%);
+  font-family: "Spectral", Georgia, serif;
+}
+.paper-sheet .close { color: #1d1a14; border-color: rgba(0, 0, 0, 0.4); background: rgba(255, 255, 255, 0.4); }
+.np-mast { text-align: center; border-bottom: 3px double #1d1a14; padding-bottom: 6px; }
+.np-mast h1 { margin: 0; font-family: "UnifrakturMaguntia", serif; font-weight: 400; font-size: 52px; line-height: 1.05; letter-spacing: 0.01em; }
+.np-line { display: flex; justify-content: space-between; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #1d1a14; padding: 4px 0; margin-bottom: 12px; }
+.np-lead h2 { margin: 6px 0 6px; font-family: "IM Fell English SC", Georgia, serif; font-weight: 400; font-size: 34px; line-height: 1.1; text-align: center; }
+.np-lead p { margin: 0 0 12px; font-size: 16px; text-align: center; font-style: italic; }
+.np-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 20px; border-top: 1px solid #1d1a14; padding-top: 10px; }
+.np-cols article h3 { margin: 0 0 4px; font-family: "IM Fell English SC", Georgia, serif; font-weight: 400; font-size: 19px; line-height: 1.15; }
+.np-cols article p { margin: 0; font-size: 13.5px; line-height: 1.45; text-align: justify; hyphens: auto; }
+.np-cols article .d { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.65; }
+.np-empty { text-align: center; font-style: italic; margin: 20px 0; }
+.np-nav { display: flex; justify-content: space-between; margin-top: 14px; border-top: 1px solid rgba(0, 0, 0, 0.35); padding-top: 8px; }
+.np-nav button { font: inherit; font-size: 13px; cursor: pointer; background: none; border: 1px solid rgba(0, 0, 0, 0.4); padding: 3px 10px; color: inherit; }
+.np-nav button:disabled { opacity: 0.35; cursor: default; }
+.np-note { font-size: 11px; opacity: 0.6; text-align: center; margin: 8px 0 0; }
+
+/* ---------- Abschlussbildschirm ---------- */
+#gameover .card { max-width: 640px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+#gameover h2.win { color: #C8A156; }
+#gameover h2.lose { color: #d0553d; }
+.go-sub { margin: 0 0 12px; font-size: 15px; opacity: 0.9; }
+.go-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 10px 0 14px; }
+.go-stats div { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(200, 161, 86, 0.35); padding: 8px 10px; }
+.go-stats b { display: block; font-size: 20px; color: #C8A156; font-variant-numeric: tabular-nums; }
+.go-stats span { font-size: 12px; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.05em; }
+.go-events { list-style: none; margin: 6px 0 0; padding: 0; font-size: 13.5px; display: grid; gap: 3px; }
+.go-events time { opacity: 0.7; margin-right: 6px; font-variant-numeric: tabular-nums; }
+#gameover h3 { margin: 12px 0 4px; font-family: "IM Fell English SC", Georgia, serif; font-weight: 400; color: #C8A156; font-size: 18px; }
+.go-actions { display: flex; gap: 8px; margin-top: 14px; }
+.go-actions .btn { margin-top: 0; flex: 1; }
+.go-actions .btn-main { width: auto; }
+
+/* ---------- Hauptmenü ---------- */
+#menu {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; overflow-y: auto;
+  background: radial-gradient(ellipse at 50% 40%, #23201a 0%, #12110d 60%, #070605 100%);
+  color: #E4D9BC; font-family: "Spectral", Georgia, serif;
+}
+#menu::after { content: ""; position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 180px rgba(0, 0, 0, 0.85); }
+#menu .grain {
+  position: fixed; inset: -50%; pointer-events: none; opacity: 0.16; mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.4 -0.3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain 0.6s steps(6) infinite;
+}
+@keyframes grain {
+  0% { transform: translate(0, 0); } 17% { transform: translate(-3%, 2%); } 33% { transform: translate(2%, -4%); }
+  50% { transform: translate(-4%, -1%); } 67% { transform: translate(3%, 3%); } 83% { transform: translate(-1%, 4%); } 100% { transform: translate(0, 0); }
+}
+@media (prefers-reduced-motion: reduce) { #menu .grain { animation: none; } }
+.menu-board {
+  position: relative; z-index: 1; width: min(440px, 100%); padding: 26px 30px 24px; text-align: center;
+  background-color: #3b2a1b;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.2' numOctaves='4' seed='7'/%3E%3CfeColorMatrix values='0.33 0.33 0.33 0 0 0.33 0.33 0.33 0 0 0.33 0.33 0.33 0 0 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.45) 0 1px, rgba(255, 220, 160, 0.06) 1px 2px, transparent 2px 58px),
+    linear-gradient(180deg, #4d3723, #2f2118);
+  background-blend-mode: overlay, normal, normal;
+  border: 3px solid #14130d; outline: 1px solid rgba(200, 161, 86, 0.45); outline-offset: -9px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+.menu-board h1 { margin: 0; font-family: "UnifrakturMaguntia", serif; font-weight: 400; font-size: 64px; line-height: 1.05; color: #C8A156; text-shadow: 0 2px 0 #000, 0 0 24px rgba(200, 161, 86, 0.25); }
+.menu-sub { margin: 2px 0 18px; font-family: "IM Fell English SC", Georgia, serif; letter-spacing: 0.12em; opacity: 0.8; font-size: 14px; }
+.menu-list { display: grid; gap: 8px; }
+.menu-list button, .menu-start, .menu-back {
+  font-family: "IM Fell English SC", Georgia, serif; font-size: 20px; cursor: pointer; padding: 8px 14px; color: #E4D9BC;
+  background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(200, 161, 86, 0.5); box-shadow: inset 0 1px 0 rgba(255, 220, 160, 0.08);
+}
+.menu-list button:hover, .menu-list button:focus-visible, .menu-start:hover, .menu-back:hover { background: rgba(200, 161, 86, 0.2); border-color: #C8A156; outline: none; }
+.menu-start { width: 100%; margin-top: 12px; background: linear-gradient(180deg, #d9b56a, #a8823f); color: #1A1C14; border-color: #6b5326; }
+.menu-back { width: 100%; margin-top: 8px; font-size: 16px; }
+.menu-panel { text-align: left; }
+.menu-panel h2 { margin: 0 0 8px; font-family: "IM Fell English SC", Georgia, serif; font-weight: 400; color: #C8A156; font-size: 22px; text-align: center; }
+.menu-panel p { font-size: 14px; margin: 0 0 10px; opacity: 0.9; }
+.menu-panel fieldset { border: 1px solid rgba(200, 161, 86, 0.35); margin: 0 0 10px; padding: 8px 12px; }
+.menu-panel legend { font-family: "IM Fell English SC", Georgia, serif; color: #C8A156; padding: 0 4px; }
+.menu-panel label { display: block; margin: 4px 0; font-size: 15px; cursor: pointer; }
+.menu-panel label small { display: block; opacity: 0.7; font-size: 12.5px; margin-left: 22px; }
+.menu-panel input[type="radio"], .menu-panel input[type="checkbox"] { accent-color: #C8A156; margin-right: 6px; }
+.menu-panel input[type="range"] { width: 100%; accent-color: #C8A156; }
+.menu-panel .seg { display: flex; gap: 4px; }
+.menu-panel .seg button { flex: 1; font: inherit; font-size: 14px; padding: 4px; cursor: pointer; background: rgba(0, 0, 0, 0.3); color: inherit; border: 1px solid rgba(255, 255, 255, 0.25); }
+.menu-panel .seg button[aria-pressed="true"] { background: #C8A156; color: #1A1C14; border-color: #C8A156; }
+.menu-foot { margin-top: 16px; font-size: 11.5px; opacity: 0.55; }
+.menu-bye { font-family: "IM Fell English SC", Georgia, serif; font-size: 18px; margin: 10px 0; }

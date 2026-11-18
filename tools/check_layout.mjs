@@ -3,7 +3,7 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
-const PAGE_URL = process.env.URL || 'http://localhost:4173/';
+const PAGE_URL = process.env.URL || 'http://localhost:4173/?menu=0';
 const OUT = new URL('../screenshots/', import.meta.url).pathname;
 const sizes = [[1920, 1080], [1600, 1000], [1440, 900], [1366, 768], [1280, 720], [1024, 700]];
 const browser = await chromium.launch();

@@ -11,7 +11,8 @@ gebaut.
 | 2 | Echtzeit und Kampf (Deutschland gegen Polen spielbar) | fertig |
 | 3 | Wirtschaft, Infrastruktur, KI-Nationen, Speichern | fertig |
 | 4 | Forschung, Geheimdienst, Generäle | fertig |
-| 5–6 | folgen | offen |
+| 5 | Moral, Diplomatie, Ereignisse, Hauptmenü, Spielende (Version 1 fertig) | fertig |
+| 6 | folgt | offen |
 
 ## Technik
 - Reines HTML/CSS/JavaScript (ES-Module), kein Framework. Build mit Vite (`base: './'`).
@@ -52,6 +53,11 @@ src/sim/                   Simulation ohne DOM (läuft im Browser und in Node gl
                            Nebel des Krieges (isRevealed), Desinformation, KI-Missionen
   airstrike.js             Luftangriffe einer Front auf Knoten/Brücken/Fabriken hinter der Front
   generals.js              ein General je Front und Seite, Eigenschaften, automatische Besetzung
+  morale.js                Moral je Nation, Propaganda, Wirkung auf Kampf/Produktion/Desertion/Kapitulation
+  diplomacy.js             Verträge, Beziehungen, Kriegserklärung, Bündnispflicht, Angebote, Frieden,
+                           Waffenstillstand ohne Landfront
+  events.js                historische Ereignisse (Auslöser) und Entscheidungs-Pop-ups, Teilungslinie
+  news.js                  Zeitung "Der Tagesanzeiger" (Schlagzeilen aus den Meldungen)
   sectors.js, rng.js (mit speicherbarem Zustand), calendar.js, constants.js
 src/data/projection.js     EPSG:3035 vorwärts/rückwärts (ellipsoidisch)
 src/data/grid.js           Feldraster: Besitzer, Terrain, Nachbarn
@@ -62,10 +68,12 @@ src/map/renderer.js        Kartenzeichnung in Ebenen: statisch (Länder, Relief,
                            feldweise mit Schraffur, Fronten als Stacheldraht, Belagerungen)
 src/map/styles.js          Farben und Schriften je Kartenmodus
 src/ui/                    panel.js (Feldinfo, Nation), game.js (Lage, Frontfenster, Kampfanzeige,
-                           Meldungen, Abschluss, General, Luftangriffe), economy.js (Kennzahlen,
+                           Meldungen, Abschlussbildschirm, General, Luftangriffe), economy.js (Kennzahlen,
                            Wirtschaftsleiste, Standortwahl, Reiter Forschung), intel.js (Akte,
-                           Agenten, Missionen), flags.js
-src/styles/                base.css + front.css / economy.css / intel.css (Layout je Modus), game.css, econ.css
+                           Agenten, Missionen), phase5.js (Entscheidung, Diplomatie, Zeitung, Moral),
+                           menu.js (Hauptmenü, Einstellungen), flags.js
+src/styles/                base.css + front.css / economy.css / intel.css (Layout je Modus), game.css, econ.css,
+                           phase5.css
 src/assets/flags/          Nationalflaggen 1939 als SVG (vereinfacht)
 public/data/               erzeugte Spieldaten (nicht von Hand ändern)
 tools/                     Datenpipeline, Tests, Screenshot- und Layoutprüfung
@@ -86,8 +94,8 @@ npm run dev                      # Entwicklungsserver
 npm run build && npm run preview # Produktionsbuild lokal (Port 4173)
 npm run screenshots              # Playwright-Screenshots + Video eines Angriffs (Preview muss laufen)
 node tools/check_layout.mjs      # Überlappungsprüfung der Kopfleiste in 6 Fenstergrößen × 3 Modi
-node tools/sim_run.mjs [seed]    # Feldzug ohne Spieler im Terminal (Tagesprotokoll, Tickzeiten)
-# Im Browser: ?seed=123 (anderer Zufall), ?debug=1 (Schalter für Kriegserklärungen)
+node tools/sim_run.mjs [seed]    # Kampagne ohne Spieler (Normal, Angriff auf Polen, Westen halten) im Terminal
+# Im Browser: ?seed=123 (anderer Zufall), ?debug=1 (Schalter für Kriegserklärungen), ?menu=0 (ohne Hauptmenü)
 ```
 
 ## Arbeitsregeln
@@ -180,3 +188,28 @@ node tools/sim_run.mjs [seed]    # Feldzug ohne Spieler im Terminal (Tagesprotok
 - Zoomstufen: unter 6 px je Feld schlichte Linie, bis 14 px verdrillter Draht, darüber Stacheln,
   Dichte nach Befestigung (0,33 / 0,66), ab 0,66 Holzpfähle. Schein: Messing = vorbereiten,
   grau = halten, rot = Angriff (nach Abschnittsstatus).
+
+## Datenmodell (Phase 5)
+- Moral: `nations[n].morale` (0–100), Gleichgewicht `morale.start` (+ Schwierigkeit beim Spieler).
+  Städte/Kessel/Kapitulationen ±, tägliche Verluste und Kriegsmüdigkeit −. Unter `lowFrom` sinken
+  Kampfkraft (`moraleCombat`) und Produktion (`moraleProduction`), unter `desertBelow` Desertion;
+  über `highFrom` steigt die Kapitulationsschwelle (`capitulationBonus`). Propaganda kostet Geld,
+  Wirkung × `decay` je Einsatz der letzten `windowDays`.
+- Diplomatie `sim.dip`: `alliances`, `pacts` (Paare), `wars[a-b] = {aggressor, day, attacked,
+  obligation}`, `obligations`, `scheduled` (Bündnis-Kriegserklärungen), `breaches`, `offers`
+  (Wartezeit), `noFront` (Waffenstillstand), `everEnemies`, `flags` (Ereignisse), `effects`
+  (befristete Wirkungen, z. B. Rüstung −25 %), `partition` (Teilungslinie). Beziehungen in
+  `sim.relations` (−100 … +100). Bündnis = Beistandspakt gegen den ersten Angreifer; Spieler wird
+  nie automatisch verpflichtet. Szenario-Krieg DEU–POL: Bündnispflichten erst beim ersten Angriff.
+- KI-Haltung (`ai.js decidePosture`): Angreifer ab Kräfteverhältnis `aiAttackRatio.offensive`,
+  Verteidiger ab `defensive` und erst nach `aiDefensiveDelayDays`; gegnerische Befestigung zählt.
+- Entscheidungen: `sim.pending = {kind, title, text, options}`; `tick()` gibt `false` zurück und
+  rechnet nicht weiter, bis `decide(sim, k)`. Testläufe: `sim.autoDecide`.
+- Spielende `sim.outcome = {result: 'sieg'|'niederlage', day, allCapitulated}`. Sieg: keine Gegner
+  mehr und mindestens eine Kapitulation; Niederlage: Kapitulation Deutschlands.
+- Einstellungen `sim.settings = {difficulty, sandbox}`; `sim.diff()` liefert die Stufe
+  (aiAttack, income, supply, morale, intel). Startwerte sind auf allen Stufen gleich.
+- Zeitung `sim.news` (Schlagzeilen mit Priorität), `issue(sim, day)` = Ausgabe der letzten 7 Tage.
+- Leistung: Nachschub wird bei Bedarf je angreifender Nation berechnet (`ensureSupply`, regional um
+  die Fronten), Grenzfeldliste statt Rechteckdurchlauf, Kessel/Bedrohung nur nach Gebietsverlust.
+  Alle Felder des Simulationsobjekts werden im Konstruktor angelegt (stabile Objektform).

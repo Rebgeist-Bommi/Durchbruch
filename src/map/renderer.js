@@ -899,7 +899,7 @@ export class MapRenderer {
     const { ctx, camera: cam, dpr } = this;
     const fs = st.warFront;
     const cellPx = this.cellU / u;
-    const pulse = 0.7 + 0.3 * Math.sin(performance.now() / 160);
+    const pulse = this.lowDetail ? 1 : 0.7 + 0.3 * Math.sin(performance.now() / 160);
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.lineCap = 'round';
@@ -919,7 +919,7 @@ export class MapRenderer {
       ctx.stroke(p);
     }
     ctx.globalAlpha = alpha;
-    if (cellPx < 6) {
+    if (cellPx < 6 || this.lowDetail) {
       // weit herausgezoomt: schlichte Drahtlinie
       ctx.strokeStyle = '#2a2925';
       ctx.lineWidth = 2.2 * u;

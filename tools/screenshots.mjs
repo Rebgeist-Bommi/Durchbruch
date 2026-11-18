@@ -1,27 +1,35 @@
-// Abnahme-Screenshots und Video (Phase 2) mit Playwright.
+// Abnahme-Screenshots und Video (Phase 2–5) mit Playwright.
 // Voraussetzung: npm run build && npm run preview (Port 4173). Aufruf: npm run screenshots
 import { createRequire } from 'node:module';
-import { mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
-const PAGE_URL = process.env.URL || 'http://localhost:4173/';
+const PAGE_URL = process.env.URL || 'http://localhost:4173/?menu=0';
 const OUT = new URL('../screenshots/', import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
-for (const f of readdirSync(OUT)) rmSync(OUT + f);
+for (const f of readdirSync(OUT)) if (statSync(OUT + f).isFile()) rmSync(OUT + f); // Unterordner (z. B. stacheldraht/) bleiben
 
 const browser = await chromium.launch();
 const errors = [];
 const report = { shots: [] };
 
-async function open(ctxOpts = {}) {
+async function open(ctxOpts = {}, url = PAGE_URL) {
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, ...ctxOpts });
   const page = await context.newPage();
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push(String(e)));
-  await page.goto(PAGE_URL);
+  await page.goto(url);
   await page.waitForSelector('body[data-ready="true"]', { timeout: 30000 });
+  // Phase 5: ein Spieltag; anstehende Entscheidungen mit der ersten Option beantworten (wie im Testlauf)
+  await page.evaluate(() => {
+    window.__tick = () => {
+      const D = window.__durchbruch;
+      if (D.sim.pending) { D.decision.show(); document.querySelector('#dc-options [data-opt="0"]').click(); return; }
+      D.doTick();
+    };
+  });
   return { context, page };
 }
 
@@ -69,10 +77,12 @@ await shot(page, '04-frontfenster-aufmarsch');
 
 // ---------------------------------------------------------------- 3. Angriff auslösen und Feldzug
 await page.click('#all-attack');
+// wie im Testlauf: Angriff auf Polen, Westen halten (neue Westfront erhält Truppen)
+await page.evaluate(() => { const D = window.__durchbruch; D.sim.autoplay = D.autoplayCampaign; });
 const days = [3, 7, 12, 18, 25];
 let day = 0;
 for (const d of days) {
-  await page.evaluate((n) => { const D = window.__durchbruch; for (let i = 0; i < n; i++) D.doTick(); D.renderer.render(1); }, d - day);
+  await page.evaluate((n) => { const D = window.__durchbruch; for (let i = 0; i < n; i++) window.__tick(); D.renderer.render(1); }, d - day);
   day = d;
   await shot(page, `05-angriff-tag-${String(d).padStart(2, '0')}`);
 }
@@ -86,7 +96,8 @@ await page.keyboard.press('1');
 // bis zur Kapitulation
 const end = await page.evaluate(() => {
   const D = window.__durchbruch;
-  while (!D.sim.isOver() && D.sim.day < 150) D.doTick();
+  const POL = D.sim.idx('POL');
+  while (D.sim.nations.get(POL).status === 'aktiv' && D.sim.day < 150) window.__tick();
   D.renderer.render(1);
   const pol = D.sim.nations.get(D.sim.idx('POL'));
   const ms = D.sim.tickMs.filter((v) => v > 0);
@@ -94,7 +105,6 @@ const end = await page.evaluate(() => {
 });
 report.capitulation = end;
 await shot(page, '08-kapitulation');
-await page.click('#go-close');
 await page.evaluate(() => { window.__durchbruch.renderer.focusStart(); window.__durchbruch.renderer.render(1); });
 await shot(page, '09-karte-nach-feldzug');
 await context.close();
@@ -139,7 +149,7 @@ report.buildByClick = after - before;
 await page.evaluate(() => {
   const D = window.__durchbruch;
   for (const f of D.sim.fronts.values()) if (f.side[D.sim.player]) D.sim.attack(f.id);
-  for (let i = 0; i < 20; i++) D.doTick();
+  for (let i = 0; i < 20; i++) window.__tick();
   const r = D.renderer;
   const [x0, y0] = r.map.worldToMap(4_550_000, 2_900_000);
   const [x1, y1] = r.map.worldToMap(5_400_000, 3_550_000);
@@ -150,7 +160,7 @@ await shot(page, '14-wirtschaft-krieg-bahnschaeden');
 // Speichern -> 5 Tage weiter -> Laden (Seite lädt neu) -> Tag stimmt
 const savedDay = await page.evaluate(() => window.__durchbruch.sim.day);
 await page.click('[data-save="save"]');
-await page.evaluate(() => { for (let i = 0; i < 5; i++) window.__durchbruch.doTick(); });
+await page.evaluate(() => { for (let i = 0; i < 5; i++) window.__tick(); });
 await page.click('[data-save="load"]');
 await page.waitForSelector('body[data-ready="true"]', { timeout: 60000 });
 await page.waitForTimeout(300);
@@ -164,7 +174,7 @@ await context.close();
 await page.evaluate(() => {
   const D = window.__durchbruch;
   for (const f of D.sim.fronts.values()) if (f.side[D.sim.player]) D.sim.attack(f.id);
-  for (let i = 0; i < 30; i++) D.doTick();
+  for (let i = 0; i < 30; i++) window.__tick();
 });
 await page.keyboard.press('2');
 await page.click('[data-action="tab"][data-tab="forschung"]');
@@ -188,7 +198,37 @@ await page.evaluate(() => { const D = window.__durchbruch; const f = [...D.sim.f
 await shot(page, '18-frontfenster-general');
 await context.close();
 
-// ---------------------------------------------------------------- 6. Video: Angriff in Echtzeit (4×)
+// ---------------------------------------------------------------- 6. Phase 5: Hauptmenü, Entscheidung, Zeitung, Diplomatie, Ende
+({ context, page } = await open({}, PAGE_URL.replace('?menu=0', '')));
+await shot(page, '19-hauptmenue');
+await page.click('#menu [data-m="campaign"]');
+await page.click('#menu [data-m="start-campaign"]');
+report.phase5 = await page.evaluate(() => {
+  const D = window.__durchbruch;
+  D.sim.autoplay = D.autoplayCampaign;
+  while (!D.sim.pending && D.sim.day < 60) D.doTick();
+  D.setSpeed(2); // bleibt wegen der Entscheidung angehalten
+  return { decisionDay: D.sim.day, decision: D.sim.pending?.title, speedWhilePending: D.clock.speed };
+});
+await shot(page, '20-entscheidung');
+await page.click('#dc-options [data-opt="0"]');
+await page.evaluate(() => { for (let i = 0; i < 6; i++) window.__tick(); });
+await page.click('.gamebar [data-open="paper"]');
+await shot(page, '21-zeitung');
+await page.keyboard.press('Escape');
+await page.click('.gamebar [data-open="diplo"]');
+await shot(page, '22-diplomatie');
+await page.keyboard.press('Escape');
+report.phase5.end = await page.evaluate(() => {
+  const D = window.__durchbruch;
+  while (!D.sim.isOver() && D.sim.day < 250) window.__tick();
+  return D.sim.outcome;
+});
+await page.waitForTimeout(300);
+await shot(page, '23-abschluss');
+await context.close();
+
+// ---------------------------------------------------------------- 7. Video: Angriff in Echtzeit (4×)
 ({ context, page } = await open({ recordVideo: { dir: OUT, size: { width: 1280, height: 800 } }, viewport: { width: 1280, height: 800 } }));
 await page.evaluate(() => {
   const { renderer: r } = window.__durchbruch;

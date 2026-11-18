@@ -7,7 +7,7 @@ import { resolveCombat, updateOrdersOverTime } from './combat.js';
 import { resolvePockets, resolveSieges, checkCapitulation, markExclaves } from './pockets.js';
 import { runAi, warmupAi } from './ai.js';
 import { formatDate } from './calendar.js';
-import { initInfra, computeRailSupply, railSupply, repairRail, advanceUpgrades, damageOnCapture, levelFactor, levelOfCell } from './infra.js';
+import { initInfra, computeRailSupply, ensureSupply, ensureSupplyFull, railSupply, repairRail, advanceUpgrades, damageOnCapture, levelFactor, levelOfCell } from './infra.js';
 import { initEconomy, runEconomy, divisionStrength, captureBuildings, transferStocks } from './economy.js';
 import { initHistory, recordDay } from './history.js';
 import { initResearch, runResearch } from './research.js';
@@ -15,10 +15,26 @@ import { initScientists, runScientists } from './scientists.js';
 import { initIntel, runIntel, isRevealed } from './intel.js';
 import { runAirStrikes } from './airstrike.js';
 import { initGenerals, runGenerals } from './generals.js';
+import { initMorale, runMorale, moraleCity } from './morale.js';
+import { initDiplomacy, runDiplomacy } from './diplomacy.js';
+import { checkDecisions, decide, runWorldEvents } from './events.js';
+import { initNews, runNews } from './news.js';
 
 import { NMAX, KM_PER_CELL } from './constants.js';
 
 export { NMAX, KM_PER_CELL };
+
+// Namen mit Artikel: [Nominativ am Satzanfang, Dativ, Akkusativ]; ohne Eintrag: Name ohne Artikel
+const ARTICLES = {
+  DEU: ['Das Deutsche Reich', 'dem Deutschen Reich', 'das Deutsche Reich'],
+  GBR: ['Das Vereinigte Königreich', 'dem Vereinigten Königreich', 'das Vereinigte Königreich'],
+  SOV: ['Die Sowjetunion', 'der Sowjetunion', 'die Sowjetunion'],
+  NLD: ['Die Niederlande', 'den Niederlanden', 'die Niederlande'],
+  SVK: ['Die Slowakei', 'der Slowakei', 'die Slowakei'],
+  CHE: ['Die Schweiz', 'der Schweiz', 'die Schweiz'],
+  TUR: ['Die Türkei', 'der Türkei', 'die Türkei'],
+  DAN: ['Die Freie Stadt Danzig', 'der Freien Stadt Danzig', 'die Freie Stadt Danzig'],
+};
 
 export class Simulation {
   /**
@@ -33,6 +49,7 @@ export class Simulation {
     bytes.set(grid.terrain, grid.size);
     const copy = new grid.constructor(grid.meta, bytes);
     const sim = new Simulation({ grid: copy, map, balance, infra, people, seed: 1, warm: true });
+    sim.autoDecide = () => 0;
     for (const f of sim.fronts.values()) if (f.side[sim.player]) sim.attack(f.id);
     for (let k = 0; k < 3; k++) sim.tick();
   }
@@ -40,10 +57,21 @@ export class Simulation {
   constructor({ grid, map, balance, infra, people, seed, warm = false, peace = false }) {
     if (!infra) throw new Error('Simulation braucht infra.json (Phase 3)');
     if (!people) throw new Error('Simulation braucht Wissenschaftler und Generäle (Phase 4)');
+    // Leistung (Phase 5): Alle später genutzten Felder vorab anlegen. Kommen Felder erst im Lauf
+    // hinzu, ändert sich die Objektform und die JavaScript-Engine verwirft optimierten Code.
+    for (const k of ['_ownerDirty', '_border', '_borderOwner', '_borderFlag', '_supplyDay', '_sq', '_q', '_occCount', '_conn',
+      '_aiQ', '_aiEroded', '_aiDist', '_aiCore', '_uf', '_seen', '_mark', '_edgeWar', '_compMark', 'supplyDist', 'nodeCount',
+      'phaseMs', 'phaseLog', 'autoDecide', 'autoplay', 'pocketMark', '_pocketCells', 'exclave', '_polCells', '_partition', '_supplyFullDay']) this[k] = null;
+    this._connStamp = 0;
+    this._compSeq = 0;
     this.grid = grid;
     this.map = map;
     this.bal = balance;
     this.seed = seed ?? balance.seed;
+    // Phase 5: Schwierigkeit und Sandbox (Startwerte sind auf allen Stufen gleich)
+    this.settings = { difficulty: balance.difficulty.default, sandbox: false };
+    this.pending = null; // anstehende Entscheidung (hält die Simulation an)
+    this.outcome = null; // Spielende: {result: 'sieg' | 'niederlage', day}
     this.rng = createRng(this.seed);
     this.day = 0;
     this.cols = grid.cols;
@@ -97,6 +125,8 @@ export class Simulation {
       this.nations.set(n, {
         status: 'aktiv', capitulationDay: -1, startCells: 0,
         lossesTotal: 0, prisonersTaken: 0, menLostAsPrisoners: 0, airTotal: 0,
+        airToday: 0, lostShare: 0, lastLossDay: -1000, morale: 60, propaganda: [], lossSeen: 0, deserted: 0,
+        warSince: this.inWar[n] ? 0 : -1,
       });
     }
     this.fronts = new Map();
@@ -110,6 +140,9 @@ export class Simulation {
     initIntel(this);
     initGenerals(this, people.generals);
     initHistory(this);
+    initMorale(this);
+    initDiplomacy(this);
+    initNews(this);
     this.methodCount = new Map(); // eroberte Felder je Nation und Vorgehen
     this.computeStartState();
     updateFronts(this);
@@ -133,6 +166,10 @@ export class Simulation {
   }
   code(i) { return this.codes[i - 1]; }
   nationName(i) { return this.grid.nationNames[this.code(i)]; }
+  /** Name mit Artikel am Satzanfang (Nominativ), im Dativ und im Akkusativ (Phase 5, Meldungen). */
+  nameNom(i) { const a = ARTICLES[this.code(i)]; return a ? a[0] : this.nationName(i); }
+  nameDat(i) { const a = ARTICLES[this.code(i)]; return a ? a[1] : this.nationName(i); }
+  nameAcc(i) { const a = ARTICLES[this.code(i)]; return a ? a[2] : this.nationName(i); }
   isWar(a, b) { return this.atWar[a * NMAX + b] === 1; }
   warNations() {
     const s = new Set();
@@ -144,14 +181,31 @@ export class Simulation {
   }
   dateText(day = this.day) { return formatDate(this.bal.time.startDate, day); }
 
-  declareWar(a, b, message = true) {
+  /** Werte der gewählten Schwierigkeit. */
+  diff() { return this.bal.difficulty.levels[this.settings.difficulty] || this.bal.difficulty.levels.normal; }
+
+  setDifficulty(level, sandbox = this.settings.sandbox) {
+    if (!this.bal.difficulty.levels[level]) throw new Error(`Schwierigkeit ${level}`);
+    this.settings.difficulty = level;
+    this.settings.sandbox = !!sandbox;
+    for (const [n, st] of this.nations) if (n === this.player) st.morale = Math.max(0, Math.min(100, st.morale + this.diff().morale));
+  }
+
+  declareWar(a, b, message = true, text = null) {
     this.atWar[a * NMAX + b] = 1;
     this.atWar[b * NMAX + a] = 1;
     this.wars.push([a, b]);
     this.inWar[a] = 1;
     this.inWar[b] = 1;
-    for (let i = 0; i < this.N; i++) if (this.inWar[this.owner[i]]) this.growBox(i);
-    if (message) this.log('war', `${this.nationName(a)} und ${this.nationName(b)} befinden sich im Krieg.`);
+    for (const n of [a, b]) { const st = this.nations?.get(n); if (st) { st.lastLossDay = this.day; if (st.warSince < 0) st.warSince = this.day; } }
+    // Suchrechteck aller Kriegsparteien: Vereinigung der Nationsrechtecke (enthalten alle Felder)
+    for (const n of [a, b]) {
+      const nb = this.nationBox?.get(n);
+      if (!nb || nb.r1 < 0) continue;
+      this.growBox(nb.r0 * this.cols + nb.c0);
+      this.growBox(nb.r1 * this.cols + nb.c1);
+    }
+    if (message) this.log('war', text || `${this.nameNom(a)} und ${this.nameAcc(b)} befinden sich im Krieg.`);
   }
 
   /** Rechteck um alle Felder kriegführender Nationen (Suchbereich der Tick-Berechnungen). */
@@ -193,6 +247,7 @@ export class Simulation {
     this.atWar[a * NMAX + b] = 0;
     this.atWar[b * NMAX + a] = 0;
     this.wars = this.wars.filter(([x, y]) => !((x === a && y === b) || (x === b && y === a)));
+    for (const n of [a, b]) { const st = this.nations.get(n); if (st) st.lastLossDay = this.day; }
   }
 
   log(type, text, cell = -1) {
@@ -274,7 +329,14 @@ export class Simulation {
     computeRailSupply(this);
   }
 
+  /** Nachschub des Spielers für die Feldanzeige (ganzes Land). */
+  supplyDisplay(cell, n = this.player) {
+    ensureSupplyFull(this, n);
+    return railSupply(this, n, cell);
+  }
+
   supply(n, cell) {
+    ensureSupply(this, n);
     return railSupply(this, n, cell);
   }
 
@@ -461,6 +523,14 @@ export class Simulation {
 
   // ---------------------------------------------------------------- Tick
   tick() {
+    // Entscheidungen halten das Spiel an (Testläufe: automatische Wahl über sim.autoDecide)
+    if (this.outcome) return false;
+    if (checkDecisions(this)) {
+      if (!this.autoDecide) return false;
+      decide(this, this.autoDecide(this, this.pending));
+      if (checkDecisions(this)) decide(this, this.autoDecide(this, this.pending));
+      if (this.pending) return false;
+    }
     const t0 = (globalThis.performance || Date).now();
     this.changed = [];
     this.day += 1;
@@ -500,7 +570,6 @@ export class Simulation {
       fn();
       phases[name] = clock.now() - a;
     };
-    run('nachschub', () => computeRailSupply(this));
     run('generaele', () => runGenerals(this));
     run('ki', () => runAi(this));
     run('auto', () => this.autoplay && this.autoplay(this));
@@ -514,18 +583,44 @@ export class Simulation {
     run('wirtschaft', () => runEconomy(this));
     run('forschung', () => { runResearch(this); runScientists(this); });
     run('geheimdienst', () => { runIntel(this); runAirStrikes(this); });
+    run('diplomatie', () => { runDiplomacy(this); runWorldEvents(this); runMorale(this); });
     this.cleanupDivisions();
+    this.checkOutcome();
+    runNews(this);
     recordDay(this);
     const ms = clock.now() - t0;
     this.tickMs.push(ms);
     this.phaseLog = this.phaseLog || [];
     this.phaseLog.push({ day: this.day, ms, ...phases });
+    return true;
+  }
+
+  /** Spielende: Sieg = alle Kriegsgegner haben kapituliert oder Frieden geschlossen (mindestens
+   * eine Kapitulation); Niederlage = Kapitulation Deutschlands. */
+  checkOutcome() {
+    if (this.outcome) return;
+    const me = this.nations.get(this.player);
+    if (me.status === 'kapituliert') {
+      this.outcome = { result: 'niederlage', day: this.day };
+      this.log('end', `Niederlage: ${this.nameNom(this.player)} hat kapituliert.`);
+      return;
+    }
+    const ever = this.dip.everEnemies;
+    if (!ever.length || this.enemiesOf(this.player).length) return;
+    const caps = ever.filter((n) => this.nations.get(n)?.status === 'kapituliert');
+    if (!caps.length) return;
+    this.outcome = { result: 'sieg', day: this.day, allCapitulated: caps.length === ever.length };
+    this.log('end', `Sieg: Kein Kriegsgegner steht mehr im Feld.`);
   }
 
   setOwner(cell, n, method, quiet = false) {
     const old = this.owner[cell];
     if (old === n) return;
     this.owner[cell] = n;
+    // Phase 5 (Leistung): letzter Gebietsverlust je Nation, geänderte Felder für die Frontsuche
+    const lst = this.nations.get(old);
+    if (lst) lst.lastLossDay = this.day;
+    (this._ownerDirty || (this._ownerDirty = [])).push(cell);
     this.ownedCount[old]--;
     this.ownedCount[n]++;
     if (this.inWar[n]) this.growBox(cell);
@@ -546,6 +641,7 @@ export class Simulation {
     if (ci >= 0) {
       const c = this.cities[ci];
       const si = this.siegeAt[cell];
+      if (old && this.isWar(old, n)) moraleCity(this, c, old, n);
       if (si >= 0 && !this.sieges[si].fallen) {
         const s = this.sieges[si];
         s.fallen = true;
@@ -571,9 +667,9 @@ export class Simulation {
     this.divisions = this.divisions.filter((d) => d.men >= d.maxMen * lim);
   }
 
-  /** Feldzug beendet: Es gab Krieg, und keiner läuft mehr. */
+  /** Spiel beendet (Sieg oder Niederlage, siehe checkOutcome). */
   isOver() {
-    return this.wars.length === 0 && this.events.some((e) => e.type === 'capitulation');
+    return !!this.outcome;
   }
 
   /** Vorwiegendes Vorgehen einer Nation bei Eroberungen (1 minimal, 2 total). */
@@ -586,23 +682,22 @@ export class Simulation {
     return this.nearestCityName(this.sectors.cx[sector], this.sectors.cy[sector], 4);
   }
 
-  /** Krieg während des Spiels beginnen (Debug-Schalter; Diplomatie folgt in Phase 5). */
-  startWar(aCode, bCode) {
+  /** Krieg beginnen (technisch; Diplomatie und Folgen in diplomacy.declareWar). */
+  startWar(aCode, bCode, text = null) {
     const a = this.idx(aCode);
     const b = this.idx(bCode);
     if (this.isWar(a, b)) return false;
     const fresh = [a, b].filter((n) => !this.inWar[n]);
-    this.declareWar(a, b, true);
+    this.declareWar(a, b, true, text);
     for (const n of [a, b]) {
       if (!this.nations.has(n)) {
-        this.nations.set(n, { status: 'aktiv', capitulationDay: -1, startCells: 0, lossesTotal: 0, prisonersTaken: 0, menLostAsPrisoners: 0, airTotal: 0 });
+        this.nations.set(n, { status: 'aktiv', capitulationDay: -1, startCells: 0, lossesTotal: 0, prisonersTaken: 0, menLostAsPrisoners: 0, airTotal: 0, airToday: 0, lostShare: 0, lastLossDay: -1000, morale: 60, propaganda: [], lossSeen: 0, deserted: 0, warSince: -1 });
       }
       const st = this.nations.get(n);
       if (!st.startCells) st.startCells = this.ownedCount[n];
       this.addSieges(n);
     }
     markExclaves(this, fresh);
-    computeRailSupply(this);
     updateFronts(this);
     return true;
   }

@@ -13,7 +13,7 @@ export function traitOf(sim, front, n) {
 }
 
 export function freeGenerals(sim, n) {
-  return sim.generals.filter((g) => g.n === n && !g.front);
+  return sim.generals.filter((g) => g.n === n && !g.front && !(g.dismissedUntil > sim.day));
 }
 
 export function assignGeneral(sim, frontId, n, id) {

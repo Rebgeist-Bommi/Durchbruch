@@ -5,6 +5,9 @@
 import { KM_PER_CELL } from './constants.js';
 import { mods } from './research.js';
 import { traitOf } from './generals.js';
+import { moraleCombat } from './morale.js';
+import { noteAttack } from './diplomacy.js';
+import { ensureSupply, railSupply } from './infra.js';
 
 /** Land-Nachbarn (N, O, S, W) eines Feldes, -1 = keiner. Liefert eine Ansicht, kein neues Array. */
 function neighbors4(sim, i) {
@@ -64,6 +67,8 @@ function attackFront(sim, f, n, o) {
   const D = sim.sideStrength(f.id, o);
   const strEff = Math.max(0, A.str - side.tied);
   if (strEff <= 0.05) return;
+  noteAttack(sim, n, o); // Phase 5: erster Angriff löst Bündnispflichten aus
+  ensureSupply(sim, n); // Nachschub des Angreifers (einmal je Tag)
 
   const targetsOf = (sec) => (o === f.b ? sec.cellsB : sec.cellsA);
   let totalT = 0;
@@ -85,8 +90,8 @@ function attackFront(sim, f, n, o) {
   const airFront = A.air * (1 - (side.airShare || 0)); // für Luftangriffe abgestellter Anteil fehlt an der Front
   const airDefD = D.air * (1 - (f.side[o].airShare || 0));
   const airMul = Math.max(0.3, 1 + C.airBonus * airFront * (1 + mA.air) - C.airDefense * airDefD * (1 + mD.airDefense));
-  const attMul = (1 + mA.attack) * (1 + (gA.odds || 0));
-  const defMul = (1 + mD.defense) * (1 + (gD.defense || 0));
+  const attMul = (1 + mA.attack) * (1 + (gA.odds || 0)) * moraleCombat(sim, n);
+  const defMul = (1 + mD.defense) * (1 + (gD.defense || 0)) * moraleCombat(sim, o);
   const tankMul = (1 + mA.tank) * (1 + (gA.tank || 0));
   const supplyBonus = gA.supply || 0;
   const encMul = f.encircled[o] ? C.encircledDefense : 1;
@@ -122,7 +127,7 @@ function attackFront(sim, f, n, o) {
       if (mountain) odds *= C.mountainFactor;
       odds *= 1 + C.tankBonus * A.tank * tankMul * (mountain ? C.tankMountainFactor : 1);
       odds /= 1 + O.fortBonus * sim.fort[cell];
-      odds *= Math.min(1, sim.supply(n, cell) + supplyBonus);
+      odds *= Math.min(1, railSupply(sim, n, cell) + supplyBonus);
       odds *= method.speed * wave;
       const noise = 1 + (sim.rng() - 0.5) * 2 * C.noise;
       const p = Math.min(C.maxChance, 1 - Math.exp(-C.baseRate * odds * noise));

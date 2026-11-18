@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { Grid } from '../src/data/grid.js';
 import { decodeMap } from '../src/data/loader.js';
 import { Simulation } from '../src/sim/simulation.js';
-import { autoplayAllAttack } from '../src/sim/autoplay.js';
+import { autoplayCampaign } from '../src/sim/autoplay.js';
 
 export function loadInputs() {
   const dir = new URL('../public/data/', import.meta.url);
@@ -26,10 +26,18 @@ export function newSim({ seed, peace = false } = {}) {
   return new Simulation({ grid, map, balance, infra, people, seed: seed ?? balance.seed, peace });
 }
 
-export function runCampaign({ seed, maxDays = 200, onDay } = {}) {
+/**
+ * Kampagne ohne Spieler (Schwierigkeit Normal): Angriff auf Polen, Westen halten, Entscheidungen
+ * automatisch mit der ersten Option. Ende bei Kapitulation Polens (oder `until`) bzw. maxDays.
+ */
+export function runCampaign({ seed, maxDays = 200, onDay, difficulty = 'normal', autoplay = autoplayCampaign, until = null, decide = () => 0 } = {}) {
   const sim = newSim({ seed });
-  sim.autoplay = autoplayAllAttack;
-  while (!sim.isOver() && sim.day < maxDays) {
+  sim.setDifficulty(difficulty);
+  if (autoplay) sim.autoplay = autoplay;
+  sim.autoDecide = decide;
+  const pol = sim.idx('POL');
+  const done = until || ((s) => s.nations.get(pol).status === 'kapituliert');
+  while (!sim.isOver() && !done(sim) && sim.day < maxDays) {
     sim.tick();
     if (onDay) onDay(sim);
   }

@@ -16,7 +16,7 @@ export function initIntel(sim) {
       revealedSectors: {}, revealedNations: {}, phantom: [], reports: [],
     });
   }
-  sim.relations = {}; // "a-b" -> Wert (0 = neutral); Diplomatie folgt in Phase 5
+  sim.relations = {}; // "a-b" -> Wert (−100 … +100); Startwerte setzt diplomacy.js
   const G = I.defaultGuard;
   for (const node of sim.nodes) node.guard = G.node;
   for (const b of sim.bridges) b.guard = G.bridge;
@@ -29,7 +29,7 @@ export function relation(sim, a, b) {
 
 function changeRelation(sim, a, b, d) {
   const k = a < b ? `${a}-${b}` : `${b}-${a}`;
-  sim.relations[k] = (sim.relations[k] || 0) + d;
+  sim.relations[k] = Math.max(-100, Math.min(100, (sim.relations[k] || 0) + d));
 }
 
 /** Spionageabwehr einer Nation: Stufe + Forschung + Kryptoanalytiker. */
@@ -80,7 +80,7 @@ export function missionChance(sim, n, type, t) {
   if (!d) return 0;
   const enemy = type === 'desinformation' ? sim.enemyOn(d.front, n) : d.nation;
   const own = sim.intel.get(n).level;
-  const p = I.missions[type].base + I.perLevel * (own - counterOf(sim, enemy)) - I.perGuard * (d.guard || 0);
+  const p = I.missions[type].base + I.perLevel * (own - counterOf(sim, enemy)) - I.perGuard * (d.guard || 0) + (n === sim.player && sim.diff ? sim.diff().intel : 0);
   return Math.max(I.minChance, Math.min(I.maxChance, p));
 }
 

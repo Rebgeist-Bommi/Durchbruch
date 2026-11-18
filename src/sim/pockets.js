@@ -2,6 +2,9 @@
 import { neighbors4 } from './combat.js';
 import { fmtInt } from './calendar.js';
 import { transferStocks } from './economy.js';
+import { capitulationBonus, changeMorale } from './morale.js';
+import { applyPartition } from './events.js';
+import { alliesOf } from './diplomacy.js';
 
 /**
  * Zusammenhangskomponenten (4er-Nachbarschaft) der Felder einer Nation im Suchbereich.
@@ -147,8 +150,12 @@ export function resolvePockets(sim) {
     if (!flag) { flag = new Uint8Array(sim.N); sim.pocketMark.set(n, flag); }
     for (const i of sim._pocketCells.get(n) || []) flag[i] = 0; // Markierung des Vortags löschen
     const flagged = [];
+    const hadPockets = (sim._pocketCells.get(n) || []).length > 0;
     sim._pocketCells.set(n, flagged);
     if (st.status !== 'aktiv' || !sim.enemiesOf(n).length) continue;
+    // Leistung: Ohne Gebietsverlust (und ohne Kriegsänderung) seit gestern und ohne offene Kessel
+    // ändert sich nichts – die Zerlegung des Gebiets wäre dieselbe wie am Vortag.
+    if (!hadPockets && st.lastLossDay !== undefined && st.lastLossDay < sim.day - 1) continue;
     const comps = components(sim, n, cm);
     if (comps.length < 2) {
       for (const c of comps) for (const i of c.cells) sim.pocketSince[i] = -1;
@@ -215,6 +222,8 @@ function surrender(sim, n, enemy, comp, mark, where) {
   for (const i of comp.cells) sim.setOwner(i, enemy, 1, true);
   sim.nations.get(enemy).prisonersTaken += men;
   sim.nations.get(n).menLostAsPrisoners += men;
+  changeMorale(sim, enemy, sim.bal.morale.pocketGain);
+  changeMorale(sim, n, -sim.bal.morale.pocketLoss);
   const divText = count ? `${count} Divisionen ergeben sich, ca. ${fmtInt(Math.round(men / 1000) * 1000)} Gefangene` : 'kaum Gegenwehr';
   sim.log('pocket', `Kessel bei ${where} aufgerieben: ${divText}.`, comp.cells[0]);
 }
@@ -229,19 +238,67 @@ export function checkCapitulation(sim) {
     const capLost = cap === undefined || sim.owner[cap] !== n;
     const lost = 1 - sim.ownedCount[n] / st.startCells;
     st.lostShare = lost;
-    if ((C.requireCapital && !capLost) || lost < C.lostShare) continue;
-    // Kapitulation: Restgebiet wird besetzt, verbliebene Truppen gehen in Gefangenschaft
-    const occ = enemies[0];
-    const method = sim.dominantMethod(occ);
-    for (let i = 0; i < sim.N; i++) if (sim.owner[i] === n) sim.setOwner(i, occ, method, true);
-    transferStocks(sim, n, occ, method);
+    // Phase 5: hohe Moral schiebt die Kapitulationsschwelle hinaus
+    if ((C.requireCapital && !capLost) || lost < C.lostShare + capitulationBonus(sim, n)) continue;
+    // Kapitulation: Restgebiet wird besetzt (vereinbarte Teilungslinie oder nächster Gegner),
+    // verbliebene Truppen gehen in Gefangenschaft
+    const occ = mainEnemy(sim, n, enemies);
+    if (!applyPartition(sim, n)) assignRemainder(sim, n, enemies, occ);
+    transferStocks(sim, n, occ, sim.dominantMethod(occ));
     let men = 0;
     for (const d of sim.divisions) if (d.nation === n) { men += d.men; d.men = 0; }
     sim.nations.get(occ).prisonersTaken += men;
     st.menLostAsPrisoners += men;
     st.status = 'kapituliert';
     st.capitulationDay = sim.day;
-    sim.log('capitulation', `${sim.nationName(n)} kapituliert am ${sim.dateText()} – nach ${sim.day} Tagen. ${fmtInt(Math.round(men / 1000) * 1000)} Soldaten gehen in Gefangenschaft.`);
+    const warDays = sim.day - Math.max(0, st.warSince ?? 0);
+    sim.log('capitulation', `${sim.nationName(n)} kapituliert am ${sim.dateText()} – nach ${warDays} Tagen Krieg. ${fmtInt(Math.round(men / 1000) * 1000)} Soldaten gehen in Gefangenschaft.`);
+    const M = sim.bal.morale;
+    for (const e of enemies) changeMorale(sim, e, M.capitulationGain);
+    if (sim.dip) for (const x of alliesOf(sim, n)) if (x !== occ) changeMorale(sim, x, -M.allyCapitulationLoss);
     for (const e of enemies) sim.endWar(n, e);
   }
+}
+
+/** Gegner mit den meisten eroberten Feldern der Nation (erhält Bestände und Gefangene). */
+function mainEnemy(sim, n, enemies) {
+  if (enemies.length === 1) return enemies[0];
+  const cnt = new Map(enemies.map((e) => [e, 0]));
+  forBox(sim, n, (i) => { if (sim.startOwner[i] === n && cnt.has(sim.owner[i])) cnt.set(sim.owner[i], cnt.get(sim.owner[i]) + 1); });
+  return [...cnt].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
+}
+
+/** Restgebiet an den nächstgelegenen Gegner (Breitensuche von dessen Feldern aus). */
+function assignRemainder(sim, n, enemies, occ) {
+  if (enemies.length === 1) {
+    const m = sim.dominantMethod(occ);
+    forBox(sim, n, (i) => { if (sim.owner[i] === n) sim.setOwner(i, occ, m, true); });
+    return;
+  }
+  const to = new Uint8Array(sim.N);
+  const q = [];
+  const isEnemy = new Set(enemies);
+  forBox(sim, n, (i) => {
+    if (sim.owner[i] !== n) return;
+    for (const j of neighbors4(sim, i)) {
+      if (j >= 0 && isEnemy.has(sim.owner[j]) && !to[i]) { to[i] = sim.owner[j]; q.push(i); }
+    }
+  });
+  for (let h = 0; h < q.length; h++) {
+    const i = q[h];
+    for (const j of neighbors4(sim, i)) {
+      if (j >= 0 && sim.owner[j] === n && !to[j]) { to[j] = to[i]; q.push(j); }
+    }
+  }
+  forBox(sim, n, (i) => {
+    if (sim.owner[i] !== n) return;
+    const o = to[i] || occ;
+    sim.setOwner(i, o, sim.dominantMethod(o), true);
+  });
+}
+
+/** Alle Felder im Suchrechteck einer Nation (enthält alle ihre Felder; Startgebiet: Stichtagsbesitz). */
+function forBox(sim, n, fn) {
+  const [r0, r1, c0, c1] = sim.nationRange(n);
+  for (let r = r0; r <= r1; r++) for (let i = r * sim.cols + c0, e = r * sim.cols + c1; i <= e; i++) fn(i);
 }

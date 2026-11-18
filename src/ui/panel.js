@@ -52,7 +52,7 @@ export class Panel {
     const land = g.isLand(i) && sim;
     const known = !land || isRevealed(sim, sim.player, i); // Nebel des Krieges
     $('f-fort').textContent = land ? (known ? `${Math.round(sim.fort[i] * 100)} %` : 'unbekannt') : '–';
-    $('f-supply').textContent = land && sim.supplyDist.has(sim.player) ? `${Math.round(sim.supply(sim.player, i) * 100)} % (für ${sim.nationName(sim.player)})` : '–';
+    $('f-supply').textContent = land && sim.supplyDist ? `${Math.round(sim.supplyDisplay(i) * 100)} % (für ${sim.nationName(sim.player)})` : '–';
     if (land && sim.conqDay[i] >= 0) {
       const how = sim.conqMethod[i] === 2 ? 'verwüstet' : sim.conqMethod[i] === 1 ? 'erobert' : 'angegliedert';
       $('f-yield').textContent = `${Math.round(sim.yieldOf(i) * 100)} % (${how} am ${sim.dateText(sim.conqDay[i])})`;

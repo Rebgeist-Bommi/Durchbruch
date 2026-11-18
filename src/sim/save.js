@@ -4,7 +4,7 @@
 import { updateFronts } from './fronts.js';
 import { indexBuildings } from './economy.js';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 const b64 = {
   enc(u8) {
@@ -41,7 +41,7 @@ function unsparse(target, list, base) {
 export function serialize(sim) {
   const fronts = [...sim.fronts.values()].map((f) => ({
     id: f.id, a: f.a, b: f.b, name: f.name, born: f.born, alive: f.alive, encircled: f.encircled,
-    cx: f.cx, cy: f.cy, side: f.side, retreatLogged: !!f.retreatLogged,
+    cx: f.cx, cy: f.cy, side: f.side, retreatLogged: !!f.retreatLogged, warned: !!f.warned,
   }));
   const pockets = {};
   for (const [n, cells] of sim._pocketCells || []) pockets[n] = cells;
@@ -91,7 +91,14 @@ export function serialize(sim) {
     scientists: sim.scientists.map(({ id, employer, loyalty, cell, status, guard }) => ({ id, employer, loyalty, cell, status, guard })),
     intel: [...sim.intel],
     relations: sim.relations,
-    generals: sim.generals.map((g) => [g.id, g.front]),
+    generals: sim.generals.map((g) => [g.id, g.front, g.dismissedUntil ?? null]),
+    // Phase 5: Schwierigkeit, Sandbox, Diplomatie, Ereignisse, Entscheidung, Zeitung, Spielende
+    settings: sim.settings,
+    dip: sim.dip,
+    pending: sim.pending,
+    outcome: sim.outcome,
+    news: sim.news,
+    newsSeen: sim.newsSeen,
     nodeGuard: sim.nodes.map((n) => n.guard),
     bridgeGuard: sim.bridges.map((b) => b.guard),
     history: {
@@ -144,7 +151,17 @@ export function deserialize(sim, s) {
   for (const f of s.fronts) sim.fronts.set(f.id, { ...f, sections: [], edgeList: null, length: 0 });
   sim.nextFrontId = s.nextFrontId;
   sim.sectionStats = new Map(s.sectionStats);
-  s.sieges.forEach((st, i) => Object.assign(sim.sieges[i], st));
+  // Belagerungsliste aus den gespeicherten Zellen neu aufbauen (Phase 5: wächst mit neuen Kriegen)
+  const S = sim.bal.siege;
+  sim.sieges = [];
+  sim.siegeAt.fill(-1);
+  s.siegeCells.forEach((cell, i) => {
+    const city = sim.cities[sim.cityAt[cell]];
+    const capital = sim.capital.get(city.nation) === cell;
+    const max = capital ? S.capitalDefense : S.cityDefense;
+    sim.siegeAt[cell] = i;
+    sim.sieges.push({ city, cell, nation: city.nation, capital, defense: max, max, besieged: false, since: -1, fallen: false, by: 0, ...s.sieges[i] });
+  });
   sim.nations = new Map(s.nations);
   sim.econ = new Map(s.econ);
   sim.buildings = s.buildings;
@@ -158,13 +175,26 @@ export function deserialize(sim, s) {
   for (const x of s.scientists) Object.assign(sim.scientists.find((y) => y.id === x.id), x);
   sim.intel = new Map(s.intel);
   sim.relations = s.relations;
-  const gf = new Map(s.generals);
-  for (const g of sim.generals) g.front = gf.get(g.id) || 0;
+  const gf = new Map(s.generals.map(([id, front, until]) => [id, { front, until }]));
+  for (const g of sim.generals) {
+    const x = gf.get(g.id);
+    g.front = x?.front || 0;
+    if (x && x.until !== null && x.until !== undefined) g.dismissedUntil = x.until; else delete g.dismissedUntil;
+  }
+  sim.settings = s.settings == null ? null : structuredClone(s.settings);
+  sim.dip = s.dip == null ? null : structuredClone(s.dip);
+  sim.pending = s.pending == null ? null : structuredClone(s.pending);
+  sim.outcome = s.outcome == null ? null : structuredClone(s.outcome);
+  sim.news = s.news == null ? null : structuredClone(s.news);
+  sim.newsSeen = s.newsSeen;
+  sim._border = null; // Grenzfeldliste neu aufbauen
   s.nodeGuard.forEach((v, i) => { sim.nodes[i].guard = v; });
   s.bridgeGuard.forEach((v, i) => { sim.bridges[i].guard = v; });
   // Besitzzähler, Kessel- und Exklavenmarken
   sim.ownedCount.fill(0);
   for (let i = 0; i < sim.N; i++) sim.ownedCount[sim.owner[i]]++;
+  sim.nationBox = new Map();
+  for (let i = 0; i < sim.N; i++) if (sim.owner[i]) sim.growNationBox(sim.owner[i], i);
   sim.pocketMark = new Map();
   sim._pocketCells = new Map();
   for (const n of sim.nations.keys()) {

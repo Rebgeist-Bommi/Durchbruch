@@ -66,6 +66,10 @@
         <div id="lage"></div>
         <button type="button" class="btn btn-main" id="all-attack">Alle Fronten: Angriff</button>
       </section>
+      <section class="mode-section moral-section" data-for="front">
+        <h2>Moral</h2>
+        <div id="moral"></div>
+      </section>
       <section class="mode-section" data-for="economy">
         <div id="econ"></div>
         <h2>Legende</h2>
@@ -95,6 +99,11 @@
       <span id="s-coord">–</span>
       <span id="s-zoom">–</span>
       <span class="keys">Mausrad: Zoom · Ziehen: Verschieben · Klick: Feld/Front · Leertaste: Pause · 1/2/3: Modus · G: Felder · 0: Ansicht</span>
+      <span class="gamebar" role="group" aria-label="Spiel">
+        <button type="button" data-open="menu" title="Hauptmenü (Spiel wird angehalten)">Menü</button>
+        <button type="button" data-open="diplo" title="Diplomatie (D)">Diplomatie</button>
+        <button type="button" data-open="paper" title="Zeitung „Der Tagesanzeiger“ (Z)">Zeitung<i class="badge" id="paper-badge" hidden></i></button>
+      </span>
       <span class="savebar" role="group" aria-label="Spielstand">
         <button type="button" data-save="save" title="Spielstand im Browser speichern">Speichern</button>
         <button type="button" data-save="load" title="Gespeicherten Spielstand laden">Laden</button>
@@ -116,7 +125,41 @@
     <div class="card" role="dialog" aria-modal="true" aria-labelledby="go-title">
       <h2 id="go-title">Feldzug beendet</h2>
       <div id="go-body"></div>
-      <button type="button" class="btn btn-main" id="go-close">Karte weiter ansehen</button>
+      <div class="go-actions">
+        <button type="button" class="btn" id="go-menu">Hauptmenü</button>
+        <button type="button" class="btn btn-main" id="go-close">Karte weiter ansehen</button>
+      </div>
+    </div>
+  </div>
+  <!-- Phase 5: Entscheidung, Diplomatie, Zeitung, Hauptmenü -->
+  <div id="decision" class="modal" hidden>
+    <div class="sheet decision-sheet" role="dialog" aria-modal="true" aria-labelledby="dc-title">
+      <div class="dc-stamp">Entscheidung</div>
+      <h2 id="dc-title"></h2>
+      <p class="dc-date" id="dc-date"></p>
+      <p class="dc-text" id="dc-text"></p>
+      <div class="dc-options" id="dc-options"></div>
+      <p class="dc-note">Das Spiel ist angehalten und läuft nach der Entscheidung weiter.</p>
+    </div>
+  </div>
+  <div id="diplo" class="modal" hidden>
+    <div class="sheet diplo-sheet" role="dialog" aria-modal="true" aria-labelledby="dp-title">
+      <header class="sheet-head"><h2 id="dp-title">Diplomatie</h2><button type="button" class="close" data-close aria-label="Schließen">×</button></header>
+      <div id="diplo-body"></div>
+    </div>
+  </div>
+  <div id="paper" class="modal" hidden>
+    <div class="sheet paper-sheet" role="dialog" aria-modal="true" aria-label="Der Tagesanzeiger">
+      <button type="button" class="close" data-close aria-label="Schließen">×</button>
+      <div id="paper-body"></div>
+    </div>
+  </div>
+  <div id="menu" hidden>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="menu-board" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+      <h1 id="menu-title">Durchbruch</h1>
+      <p class="menu-sub">Europa · 31. August 1939</p>
+      <div id="menu-body"></div>
     </div>
   </div>
   <script type="module" src="/src/main.js"></script>

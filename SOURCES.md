@@ -1,6 +1,6 @@
 # Historische Werte und Quellen
 
-Stand Phase 3. Alle Zahlen in `data/balance.json`, die hier nicht als **belegt** geführt sind, sind
+Stand Phase 5. Alle Zahlen in `data/balance.json`, die hier nicht als **belegt** geführt sind, sind
 Spielwerte oder tragen den Vermerk „# TODO historisch prüfen“.
 
 ## Belegt (in dieser Sitzung an der Quelle geprüft)
@@ -71,3 +71,30 @@ Bedeutung 1939: # TODO historisch prüfen).
 
 Alle übrigen Generäle sind erfunden und so benannt („(erfunden)“). Wertende Eigenschaften
 („vorsichtig“, „rücksichtslos“) tragen nur erfundene Generäle.
+
+## Phase 5: Diplomatie und Ereignisse
+
+Verträge zum Stichtag und historische Anlässe der Ereignisse. Geprüft in dieser Sitzung über
+Suchergebnisse mit den genannten Seiten. Das Eintreten im Spiel hängt von der Spiellage ab; Daten
+im Spiel sind keine Behauptung, dass es so kommen muss.
+
+| Angabe | Verwendung | Stand | Quelle |
+|---|---|---|---|
+| Stahlpakt Deutschland–Italien, unterzeichnet 22.05.1939 in Berlin | Startbündnis DEU–ITA (`diplomacy.alliances`) | belegt | https://en.wikipedia.org/wiki/Pact_of_Steel (über Suche); https://germanhistorydocs.org/en/nazi-germany-1933-1945/the-pact-of-steel-the-signing-of-the-german-italian-military-alliance-in-the-new-reich-chancellery-may-22-1939 |
+| Deutsch-sowjetischer Nichtangriffspakt 23.08.1939 mit geheimem Zusatzprotokoll: Interessengrenze in Polen etwa entlang Narew, Weichsel und San (Pissa per Ergänzung) | Startpakt DEU–SOV; Option „Linie Narew–Weichsel–San“ im Teilungsangebot | belegt | https://avalon.law.yale.edu/20th_century/addsepro.asp; https://soviethistory.msu.edu/1939/soviet-territorial-annexations/soviet-territorial-annexations-texts/secret-protocol/ |
+| Grenz- und Freundschaftsvertrag 28.09.1939: Linie weitgehend entlang Bug und San | Option „Linie am Bug“ | belegt; genauer Verlauf in den Quellen uneinheitlich | https://www.britishpoles.uk/?p=47173; https://www.marxists.org/history/ussr/great-patriotic-war/soviet-german-pact/tasca/ch5.htm |
+| Britische Garantieerklärung für Polen (März 1939), britisch-polnisches Beistandsabkommen 25.08.1939 | Bündnis GBR–POL | belegt (Abkommen 25.08.); Tag der Garantieerklärung: # TODO historisch prüfen | https://ipfs.ssi.eecc.de/ipns/en.wikipedia-on-ipfs.org/wiki/Anglo-Polish_military_alliance |
+| Französisch-polnisches Bündnis | Bündnis FRA–POL | # TODO historisch prüfen (allgemein bekannt, Vertragsdaten nicht online geprüft) | – |
+| Britisch-französisches Bündnis | Bündnis GBR–FRA | # TODO historisch prüfen (vereinfachte Abbildung der Zusammenarbeit 1939) | – |
+| Kriegserklärung Großbritanniens und Frankreichs an Deutschland am 03.09.1939 nach Ultimaten | Ereignis „Beistand für Polen“ (2 Tage nach dem ersten Angriff) | belegt | https://sites.lsa.umich.edu/ww2/1939-2/; https://courses.lumenlearning.com/suny-hccc-worldhistory2/chapter/hostilities-commence/ |
+| Sowjetischer Einmarsch in Ostpolen am 17.09.1939; die Westmächte erklärten der Sowjetunion nicht den Krieg | Ereignis „Rote Armee“; Bündnispflicht nur gegen den ersten Angreifer | belegt | https://sites.lsa.umich.edu/ww2/1939-2/ |
+| Winterkrieg: sowjetischer Angriff auf Finnland am 30.11.1939, Ende 13.03.1940 | KI-Entscheidung der Sowjetunion ab Tag 85 | belegt | https://talvisota.fi/en/world-war/; https://ipfs.ssi.eecc.de/ipns/en.wikipedia-on-ipfs.org/wiki/Timeline_of_the_Winter_War |
+| Kriegseintritt Italiens gegen Frankreich und Großbritannien am 10.06.1940 | Ereignis „Italien tritt in den Krieg ein“ (abhängig von Lage und Beziehung) | belegt | https://www.britannica.com/event/World-War-II/Italys-entry-into-the-war-and-the-French-Armistice |
+| Westwall, Maginot-Linie, Alpenbefestigungen (Bestehen 1939) | Grenzbefestigung ab Kriegsbeginn (`start.borderFortification`) | allgemein bekannt; Stärke ist Spielwert | – |
+
+Nicht historisch (fiktiv bzw. Spielmechanik): Friedensangebot Frankreichs, General verweigert einen
+Befehl (nur erfundene Generäle), Forderung der Bevölkerung nach Lebensmitteln, Waffenstillstand
+Großbritanniens ohne Landfront (Version 1 ohne Seekrieg), alle Beziehungswerte, Moralwerte,
+Schwellen und Fristen. Die Teilungslinien sind Näherungen aus Stützpunkten (Länge/Breite) entlang
+der Flüsse und nicht flussgenau. Die Zeitung erzeugt Schlagzeilen aus dem Spielverlauf, keine
+historischen Zeitungstexte.

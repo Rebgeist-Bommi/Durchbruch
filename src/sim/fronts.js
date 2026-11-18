@@ -9,6 +9,8 @@ function emptySide() {
     order: 'hold', prep: 0, method: 'minimal', attackStartDay: -1, attackPrep: 0,
     lossesToday: 0, lossesTotal: 0, prisonersToday: 0, prisonersTotal: 0,
     airToday: 0, airTotal: 0, tied: 0, kmToday: 0, kmTotal: 0,
+    // vorab angelegt (gleiche Objektform von Anfang an, vermeidet Deoptimierung)
+    general: null, airShare: 0, strikeTarget: null, strikeToday: 0, strikeHits: 0,
   };
 }
 
@@ -50,32 +52,29 @@ export function updateFronts(sim) {
     pairIdx[b * NMAX + a] = -(w + 1);
   });
   const edgeWar = sim._edgeWar && sim._edgeWar.length >= E.a.length ? sim._edgeWar : (sim._edgeWar = new Int16Array(E.a.length));
-  // Suchbereich: Rechteck um alle Felder kriegführender Nationen (laufend in sim.box geführt)
+  // Suchbereich (Phase 5, Leistung): nur Grenzfelder (Land-Nachbar mit anderem Besitzer), aufsteigend
+  // sortiert – gleiche Reihenfolge wie der frühere Durchlauf über das Rechteck aller Kriegsparteien.
   const inWar = sim.inWar;
-  const [R0, R1, C0, C1] = sim.boxRange();
-  const r0 = R0 + 1;
-  const r1 = R1 - 1;
-  const c0 = C0 + 1;
-  const c1 = C1 - 1;
-  for (let r = Math.max(0, r0 - 1); r <= Math.min(rows - 1, r1 + 1); r++) {
-    for (let c = Math.max(0, c0 - 1); c <= Math.min(cols - 1, c1 + 1); c++) {
-      const i = r * cols + c;
-      const o = owner[i];
-      if (!o || !inWar[o]) continue;
-      for (let dir = 0; dir < 2; dir++) {
-        if (dir === 0 && c >= cols - 1) continue;
-        if (dir === 1 && r >= rows - 1) continue;
-        const j = dir === 0 ? i + 1 : i + cols;
-        const p = owner[j];
-        if (!p || p === o) continue;
-        const pi = pairIdx[o * NMAX + p];
-        if (!pi) continue;
-        const k = E.count++;
-        if (pi > 0) { E.a[k] = i; E.b[k] = j; } else { E.a[k] = j; E.b[k] = i; }
-        E.dir[k] = dir;
-        E.front[k] = 0;
-        edgeWar[k] = Math.abs(pi) - 1;
-      }
+  const border = borderCells(sim);
+  for (let q = 0; q < border.length; q++) {
+    const i = border[q];
+    const o = owner[i];
+    if (!o || !inWar[o]) continue;
+    const r = (i / cols) | 0;
+    const c = i - r * cols;
+    for (let dir = 0; dir < 2; dir++) {
+      if (dir === 0 && c >= cols - 1) continue;
+      if (dir === 1 && r >= rows - 1) continue;
+      const j = dir === 0 ? i + 1 : i + cols;
+      const p = owner[j];
+      if (!p || p === o) continue;
+      const pi = pairIdx[o * NMAX + p];
+      if (!pi) continue;
+      const k = E.count++;
+      if (pi > 0) { E.a[k] = i; E.b[k] = j; } else { E.a[k] = j; E.b[k] = i; }
+      E.dir[k] = dir;
+      E.front[k] = 0;
+      edgeWar[k] = Math.abs(pi) - 1;
     }
   }
 
@@ -154,6 +153,7 @@ export function updateFronts(sim) {
       id: sim.nextFrontId++, a: comp.a, b: comp.b, name: '', born: sim.day, alive: true,
       encircled: { [comp.a]: false, [comp.b]: false }, sections: [], edgeList: null, cx: 0, cy: 0,
       side: { [comp.a]: inheritSide(parent?.side[comp.a]), [comp.b]: inheritSide(parent?.side[comp.b]) },
+      retreatLogged: false, warned: false,
     };
     sim.fronts.set(f.id, f);
     comp.id = f.id;
@@ -269,4 +269,55 @@ export function updateFronts(sim) {
   }
   // alte, tote Fronten nach einiger Zeit vergessen
   for (const [id, f] of sim.fronts) if (!f.alive && sim.day - f.born > 400) sim.fronts.delete(id);
+}
+
+/** Grenzfeld: Land mit mindestens einem Land-Nachbarn (4er) anderen Besitzers. */
+function isBorder(sim, i) {
+  const o = sim.owner[i];
+  if (!o) return false;
+  for (let k = i * 4, e = k + 4; k < e; k++) {
+    const j = sim.nb[k];
+    if (j >= 0 && sim.owner[j] && sim.owner[j] !== o) return true;
+  }
+  return false;
+}
+
+/**
+ * Sortierte Liste der Grenzfelder. Wird nach Besitzwechseln (sim._ownerDirty aus setOwner)
+ * örtlich nachgeführt; beim ersten Aufruf oder nach dem Laden vollständig aufgebaut.
+ */
+export function borderCells(sim) {
+  const N = sim.N;
+  if (!sim._border || sim._borderOwner !== sim.owner) {
+    sim._borderFlag = new Uint8Array(N);
+    const list = [];
+    for (let i = 0; i < N; i++) if (isBorder(sim, i)) { sim._borderFlag[i] = 1; list.push(i); }
+    sim._border = Int32Array.from(list);
+    sim._borderOwner = sim.owner;
+    sim._ownerDirty = [];
+    return sim._border;
+  }
+  const dirty = sim._ownerDirty;
+  if (!dirty || !dirty.length) return sim._border;
+  const flag = sim._borderFlag;
+  let changed = false;
+  for (const c of dirty) {
+    for (const i of [c, ...sim.nb.subarray(c * 4, c * 4 + 4)]) {
+      if (i < 0) continue;
+      const b = isBorder(sim, i) ? 1 : 0;
+      if (flag[i] !== b) { flag[i] = b; changed = true; }
+    }
+  }
+  sim._ownerDirty = [];
+  if (changed) {
+    const list = [];
+    // Neuaufbau aus den Markierungen (nur bei Änderungen; Grenzfelder sind wenige Tausend)
+    const old = sim._border;
+    const seen = new Set();
+    for (const i of old) if (flag[i]) { list.push(i); seen.add(i); }
+    for (const c of dirty) for (const i of [c, ...sim.nb.subarray(c * 4, c * 4 + 4)]) if (i >= 0 && flag[i] && !seen.has(i)) { list.push(i); seen.add(i); }
+    list.sort((x, y) => x - y);
+    sim._border = Int32Array.from(list);
+  }
+  return sim._border;
 }

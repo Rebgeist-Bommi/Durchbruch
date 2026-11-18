@@ -12,6 +12,7 @@ import './styles/economy.css';
 import './styles/intel.css';
 import './styles/game.css';
 import './styles/econ.css';
+import './styles/phase5.css';
 
 import balance from '../data/balance.json';
 import scientistsData from '../data/scientists.json';
@@ -26,6 +27,11 @@ import { Simulation } from './sim/simulation.js';
 import { EconomyUI } from './ui/economy.js';
 import { IntelUI } from './ui/intel.js';
 import { serialize, deserialize } from './sim/save.js';
+import { checkDecisions } from './sim/events.js';
+import { declareWar } from './sim/diplomacy.js';
+import { DecisionUI, DiplomacyUI, NewspaperUI } from './ui/phase5.js';
+import { MainMenu, loadSettings } from './ui/menu.js';
+import { autoplayCampaign } from './sim/autoplay.js';
 
 const MODES = ['front', 'economy', 'intel'];
 const FONT_FAMILIES = ['IM Fell English SC', 'Spectral', 'UnifrakturMaguntia', 'Saira Stencil One', 'Saira Condensed', 'Special Elite'];
@@ -41,12 +47,20 @@ async function main() {
   const sim = new Simulation({ grid, map: data.map, balance, infra: data.infra, people: { scientists: scientistsData, generals: generalsData }, seed });
   // Spielstand laden, der vor dem Neuladen der Seite hinterlegt wurde (Laden/Import)
   let loadedFrom = null;
+  // Phase 5: Neues Spiel aus dem laufenden Spiel heraus (Seite wurde mit Startwahl neu geladen)
+  let startCfg = null;
+  try {
+    const st = sessionStorage.getItem('durchbruch-start');
+    if (st) { sessionStorage.removeItem('durchbruch-start'); startCfg = JSON.parse(st); }
+  } catch { /* ohne sessionStorage */ }
+  if (startCfg) { sim.setDifficulty(startCfg.level, startCfg.sandbox); sim.started = true; }
   try {
     const pending = sessionStorage.getItem('durchbruch-pending');
     if (pending) {
       sessionStorage.removeItem('durchbruch-pending');
       deserialize(sim, JSON.parse(pending));
       loadedFrom = sim.dateText();
+      sim.started = true;
     }
   } catch (err) {
     console.error(err);
@@ -143,7 +157,73 @@ async function main() {
   });
   if (loadedFrom) setTimeout(() => toast(`Spielstand geladen: ${loadedFrom}`), 300);
 
-  // ---- Debug-Schalter für Kriegserklärungen (?debug=1); Diplomatie folgt in Phase 5 ----
+  // ---- Phase 5: Entscheidungen, Diplomatie, Zeitung, Hauptmenü ----
+  const settings = loadSettings();
+  const applySettings = (st) => {
+    renderer.lowDetail = st.detail === 'niedrig';
+    renderer.requestRender();
+  };
+  applySettings(settings);
+  clock.lastSpeed = settings.speed || 1;
+  const afterChange = () => {
+    renderer.onTick();
+    ui.refresh();
+    econ.refresh();
+    intel.refresh();
+    paper.badge();
+    renderer.requestRender();
+  };
+  const decision = new DecisionUI({
+    sim,
+    onDecided: () => {
+      afterChange();
+      if (clock.resumeAfterDecision) { clock.resumeAfterDecision = false; setSpeed(clock.lastSpeed); }
+    },
+  });
+  const diplo = new DiplomacyUI({ sim, onChange: afterChange });
+  const paper = new NewspaperUI({ sim });
+  /** Entscheidung anzeigen und Spiel anhalten, falls eine ansteht. */
+  const pauseForDecision = () => {
+    if (!checkDecisions(sim)) return false;
+    if (clock.speed > 0) clock.resumeAfterDecision = true;
+    setSpeed(0);
+    decision.show();
+    return true;
+  };
+  const menu = new MainMenu({
+    levels: balance.difficulty.levels,
+    inGame: () => sim.day > 0 || !!sim.started,
+    onStart: (level, sandbox) => {
+      if (sim.day > 0 || sim.started) {
+        sessionStorage.setItem('durchbruch-start', JSON.stringify({ level, sandbox }));
+        location.reload();
+        return;
+      }
+      sim.setDifficulty(level, sandbox);
+      sim.started = true;
+      menu.hide();
+      afterChange();
+      toast(`${sandbox ? 'Sandbox' : 'Kampagne'} · ${balance.difficulty.levels[level].label}${sandbox ? ' · unbegrenzte Mittel' : ''}`);
+    },
+    onLoad: (kind) => {
+      if (kind === 'import') { document.getElementById('import-file').click(); return; }
+      const t = localStorage.getItem(kind === 'load' ? 'durchbruch-save' : 'durchbruch-auto');
+      if (t) loadText(t);
+    },
+    onResume: () => { if (settings.speed) clock.lastSpeed = settings.speed; },
+    onSettings: (st) => { Object.assign(settings, st); applySettings(settings); clock.lastSpeed = settings.speed || 1; },
+  });
+  ui.onMenu = () => { setSpeed(0); menu.show(); };
+  ui.onPropaganda = () => econ.refresh();
+  document.querySelector('.gamebar').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-open]');
+    if (!b) return;
+    if (b.dataset.open === 'menu') { setSpeed(0); menu.show(); }
+    if (b.dataset.open === 'diplo') diplo.show();
+    if (b.dataset.open === 'paper') paper.show();
+  });
+
+  // ---- Debug-Schalter für Kriegserklärungen (?debug=1) ----
   if (params.get('debug')) {
     const bar = document.getElementById('debugbar');
     const sel = document.getElementById('debug-nation');
@@ -155,7 +235,7 @@ async function main() {
     bar.hidden = false;
     document.getElementById('debug-war').addEventListener('click', () => {
       if (!sel.value) return;
-      sim.startWar('DEU', sel.value);
+      declareWar(sim, sim.player, sim.idx(sel.value));
       renderer.onTick();
       ui.refresh();
       econ.refresh();
@@ -165,12 +245,18 @@ async function main() {
   }
 
   function doTick() {
-    sim.tick();
+    if (pauseForDecision()) return;
+    const advanced = sim.tick();
+    if (!advanced) { pauseForDecision(); return; }
     renderer.onTick();
     ui.onTick();
     econ.refresh();
     intel.refresh();
+    paper.badge();
+    if (diplo.open) diplo.render();
     if (sim.day % 7 === 0) store('durchbruch-auto');
+    if (sim.isOver()) { setSpeed(0); return; }
+    pauseForDecision(); // Entscheidung erscheint sofort zum Tagesende
   }
 
   function frame(now) {
@@ -193,6 +279,11 @@ async function main() {
   }
 
   function setSpeed(s) {
+    // Entscheidungen, Hauptmenü und Spielende halten das Spiel an
+    if (s > 0 && (sim.pending || sim.isOver() || menu.open)) {
+      if (sim.pending) decision.show();
+      s = 0;
+    }
     clock.speed = s;
     if (s > 0) clock.lastSpeed = s;
     for (const b of document.querySelectorAll('#time [data-speed]')) b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === s));
@@ -208,7 +299,7 @@ async function main() {
     if (b) setSpeed(Number(b.dataset.speed));
   });
 
-  window.__durchbruch = { renderer, grid, data, sim, ui, econ, intel, setSpeed, doTick, clock, serialize };
+  window.__durchbruch = { renderer, grid, data, sim, ui, econ, intel, setSpeed, doTick, clock, serialize, decision, diplo, paper, menu, autoplayCampaign };
 
   // ---- Statuszeile ----
   const zoomEl = document.getElementById('s-zoom');
@@ -307,17 +398,25 @@ async function main() {
   window.addEventListener('keydown', (e) => {
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (menu.open || decision.open) return; // Menü und Entscheidung: nur Maus/Tab
     const cam = renderer.camera;
     switch (e.key) {
       case '1': setMode('front'); break;
       case '2': setMode('economy'); break;
       case '3': setMode('intel'); break;
       case ' ': setSpeed(clock.speed ? 0 : clock.lastSpeed); break;
+      case 'd': case 'D': if (diplo.open) diplo.close(); else diplo.show(); break;
+      case 'z': case 'Z': if (paper.open) paper.close(); else paper.show(); break;
       case 'g': case 'G': renderer.showGrid = !renderer.showGrid; renderer.requestRender(); break;
       case '0': renderer.focusStart(); renderer.requestRender(); break;
       case '+': case '=': cam.zoomAt(cam.width / 2, cam.height / 2, 1.25); renderer.requestRender(); break;
       case '-': cam.zoomAt(cam.width / 2, cam.height / 2, 0.8); renderer.requestRender(); break;
-      case 'Escape': if (econ.buildType) econ.setBuildMode(null); else ui.closeFront(); break;
+      case 'Escape':
+        if (diplo.open) diplo.close();
+        else if (paper.open) paper.close();
+        else if (econ.buildType) econ.setBuildMode(null);
+        else ui.closeFront();
+        break;
       default: return;
     }
     e.preventDefault();
@@ -329,6 +428,9 @@ async function main() {
   renderer.render(0);
   setSpeed(0);
   document.getElementById('loading').classList.add('done');
+  // Hauptmenü beim Start (nicht nach Laden oder neuem Spiel aus dem Menü; ?menu=0 überspringt es)
+  if (!loadedFrom && !startCfg && params.get('menu') !== '0') menu.show();
+  if (sim.pending) decision.show();
   document.body.dataset.ready = 'true';
 }
 

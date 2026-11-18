@@ -3,6 +3,8 @@
 // und Auffüllung von Divisionen, Eroberungsfolgen, einfache KI-Wirtschaft.
 import { levelFactor, levelOfCell, startUpgrade, INTACT } from './infra.js';
 import { mods as modsOf, FOCI, aiResearch } from './research.js';
+import { moraleProduction } from './morale.js';
+import { effectSum } from './events.js';
 
 export const BUILDING_TYPES = ['fabrik', 'ruestung', 'forschung'];
 
@@ -51,6 +53,12 @@ export function initEconomy(sim, infra) {
     e.productivity = raw > 0 ? target / raw : 1;
   }
   computeFlows(sim, false); // Anzeige am Tag 0
+}
+
+/** Phase 5: Ertragsfaktor aus Moral und (beim Spieler) Schwierigkeit. */
+function yieldMul(sim, n) {
+  if (!sim.nations) return 1;
+  return moraleProduction(sim, n) * (n === sim.player && sim.diff ? sim.diff().income : 1);
 }
 
 export function soldiersTarget(sim, e) {
@@ -113,7 +121,9 @@ export function computeFlows(sim, apply = true) {
     if (apply) e.recruited = recruited;
     const menInDivs = sim.divisions.reduce((s, d) => (d.nation === n ? s + d.men : s), 0);
     e.pool = Math.max(0, recruited - menInDivs);
-    if (sim.nations.get(n)?.status !== 'kapituliert') e.incomeToday += (e.workers / 1e6) * E.taxPerMillionWorkers * e.productivity;
+    // Phase 5: Sandbox "unbegrenzte Mittel" (Spieler)
+    if (sim.settings?.sandbox && n === sim.player) { e.pool = Math.max(e.pool, sim.bal.sandbox.pool); e.laborFactor = Math.max(1, e.laborFactor); }
+    if (sim.nations.get(n)?.status !== 'kapituliert') e.incomeToday += (e.workers / 1e6) * E.taxPerMillionWorkers * e.productivity * yieldMul(sim, n);
   }
   const armament = new Map();
   for (const b of sim.buildings) {
@@ -121,7 +131,7 @@ export function computeFlows(sim, apply = true) {
     const e = sim.econ.get(n);
     if (!e || !b.done) continue;
     e.upkeepToday += B[b.type].upkeep;
-    const f = buildingFactor(sim, b) * e.laborFactor * e.productivity;
+    const f = buildingFactor(sim, b) * e.laborFactor * e.productivity * yieldMul(sim, n);
     const m = sim.modsCache ? modsOf(sim, n) : null;
     if (b.type === 'fabrik') e.incomeToday += B.fabrik.money * f * (1 + (m ? m.production : 0));
     else if (b.type === 'ruestung') armament.set(n, (armament.get(n) || 0) + B.ruestung.equipment * f * (1 + (m ? m.equipment : 0)));
@@ -132,11 +142,11 @@ export function computeFlows(sim, apply = true) {
       const e = sim.econ.get(sim.owner[c]);
       if (!e) continue;
       const mr = sim.modsCache ? modsOf(sim, sim.owner[c]).resources : 0;
-      e.resProducedToday += per * sim.yieldOf(c) * levelFactor(sim, levelOfCell(sim, c)) * e.laborFactor * (1 + mr);
+      e.resProducedToday += per * sim.yieldOf(c) * levelFactor(sim, levelOfCell(sim, c)) * e.laborFactor * (1 + mr) * yieldMul(sim, sim.owner[c]);
     }
   }
   for (const [n, e] of sim.econ) {
-    const want = armament.get(n) || 0;
+    const want = (armament.get(n) || 0) * Math.max(0, 1 + effectSum(sim, n, 'armament'));
     const need = want * E.resourcesPerEquipment;
     const stock = e.resources + e.resProducedToday;
     const ratio = need > 0 ? Math.min(1, stock / need) : 0;
@@ -149,6 +159,12 @@ export function computeFlows(sim, apply = true) {
 export function runEconomy(sim) {
   const B = sim.bal.economy.buildings;
   computeFlows(sim, true);
+  if (sim.settings?.sandbox) {
+    const e = sim.econ.get(sim.player);
+    const S = sim.bal.sandbox;
+    e.money = Math.max(e.money, S.money);
+    e.resources = Math.max(e.resources, S.resources);
+  }
   for (const e of sim.econ.values()) {
     e.resources += e.resProducedToday - e.resUsedToday;
     e.equipment += e.equipToday;

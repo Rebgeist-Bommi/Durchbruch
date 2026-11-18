@@ -4,6 +4,7 @@ import { fmtInt } from '../sim/calendar.js';
 import { freeGenerals, assignGeneral } from '../sim/generals.js';
 import { strikeTargets, strikePower } from '../sim/airstrike.js';
 import { describeTarget } from '../sim/intel.js';
+import { renderMorale } from './phase5.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -46,6 +47,7 @@ export class GameUI {
       if (m && Number(m.dataset.cell) >= 0) this.onCenter(Number(m.dataset.cell));
     });
     $('go-close').addEventListener('click', () => { $('gameover').hidden = true; });
+    $('go-menu').addEventListener('click', () => { $('gameover').hidden = true; if (this.onMenu) this.onMenu(); });
     this.refresh();
   }
 
@@ -98,6 +100,7 @@ export class GameUI {
     this.renderLage();
     if (this.frontId) this.renderFrontWin();
     this.renderMessages();
+    renderMorale(sim, () => { this.refresh(); if (this.onPropaganda) this.onPropaganda(); });
     if (this.panel.selected >= 0) this.panel.showCell(this.panel.selected);
     if (sim.isOver() && !this.gameOverShown) this.showGameOver();
   }
@@ -289,25 +292,47 @@ export class GameUI {
       <time>${esc(m.date)}</time> ${esc(m.text)}</span>`).join('');
   }
 
-  // ------------------------------------------------------------ Abschluss
+  // ------------------------------------------------------------ Abschluss (Phase 5)
   showGameOver() {
     this.gameOverShown = true;
     const sim = this.sim;
     const p = sim.player;
-    const lines = [];
-    for (const [n, st] of sim.nations) {
-      if (st.status === 'kapituliert') {
-        lines.push(`<p><img class="flag mini" src="${flagUrl(sim.code(n))}" alt=""> <b>${esc(sim.nationName(n))}</b> kapituliert am ${esc(sim.dateText(st.capitulationDay))} – nach <b>${st.capitulationDay} Tagen</b>.</p>`);
-      }
-    }
+    const o = sim.outcome || { result: 'sieg', day: sim.day };
+    const win = o.result === 'sieg';
     const me = sim.nations.get(p);
-    lines.push(`<dl class="fw-grid">
-      <dt>Gefangene</dt><dd>${fmtInt(me.prisonersTaken)}</dd>
-      <dt>Eigene Verluste</dt><dd>${fmtInt(me.lossesTotal)}</dd>
-      <dt>Lufteinsätze</dt><dd>${fmtInt(me.airTotal)}</dd>
-    </dl>
-    <p class="muted">Historisch kapitulierten die letzten polnischen Verbände am 6. Oktober 1939 (Tag 36). Im Spiel fehlen u. a. der sowjetische Einmarsch ab 17. September und die Westmächte.</p>`);
-    $('go-body').innerHTML = lines.join('');
+    const ever = sim.dip.everEnemies;
+    const caps = ever.filter((n) => sim.nations.get(n)?.status === 'kapituliert');
+    let conquered = 0;
+    for (let i = 0; i < sim.N; i++) if (sim.owner[i] === p && sim.startOwner[i] !== p) conquered++;
+    const enemyLoss = ever.reduce((t, n) => t + (sim.nations.get(n)?.lossesTotal || 0), 0);
+    const title = win ? 'Sieg' : 'Niederlage';
+    const sub = win
+      ? (o.allCapitulated ? 'Alle Kriegsgegner haben kapituliert.' : `Kein Kriegsgegner steht mehr im Feld (Kapitulation: ${caps.map((n) => sim.nationName(n)).join(', ') || '–'}; übrige durch Frieden oder Waffenstillstand).`)
+      : `${sim.nameNom(p)} hat am ${sim.dateText(o.day)} kapituliert.`;
+    const keyTypes = new Set(['war', 'capitulation', 'peace', 'treaty', 'event', 'end']);
+    const events = sim.events.filter((e) => keyTypes.has(e.type) || (e.type === 'decision' && !e.text.startsWith('Entscheidung:'))).slice(-16);
+    const stat = (v, l) => `<div><b>${v}</b><span>${l}</span></div>`;
+    const pol = sim.codeIndex.get('POL');
+    const ps = pol ? sim.nations.get(pol) : null;
+    $('go-title').textContent = title;
+    $('go-title').className = win ? 'win' : 'lose';
+    $('go-body').innerHTML = `
+      <p class="go-sub">${esc(sub)}</p>
+      <div class="go-stats">
+        ${stat(`${o.day} Tage`, `Dauer · bis ${esc(sim.dateText(o.day))}`)}
+        ${stat(`${fmtInt(conquered * 81)} km²`, `erobert (${fmtInt(conquered)} Felder)`)}
+        ${stat(String(caps.length), 'Gegner kapituliert')}
+        ${stat(fmtInt(me.lossesTotal), 'eigene Verluste')}
+        ${stat(fmtInt(enemyLoss), 'Verluste der Gegner')}
+        ${stat(fmtInt(me.prisonersTaken), 'Gefangene gemacht')}
+        ${stat(fmtInt(me.menLostAsPrisoners), 'eigene Gefangene')}
+        ${stat(fmtInt(me.deserted || 0), 'Deserteure')}
+        ${stat(`${Math.round(me.morale)} %`, 'Moral am Ende')}
+      </div>
+      <h3>Wichtigste Ereignisse</h3>
+      <ul class="go-events">${events.map((e) => `<li><time>${esc(e.date)}</time>${esc(e.text)}</li>`).join('')}</ul>
+      ${ps && ps.status === 'kapituliert' ? `<p class="muted">Zum Vergleich: Historisch kapitulierten die letzten polnischen Verbände am 6. Oktober 1939 (Tag 36); im Spiel kapitulierte Polen am ${esc(sim.dateText(ps.capitulationDay))} (Tag ${ps.capitulationDay}).</p>` : ''}
+      <p class="muted">Die täglichen Momentaufnahmen bleiben im Spielstand für einen späteren Zeitraffer erhalten.</p>`;
     $('gameover').hidden = false;
     if (this.onGameOver) this.onGameOver();
   }
