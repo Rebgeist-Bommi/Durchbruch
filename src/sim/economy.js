@@ -2,6 +2,7 @@
 // Gebäude (Fabrik, Rüstungsfabrik, Forschungsanstalt), Ausrüstung mit Panzeranteil, Aufstellung
 // und Auffüllung von Divisionen, Eroberungsfolgen, einfache KI-Wirtschaft.
 import { levelFactor, levelOfCell, startUpgrade, INTACT } from './infra.js';
+import { mods as modsOf, FOCI, aiResearch } from './research.js';
 
 export const BUILDING_TYPES = ['fabrik', 'ruestung', 'forschung'];
 
@@ -121,15 +122,17 @@ export function computeFlows(sim, apply = true) {
     if (!e || !b.done) continue;
     e.upkeepToday += B[b.type].upkeep;
     const f = buildingFactor(sim, b) * e.laborFactor * e.productivity;
-    if (b.type === 'fabrik') e.incomeToday += B.fabrik.money * f;
-    else if (b.type === 'ruestung') armament.set(n, (armament.get(n) || 0) + B.ruestung.equipment * f);
+    const m = sim.modsCache ? modsOf(sim, n) : null;
+    if (b.type === 'fabrik') e.incomeToday += B.fabrik.money * f * (1 + (m ? m.production : 0));
+    else if (b.type === 'ruestung') armament.set(n, (armament.get(n) || 0) + B.ruestung.equipment * f * (1 + (m ? m.equipment : 0)));
   }
   for (const r of sim.resourceRegions) {
     const per = (r.output * E.resourcePerOutput) / r.cells.length;
     for (const c of r.cells) {
       const e = sim.econ.get(sim.owner[c]);
       if (!e) continue;
-      e.resProducedToday += per * sim.yieldOf(c) * levelFactor(sim, levelOfCell(sim, c)) * e.laborFactor;
+      const mr = sim.modsCache ? modsOf(sim, sim.owner[c]).resources : 0;
+      e.resProducedToday += per * sim.yieldOf(c) * levelFactor(sim, levelOfCell(sim, c)) * e.laborFactor * (1 + mr);
     }
   }
   for (const [n, e] of sim.econ) {
@@ -384,7 +387,7 @@ export function siteFieldsLocal(sim, n, cells) {
 }
 
 /** Bauauftrag. Kosten fallen über die Bauzeit an. `F` = vorberechnete Abstandsfelder (optional). */
-export function build(sim, n, type, cell, F = null) {
+export function build(sim, n, type, cell, F = null, focus = null) {
   const B = sim.bal.economy.buildings;
   if (!B[type] || sim.owner[cell] !== n) return null;
   const e = sim.econ.get(n);
@@ -395,6 +398,11 @@ export function build(sim, n, type, cell, F = null) {
     id: sim.nextBuildingId++, type, cell, nation: n, site: Math.min(1.15, site), health: 1, progress: 0, done: false,
     siteName: sim.nearestCityName(cell % sim.cols, Math.floor(cell / sim.cols), 4), started: sim.day,
   };
+  if (type === 'forschung') {
+    b.focus = FOCI.includes(focus) ? focus : FOCI[b.id % FOCI.length];
+    b.budget = sim.bal.research.defaultBudget;
+  }
+  b.guard = sim.bal.intel?.defaultGuard?.[type] ?? 0;
   addBuilding(sim, b);
   void e;
   return { building: b, suitability: suit };
@@ -443,6 +451,7 @@ function aiEconomy(sim, n, e) {
   const E = sim.bal.economy;
   const A = E.ai;
   const atWar = sim.enemiesOf(n).length > 0;
+  aiResearch(sim, n, e);
   // Mobilisierung
   const cfg = E.nations[sim.code(n)];
   e.mobLevel = atWar ? Math.max(cfg.mobLevel, A.warMobLevel) : cfg.mobLevel;

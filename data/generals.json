@@ -1,0 +1,31 @@
+{
+  "_hinweis": "Historische Generäle nur mit Eigenschaften aus belegter Kriegsführung (SOURCES.md). Wertende Eigenschaften (rücksichtslos, vorsichtig) nur bei erfundenen Generälen (historical: false).",
+  "traits": {
+    "panzer": { "label": "Panzerspezialist", "text": "Panzeranteil wirkt stärker (+30 %)" },
+    "verteidiger": { "label": "Verteidiger", "text": "Abwehr +15 %, Befestigung wächst 30 % schneller" },
+    "stratege": { "label": "Stratege", "text": "Angriffsvorbereitung 50 % schneller, Höchstbonus +15 Punkte" },
+    "logistiker": { "label": "Logistiker", "text": "Nachschub +15 Punkte (höchstens 100 %)" },
+    "vorsichtig": { "label": "vorsichtig", "text": "Eigene Angriffsverluste −20 %, Vormarsch −10 %" },
+    "ruecksichtslos": { "label": "rücksichtslos", "text": "Vormarsch +12 %, eigene Angriffsverluste +35 %" }
+  },
+  "generals": [
+    { "id": "guderian", "name": "Heinz Guderian", "nation": "DEU", "trait": "panzer", "historical": true },
+    { "id": "manstein", "name": "Erich von Manstein", "nation": "DEU", "trait": "stratege", "historical": true },
+    { "id": "model", "name": "Walter Model", "nation": "DEU", "trait": "verteidiger", "historical": true },
+    { "id": "de_fict1", "name": "Generalleutnant Karl Brenner (erfunden)", "nation": "DEU", "trait": "logistiker", "historical": false },
+    { "id": "de_fict2", "name": "General Otto Falkenrath (erfunden)", "nation": "DEU", "trait": "vorsichtig", "historical": false },
+    { "id": "de_fict3", "name": "Generalmajor Arnold Steinbrück (erfunden)", "nation": "DEU", "trait": "ruecksichtslos", "historical": false },
+    { "id": "kutrzeba", "name": "Tadeusz Kutrzeba", "nation": "POL", "trait": "stratege", "historical": true },
+    { "id": "pl_fict1", "name": "Generał Jan Wierzbicki (erfunden)", "nation": "POL", "trait": "verteidiger", "historical": false },
+    { "id": "pl_fict2", "name": "Generał Stefan Lisowski (erfunden)", "nation": "POL", "trait": "logistiker", "historical": false },
+    { "id": "pl_fict3", "name": "Generał Adam Kordecki (erfunden)", "nation": "POL", "trait": "vorsichtig", "historical": false },
+    { "id": "fr_fict1", "name": "Général Henri Delmas (erfunden)", "nation": "FRA", "trait": "verteidiger", "historical": false },
+    { "id": "fr_fict2", "name": "Général Paul Moreau (erfunden)", "nation": "FRA", "trait": "vorsichtig", "historical": false },
+    { "id": "gb_fict1", "name": "General Arthur Hale (erfunden)", "nation": "GBR", "trait": "logistiker", "historical": false },
+    { "id": "it_fict1", "name": "Generale Carlo Ferri (erfunden)", "nation": "ITA", "trait": "vorsichtig", "historical": false },
+    { "id": "su_fict1", "name": "Komandarm Pjotr Orlow (erfunden)", "nation": "SOV", "trait": "ruecksichtslos", "historical": false },
+    { "id": "su_fict2", "name": "Komkor Ilja Saizew (erfunden)", "nation": "SOV", "trait": "verteidiger", "historical": false },
+    { "id": "nl_fict1", "name": "Generaal Willem de Vries (erfunden)", "nation": "NLD", "trait": "verteidiger", "historical": false },
+    { "id": "fi_fict1", "name": "Kenraali Eino Laine (erfunden)", "nation": "FIN", "trait": "verteidiger", "historical": false }
+  ]
+}

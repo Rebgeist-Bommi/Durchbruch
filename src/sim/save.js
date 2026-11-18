@@ -4,7 +4,7 @@
 import { updateFronts } from './fronts.js';
 import { indexBuildings } from './economy.js';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 const b64 = {
   enc(u8) {
@@ -85,6 +85,15 @@ export function serialize(sim) {
     pockets,
     exclave,
     events: sim.events,
+    research: [...sim.research],
+    unlocks: [...sim.unlocks],
+    researchLog: sim.researchLog || [],
+    scientists: sim.scientists.map(({ id, employer, loyalty, cell, status, guard }) => ({ id, employer, loyalty, cell, status, guard })),
+    intel: [...sim.intel],
+    relations: sim.relations,
+    generals: sim.generals.map((g) => [g.id, g.front]),
+    nodeGuard: sim.nodes.map((n) => n.guard),
+    bridgeGuard: sim.bridges.map((b) => b.guard),
     history: {
       days: sim.history.days,
       eventIdx: sim.history.eventIdx,
@@ -142,6 +151,17 @@ export function deserialize(sim, s) {
   indexBuildings(sim);
   sim.nextBuildingId = s.nextBuildingId;
   sim.events = s.events;
+  sim.research = new Map(s.research);
+  sim.unlocks = new Map(s.unlocks);
+  sim.researchLog = s.researchLog;
+  sim.modsCache = new Map();
+  for (const x of s.scientists) Object.assign(sim.scientists.find((y) => y.id === x.id), x);
+  sim.intel = new Map(s.intel);
+  sim.relations = s.relations;
+  const gf = new Map(s.generals);
+  for (const g of sim.generals) g.front = gf.get(g.id) || 0;
+  s.nodeGuard.forEach((v, i) => { sim.nodes[i].guard = v; });
+  s.bridgeGuard.forEach((v, i) => { sim.bridges[i].guard = v; });
   // Besitzzähler, Kessel- und Exklavenmarken
   sim.ownedCount.fill(0);
   for (let i = 0; i < sim.N; i++) sim.ownedCount[sim.owner[i]]++;

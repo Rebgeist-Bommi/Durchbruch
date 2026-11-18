@@ -14,6 +14,8 @@ import './styles/game.css';
 import './styles/econ.css';
 
 import balance from '../data/balance.json';
+import scientistsData from '../data/scientists.json';
+import generalsData from '../data/generals.json';
 import { loadAll } from './data/loader.js';
 import { Grid } from './data/grid.js';
 import { inverse } from './data/projection.js';
@@ -22,6 +24,7 @@ import { Panel } from './ui/panel.js';
 import { GameUI } from './ui/game.js';
 import { Simulation } from './sim/simulation.js';
 import { EconomyUI } from './ui/economy.js';
+import { IntelUI } from './ui/intel.js';
 import { serialize, deserialize } from './sim/save.js';
 
 const MODES = ['front', 'economy', 'intel'];
@@ -35,7 +38,7 @@ async function main() {
   const panel = new Panel(grid);
   const params = new URLSearchParams(location.search);
   const seed = Number(params.get('seed')) || balance.seed;
-  const sim = new Simulation({ grid, map: data.map, balance, infra: data.infra, seed });
+  const sim = new Simulation({ grid, map: data.map, balance, infra: data.infra, people: { scientists: scientistsData, generals: generalsData }, seed });
   // Spielstand laden, der vor dem Neuladen der Seite hinterlegt wurde (Laden/Import)
   let loadedFrom = null;
   try {
@@ -70,6 +73,7 @@ async function main() {
     sim, renderer, onChange: () => { econ.refresh(); ui.refresh(); renderer.requestRender(); },
   });
   panel.railInfo = (i) => econ.railInfo(i);
+  const intel = new IntelUI({ sim, renderer, onChange: () => { intel.refresh(); econ.refresh(); renderer.requestRender(); } });
 
   // ---- Speichern, Laden, Export, Import, Autosave ----
   const toast = (text) => {
@@ -165,6 +169,7 @@ async function main() {
     renderer.onTick();
     ui.onTick();
     econ.refresh();
+    intel.refresh();
     if (sim.day % 7 === 0) store('durchbruch-auto');
   }
 
@@ -203,7 +208,7 @@ async function main() {
     if (b) setSpeed(Number(b.dataset.speed));
   });
 
-  window.__durchbruch = { renderer, grid, data, sim, ui, econ, setSpeed, doTick, clock, serialize };
+  window.__durchbruch = { renderer, grid, data, sim, ui, econ, intel, setSpeed, doTick, clock, serialize };
 
   // ---- Statuszeile ----
   const zoomEl = document.getElementById('s-zoom');
@@ -281,6 +286,8 @@ async function main() {
       const i = renderer.cellAt(sx, sy);
       if (econ.buildType) {
         econ.click(i);
+      } else if (renderer.mode === 'intel') {
+        intel.select(renderer.pickIntelTarget(sx, sy));
       } else if (fid) {
         ui.selectFront(fid);
       } else {

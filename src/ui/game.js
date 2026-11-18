@@ -1,6 +1,9 @@
 // Spieloberfläche Phase 2: Lage, Frontfenster, Kampfanzeige, Meldungsleiste, Abschlussdialog.
 import { flagUrl } from './flags.js';
 import { fmtInt } from '../sim/calendar.js';
+import { freeGenerals, assignGeneral } from '../sim/generals.js';
+import { strikeTargets, strikePower } from '../sim/airstrike.js';
+import { describeTarget } from '../sim/intel.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -22,6 +25,12 @@ export class GameUI {
     $('frontwin').addEventListener('click', (e) => this.onFrontAction(e));
     $('frontwin').addEventListener('change', (e) => {
       if (e.target.id === 'tf-target') this.transferTarget = Number(e.target.value);
+      if (e.target.id === 'gen-select') this.cmd(() => assignGeneral(this.sim, this.frontId, this.sim.player, e.target.value || null));
+      if (e.target.id === 'strike-target') this.cmd(() => {
+        const [kind, id] = e.target.value.split(':');
+        const side = this.sim.fronts.get(this.frontId).side[this.sim.player];
+        side.strikeTarget = kind ? { kind, id: Number(id) } : null;
+      });
       if (e.target.name === 'method') this.cmd(() => this.sim.setMethod(this.frontId, e.target.value));
       if (e.target.name === 'order') this.cmd(() => this.sim.setOrder(this.frontId, e.target.value));
     });
@@ -164,6 +173,8 @@ export class GameUI {
         </dl>
       </section>
 
+      ${this.generalHtml(f, p)}
+
       <section>
         <h3>Befehl</h3>
         <label class="radio"><input type="radio" name="order" value="hold" ${side.order === 'hold' ? 'checked' : ''} ${attacking ? 'disabled' : ''}> Halten und befestigen</label>
@@ -181,6 +192,8 @@ export class GameUI {
         <label class="radio"><input type="radio" name="method" value="minimal" ${side.method === 'minimal' ? 'checked' : ''}> Minimaler Schaden <span class="muted">– Land und Wirtschaft bleiben erhalten, langsamer</span></label>
         <label class="radio"><input type="radio" name="method" value="total" ${side.method === 'total' ? 'checked' : ''}> Totale Verwüstung <span class="muted">– schneller, kaum Ertrag für lange Zeit</span></label>
       </section>
+
+      ${this.airHtml(f, p)}
 
       <section>
         <h3>Truppen</h3>
@@ -210,6 +223,41 @@ export class GameUI {
       </section>`;
   }
 
+  generalHtml(f, p) {
+    const sim = this.sim;
+    const side = f.side[p];
+    const g = side.general ? sim.generals.find((x) => x.id === side.general) : null;
+    const tr = g ? sim.generalTraits[g.trait] : null;
+    const options = [g, ...freeGenerals(sim, p)].filter(Boolean);
+    return `<section>
+        <h3>General</h3>
+        <select id="gen-select" aria-label="General wählen" class="full">
+          ${!g ? '<option value="">– kein General –</option>' : ''}
+          ${options.map((x) => `<option value="${x.id}" ${g && x.id === g.id ? 'selected' : ''}>${esc(x.name)} – ${esc(sim.generalTraits[x.trait].label)}</option>`).join('')}
+        </select>
+        ${tr ? `<p class="fw-sub">${esc(tr.label)}: ${esc(tr.text)}</p>` : ''}
+      </section>`;
+  }
+
+  airHtml(f, p) {
+    const sim = this.sim;
+    const side = f.side[p];
+    const shares = sim.bal.airstrike.shares;
+    const targets = strikeTargets(sim, f, p);
+    const cur = side.strikeTarget ? `${side.strikeTarget.kind}:${side.strikeTarget.id}` : '';
+    const power = strikePower(sim, f, p);
+    const name = (t) => describeTarget(sim, t)?.name || '–';
+    return `<section>
+        <h3>Luftangriffe</h3>
+        <div class="seg">${shares.map((v) => `<button type="button" role="radio" aria-checked="${Math.abs((side.airShare || 0) - v) < 1e-6}" data-action="airshare" data-v="${v}">${Math.round(v * 100)} %</button>`).join('')}</div>
+        <select id="strike-target" aria-label="Ziel der Luftangriffe" class="full">
+          <option value="">– Ziel hinter der Front wählen –</option>
+          ${targets.map((t) => `<option value="${t.kind}:${t.id}" ${`${t.kind}:${t.id}` === cur ? 'selected' : ''}>${esc(name(t))} (${Math.round(t.d * 9)} km)</option>`).join('')}
+        </select>
+        <p class="fw-sub">${side.airShare ? `${Math.round(side.airShare * 100)} % des Luftanteils fehlen an der Front · Trefferchance ${Math.round(power.chance * 100)} % je Tag${side.strikeHits ? ` · ${side.strikeHits} Treffer` : ''}` : 'Kein Luftanteil abgestellt.'}</p>
+      </section>`;
+  }
+
   onFrontAction(e) {
     const b = e.target.closest('[data-action]');
     if (!b) return;
@@ -220,6 +268,7 @@ export class GameUI {
       case 'attack': this.cmd(() => sim.attack(id)); break;
       case 'stop': this.cmd(() => sim.stopAttack(id)); break;
       case 'from-reserve': this.cmd(() => sim.transfer(0, id, 1)); break;
+      case 'airshare': this.cmd(() => { sim.fronts.get(id).side[sim.player].airShare = Number(b.dataset.v); }); break;
       case 'to-reserve': this.cmd(() => sim.transfer(id, 0, 1)); break;
       case 'transfer': {
         const t = this.transferTarget || this.playerFronts().find((x) => x.id !== id)?.id;

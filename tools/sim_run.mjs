@@ -13,13 +13,17 @@ export function loadInputs() {
   const map = decodeMap(JSON.parse(readFileSync(new URL('map.json', dir), 'utf8')));
   const balance = JSON.parse(readFileSync(new URL('../data/balance.json', import.meta.url), 'utf8'));
   const infra = JSON.parse(readFileSync(new URL('infra.json', dir), 'utf8'));
-  return { meta, bin, map, balance, infra };
+  const people = {
+    scientists: JSON.parse(readFileSync(new URL('../data/scientists.json', import.meta.url), 'utf8')),
+    generals: JSON.parse(readFileSync(new URL('../data/generals.json', import.meta.url), 'utf8')),
+  };
+  return { meta, bin, map, balance, infra, people };
 }
 
 export function newSim({ seed, peace = false } = {}) {
-  const { meta, bin, map, balance, infra } = loadInputs();
+  const { meta, bin, map, balance, infra, people } = loadInputs();
   const grid = new Grid(meta, new Uint8Array(bin));
-  return new Simulation({ grid, map, balance, infra, seed: seed ?? balance.seed, peace });
+  return new Simulation({ grid, map, balance, infra, people, seed: seed ?? balance.seed, peace });
 }
 
 export function runCampaign({ seed, maxDays = 200, onDay } = {}) {

@@ -1,6 +1,7 @@
 // Einfache KI (Phase 2: Polen). Verteilt Divisionen auf bedrohte Abschnitte und Fronten,
 // befestigt und zieht Truppen aus Räumen ab, denen die Einkesselung droht.
 import { components } from './pockets.js';
+import { phantomStrength } from './intel.js';
 
 export function runAi(sim) {
   for (const n of sim.nations.keys()) {
@@ -40,7 +41,8 @@ function aiNation(sim, n) {
   let moves = A.maxTransfersPerDay;
   const safe = fronts.filter((f) => !f.encircled[n] && !threatened.has(f.id));
 
-  const enemyStr = (f) => sim.sideStrength(f.id, sim.enemyOn(f, n)).str;
+  // Desinformation: vorgetäuschte Aufmärsche zählen als echte Bedrohung
+  const enemyStr = (f) => sim.sideStrength(f.id, sim.enemyOn(f, n)).str + phantomStrength(sim, n, f.id);
   const current = (f) => sim.divisionsOn(f.id, n).length + sim.inTransitTo(f.id, n).length;
 
   // Rückzug aus bedrohten Räumen

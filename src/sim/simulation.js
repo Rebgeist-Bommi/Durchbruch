@@ -10,6 +10,11 @@ import { formatDate } from './calendar.js';
 import { initInfra, computeRailSupply, railSupply, repairRail, advanceUpgrades, damageOnCapture, levelFactor, levelOfCell } from './infra.js';
 import { initEconomy, runEconomy, divisionStrength, captureBuildings, transferStocks } from './economy.js';
 import { initHistory, recordDay } from './history.js';
+import { initResearch, runResearch } from './research.js';
+import { initScientists, runScientists } from './scientists.js';
+import { initIntel, runIntel, isRevealed } from './intel.js';
+import { runAirStrikes } from './airstrike.js';
+import { initGenerals, runGenerals } from './generals.js';
 
 import { NMAX, KM_PER_CELL } from './constants.js';
 
@@ -21,19 +26,20 @@ export class Simulation {
    * JavaScript-Engine die Tick-Funktionen schon vor dem ersten echten Spieltag optimiert.
    * Das echte Spiel bleibt unberührt (eigenes Raster, eigener Zufall).
    */
-  static warmup({ grid, map, balance, infra }) {
+  static warmup({ grid, map, balance, infra, people }) {
     Simulation.warmedUp = true;
     const bytes = new Uint8Array(grid.size * 2);
     bytes.set(grid.territory, 0);
     bytes.set(grid.terrain, grid.size);
     const copy = new grid.constructor(grid.meta, bytes);
-    const sim = new Simulation({ grid: copy, map, balance, infra, seed: 1, warm: true });
+    const sim = new Simulation({ grid: copy, map, balance, infra, people, seed: 1, warm: true });
     for (const f of sim.fronts.values()) if (f.side[sim.player]) sim.attack(f.id);
     for (let k = 0; k < 3; k++) sim.tick();
   }
 
-  constructor({ grid, map, balance, infra, seed, warm = false, peace = false }) {
+  constructor({ grid, map, balance, infra, people, seed, warm = false, peace = false }) {
     if (!infra) throw new Error('Simulation braucht infra.json (Phase 3)');
+    if (!people) throw new Error('Simulation braucht Wissenschaftler und Generäle (Phase 4)');
     this.grid = grid;
     this.map = map;
     this.bal = balance;
@@ -99,6 +105,10 @@ export class Simulation {
     this.divisions = [];
     this.createDivisions();
     initEconomy(this, infra);
+    initResearch(this);
+    initScientists(this, people.scientists);
+    initIntel(this);
+    initGenerals(this, people.generals);
     initHistory(this);
     this.methodCount = new Map(); // eroberte Felder je Nation und Vorgehen
     this.computeStartState();
@@ -108,8 +118,9 @@ export class Simulation {
     // damit schon der erste Tick ohne Anlaufkosten läuft.
     resolvePockets(this);
     updateFronts(this);
+    runGenerals(this);
     for (const n of this.nations.keys()) if (n !== this.player) warmupAi(this, n);
-    if (!warm && !Simulation.warmedUp) Simulation.warmup({ grid, map, balance, infra });
+    if (!warm && !Simulation.warmedUp) Simulation.warmup({ grid, map, balance, infra, people });
     if (this.wars.length) this.log('info', `Aufmarsch abgeschlossen. Kriegszustand mit ${this.nationName(this.idx('POL'))}.`);
     else this.log('info', 'Frieden. Die Wirtschaft läuft an.');
   }
@@ -339,10 +350,19 @@ export class Simulation {
   }
 
   /** Geschätzte Gegnerzahl (Aufklärung ungenau, aber stabil über 3 Tage). */
-  estimate(frontId, n) {
+  estimate(frontId, n, viewer = this.player) {
     const real = this.divisionsOn(frontId, n).length;
+    if (this.frontRevealed(frontId, viewer)) return real; // Aufklärung: genaue Zahl
     const noise = (hash01(frontId, n, Math.floor(this.day / 3)) - 0.5) * 0.5;
     return Math.max(0, Math.round(real * (1 + noise)));
+  }
+
+  /** Front aufgeklärt, wenn ein Abschnitt in einem aufgeklärten Sektor liegt. */
+  frontRevealed(frontId, viewer) {
+    const f = this.fronts.get(frontId);
+    if (!f) return false;
+    const enemy = this.enemyOn(f, viewer);
+    return f.sections.some((s) => (n => isRevealed(this, viewer, n))(enemy === f.b ? s.cellsB[0] : s.cellsA[0]));
   }
 
   yieldOf(cell) {
@@ -407,7 +427,14 @@ export class Simulation {
     const cellAt = (x, y) => Math.max(0, Math.min(this.rows - 1, Math.round(y))) * this.cols + Math.max(0, Math.min(this.cols - 1, Math.round(x)));
     const lv = (levelOfCell(this, cellAt(x0, y0)) + levelOfCell(this, cellAt(x1, y1))) / 2;
     const speed = T.kmPerDay * (T.levelSpeed[Math.round(lv) - 1] || 1);
-    return Math.max(T.minDays, Math.ceil(km / speed));
+    // zerstörte oder beschädigte eigene Bahnknoten nahe dem Ziel bremsen die Verlegung
+    let broken = 0;
+    for (const node of this.nodes) {
+      if (node.state === 1 || this.owner[node.cell] !== n) continue;
+      if (Math.hypot(node.cell % this.cols - x1, Math.floor(node.cell / this.cols) - y1) <= T.nodePenaltyRadius) broken++;
+    }
+    const slow = Math.min(T.nodePenaltyMax, 1 + T.nodePenalty * broken);
+    return Math.max(T.minDays, Math.ceil((km / speed) * slow));
   }
 
   /** Verlegt bis zu `count` Divisionen. Quelle/Ziel 0 = Reserve. Gibt die Anzahl zurück. */
@@ -474,6 +501,7 @@ export class Simulation {
       phases[name] = clock.now() - a;
     };
     run('nachschub', () => computeRailSupply(this));
+    run('generaele', () => runGenerals(this));
     run('ki', () => runAi(this));
     run('auto', () => this.autoplay && this.autoplay(this));
     run('belagerung', () => resolveSieges(this));
@@ -484,6 +512,8 @@ export class Simulation {
     run('befehle', () => updateOrdersOverTime(this));
     run('infrastruktur', () => { repairRail(this); advanceUpgrades(this); });
     run('wirtschaft', () => runEconomy(this));
+    run('forschung', () => { runResearch(this); runScientists(this); });
+    run('geheimdienst', () => { runIntel(this); runAirStrikes(this); });
     this.cleanupDivisions();
     recordDay(this);
     const ms = clock.now() - t0;

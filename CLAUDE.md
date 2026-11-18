@@ -10,7 +10,8 @@ gebaut.
 | 1 | Karte und Grundgerüst | fertig |
 | 2 | Echtzeit und Kampf (Deutschland gegen Polen spielbar) | fertig |
 | 3 | Wirtschaft, Infrastruktur, KI-Nationen, Speichern | fertig |
-| 4–6 | folgen | offen |
+| 4 | Forschung, Geheimdienst, Generäle | fertig |
+| 5–6 | folgen | offen |
 
 ## Technik
 - Reines HTML/CSS/JavaScript (ES-Module), kein Framework. Build mit Vite (`base: './'`).
@@ -28,6 +29,8 @@ index.html                 Einstieg, Layout (Kopfleiste mit Zeit, Seitenleiste, 
 src/main.js                Start, Spielschleife (Tick je Spieltag, Animation dazwischen), Eingaben
                            (Zoom, Ziehen, Klick auf Feld/Front, Tasten 1/2/3, Leertaste, G, 0, +/-, Esc)
 data/balance.json          Spielwerte (alle Platzhalter, "# TODO historisch prüfen")
+data/scientists.json       Wissenschaftler (Fachgebiet, Ort 1939; Quellen in SOURCES.md)
+data/generals.json         Generäle mit Eigenschaft (historisch nur mit belegter Kriegsführung)
 src/sim/                   Simulation ohne DOM (läuft im Browser und in Node gleich):
   simulation.js            Zustand, Tick-Ablauf, Befehle, Nachschub, Verlegung, Ereignisse
   fronts.js                Fronten aus Kontaktkanten, Identität über Ticks, Abschnitte (~100 km)
@@ -41,6 +44,14 @@ src/sim/                   Simulation ohne DOM (läuft im Browser und in Node gl
                            Instandsetzung, Nachschub über intakte Bahnknoten
   save.js                  Speichern/Laden (vollständiger Zustand, dünn besetzt gegenüber Start)
   history.js               Momentaufnahme je Tag (geänderte Felder, Ereignisindex) für den Zeitraffer
+  research.js              Forschung: Schwerpunkt und Budget je Anstalt, Ergebnisse mit
+                           steigenden Kosten, abstrakte Effekte (mods), Uran-Bedingung
+  scientists.js            Wissenschaftler: Bonus in derselben Region, Loyalität, Flucht, Verrat,
+                           Bewachung, Gefangennahme
+  intel.js                 Geheimdienst: Stufe, Agenten, Missionen, Enttarnung, Beziehungen,
+                           Nebel des Krieges (isRevealed), Desinformation, KI-Missionen
+  airstrike.js             Luftangriffe einer Front auf Knoten/Brücken/Fabriken hinter der Front
+  generals.js              ein General je Front und Seite, Eigenschaften, automatische Besetzung
   sectors.js, rng.js (mit speicherbarem Zustand), calendar.js, constants.js
 src/data/projection.js     EPSG:3035 vorwärts/rückwärts (ellipsoidisch)
 src/data/grid.js           Feldraster: Besitzer, Terrain, Nachbarn
@@ -51,8 +62,9 @@ src/map/renderer.js        Kartenzeichnung in Ebenen: statisch (Länder, Relief,
                            feldweise mit Schraffur, Frontbalken mit Abschnittsstatus, Belagerungen)
 src/map/styles.js          Farben und Schriften je Kartenmodus
 src/ui/                    panel.js (Feldinfo, Nation), game.js (Lage, Frontfenster, Kampfanzeige,
-                           Meldungen, Abschluss), economy.js (Kennzahlen, Wirtschaftsleiste,
-                           Standortwahl), flags.js
+                           Meldungen, Abschluss, General, Luftangriffe), economy.js (Kennzahlen,
+                           Wirtschaftsleiste, Standortwahl, Reiter Forschung), intel.js (Akte,
+                           Agenten, Missionen), flags.js
 src/styles/                base.css + front.css / economy.css / intel.css (Layout je Modus), game.css, econ.css
 src/assets/flags/          Nationalflaggen 1939 als SVG (vereinfacht)
 public/data/               erzeugte Spieldaten (nicht von Hand ändern)
@@ -140,3 +152,23 @@ node tools/sim_run.mjs [seed]    # Feldzug ohne Spieler im Terminal (Tagesprotok
 - Speichern: `serialize(sim)` / `deserialize(sim, data)`; im Browser localStorage (manuell +
   Autosave alle 7 Tage), Export/Import als gzip-Datei (`.durchbruch`). Laden = Seite neu laden mit
   hinterlegtem Stand (sessionStorage).
+
+## Datenmodell (Phase 4)
+- Forschung: Anstalt `{focus: heer|luft|industrie|sonder, budget, guard}`; je Nation und Schwerpunkt
+  `{level, progress}`. Fortschritt/Tag = min(Budget, maxBudget) × (1 + Wissenschaftlerbonus) ×
+  Zustand. Ergebnis k kostet `baseCost × costGrowth^k`. Effekte (`mods(sim, n)`): attack, defense,
+  tank, air, airDefense, strike, counter, production, repair, railCost, resources, equipment, supply.
+  Atombombe braucht ein eigenes Uran-Rohstoffgebiet und schaltet nur eine Fähigkeit frei.
+- Wissenschaftler `{employer, origin, cell, loyalty, guard, status}`: Bonus nur, wenn in derselben
+  Region (Sektor) eine passende Anstalt des Dienstherrn steht. Fachgebiet `geheimdienst` erhöht die
+  Spionageabwehr. Fremde Wissenschaftler können fliehen oder Ergebnisse verraten.
+- Geheimdienst je Nation `{level, agents, revealedSectors, revealedNations, phantom}`; Erfolgschance
+  = Basis + perLevel × (Stufe − gegnerische Abwehr) − perGuard × Bewachung, beim Start der Mission
+  festgehalten und genau so gewürfelt (`resolveAgent`). Enttarnung kostet den Agenten und senkt
+  `sim.relations` (Diplomatie ab Phase 5).
+- Nebel des Krieges: Gegnerische Divisionen nur geschätzt (±25 %), Befestigung, Industrie,
+  Belagerungswerte und Forschung unbekannt, solange das Gebiet bzw. die Nation nicht aufgeklärt ist.
+- Nachschub zusätzlich mit Durchsatz: Zahl nutzbarer Knoten im Umkreis `supply.capRadius`
+  (gesättigt bei `capNodes`). Zerstörte Knoten/Brücken brauchen länger zur Instandsetzung und
+  bremsen Verlegungen in ihrer Nähe.
+- Front-Seite zusätzlich: `general`, `airShare` (fehlt an der Front), `strikeTarget`.

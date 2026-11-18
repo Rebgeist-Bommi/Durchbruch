@@ -75,3 +75,35 @@ body.mode-economy #panel { display: flex; flex-direction: column; }
 body.mode-economy #panel .nation { order: 1; }
 body.mode-economy #panel .mode-section[data-for="economy"] { order: 2; }
 body.mode-economy #panel #field { order: 3; }
+
+/* Phase 4: Forschung, Akte, Frontfenster-Erweiterungen */
+.tabs { display: flex; gap: 2px; margin-bottom: 12px; }
+.tabs button { flex: 1; padding: 6px 4px; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(0, 0, 0, 0.3); font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; }
+.tabs button[aria-selected="true"] { background: var(--accent); color: #1d2125; border-color: var(--accent); font-weight: 600; }
+.track { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.pbar.big { height: 8px; margin: 4px 0; }
+.ec-sub.done { opacity: 0.7; font-size: 12px; }
+.labs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.labs li { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+.labs li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.labs li.sci { display: block; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.seg.mini { margin: 0; flex: 0 0 auto; }
+.seg.mini button { padding: 2px 6px; font-size: 12px; flex: 0 0 auto; }
+.warn { color: #ff9a6b; }
+select.full { width: 100%; margin: 4px 0; font: inherit; font-size: 13px; padding: 4px; background: rgba(0, 0, 0, 0.35); color: inherit; border: 1px solid rgba(255, 255, 255, 0.25); }
+select.full option { color: #111; }
+body.mode-front select.full { border-color: rgba(200, 161, 86, 0.5); }
+
+/* Geheimdienst-Akte (Papier) */
+body.mode-intel #panel { width: 340px; }
+body.mode-intel #intelui h2 { margin-top: 10px; }
+body.mode-intel .akte { border: 1px solid rgba(31, 29, 24, 0.35); padding: 8px; background: rgba(255, 255, 255, 0.25); }
+body.mode-intel .mission { border-top: 1px dashed rgba(31, 29, 24, 0.4); padding-top: 6px; margin-top: 6px; }
+body.mode-intel .chance { font-weight: 700; color: #B3261E; }
+body.mode-intel .btn { color: #1f1d18; border-color: rgba(31, 29, 24, 0.5); background: rgba(255, 255, 255, 0.4); }
+body.mode-intel .seg button { color: #1f1d18; border-color: rgba(31, 29, 24, 0.4); background: rgba(255, 255, 255, 0.4); }
+body.mode-intel .seg button[aria-checked="true"] { background: #B3261E; color: #f1ece0; border-color: #B3261E; }
+body.mode-intel .labs li { color: #1f1d18; }
+body.mode-intel .ec-grid { color: #1f1d18; }
+.legend .res-u { background: #96aa28; width: 12px; }
+body.mode-intel #panel #field { display: none; }

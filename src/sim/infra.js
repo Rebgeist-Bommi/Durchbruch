@@ -2,6 +2,8 @@
 // Bahnknoten und Brücken mit Zustand, Instandsetzung, Nachschub über intakte Bahnknoten.
 // Zustände: 0 keine Bahn, 1 intakt, 2 beschädigt, 3 zerstört.
 
+import { mods as modsOf } from './research.js';
+
 export const INTACT = 1;
 export const DAMAGED = 2;
 export const DESTROYED = 3;
@@ -108,8 +110,11 @@ export function repairRail(sim) {
     }
     if (!anchored) { still.push(cell); continue; }
     crews.set(n, used + 1);
-    const days = st === DESTROYED ? R.repairDaysDestroyed : R.repairDaysDamaged;
-    sim.railProgress[cell] += levelFactor(sim, levelOfCell(sim, cell)) / days;
+    // Knoten und Brücken brauchen länger als einfache Strecken
+    // nur zerstörte Knoten/Brücken (Sabotage, Luftangriff, Sprengung) brauchen länger
+    const special = st !== DESTROYED ? 0 : sim.bridgeAt[cell] >= 0 ? R.repairDaysBridge : sim.nodeAt[cell] >= 0 ? R.repairDaysNode : 0;
+    const days = Math.max(special, st === DESTROYED ? R.repairDaysDestroyed : R.repairDaysDamaged);
+    sim.railProgress[cell] += (levelFactor(sim, levelOfCell(sim, cell)) * (1 + modsOf(sim, n).repair)) / days;
     if (sim.railProgress[cell] >= 1) done.push(cell);
     else still.push(cell);
   }
@@ -152,9 +157,13 @@ export function computeRailSupply(sim) {
     // 1. verbundenes Netz: Breitensuche über intakte eigene Bahnfelder ab dem Kernnetz (8er)
     let head = 0;
     let tail = 0;
+    const rs = sim.railState;
+    const own = sim.owner;
+    const home = sim.homeOwner;
+    const cm = sim.conqMethod;
     for (let r = r0; r <= r1; r++) {
       for (let i = r * cols + c0, e = r * cols + c1; i <= e; i++) {
-        if (sim.railState[i] === INTACT && isHome(sim, n, i)) { conn[i] = stamp; q[tail++] = i; }
+        if (rs[i] === INTACT && own[i] === n && (home[i] === n || cm[i] === 0)) { conn[i] = stamp; q[tail++] = i; }
       }
     }
     while (head < tail) {
@@ -168,13 +177,34 @@ export function computeRailSupply(sim) {
           const cc = c + dc;
           if (cc < 0 || cc >= cols) continue;
           const j = rr * cols + cc;
-          if (conn[j] === stamp || sim.railState[j] !== INTACT || sim.owner[j] !== n) continue;
+          if (conn[j] === stamp || rs[j] !== INTACT || own[j] !== n) continue;
           conn[j] = stamp;
           q[tail++] = j;
         }
       }
     }
-    // 2. Abstand zu nutzbaren Knoten (Breitensuche über eigenes Land, Grenzfelder des Gegners erhalten Werte)
+    // 2a. Durchsatz: Zahl nutzbarer Knoten im Umkreis (jeder Knoten zählt, Sabotage wirkt sofort)
+    if (!sim.nodeCount) sim.nodeCount = new Map();
+    let cnt = sim.nodeCount.get(n);
+    if (!cnt) { cnt = new Uint8Array(N); sim.nodeCount.set(n, cnt); }
+    cnt.fill(0);
+    const CR = R.capRadius;
+    for (const node of sim.nodes) {
+      const i = node.cell;
+      if (node.state !== INTACT || conn[i] !== stamp) continue;
+      const r = (i / cols) | 0;
+      const c = i - r * cols;
+      for (let dr = -CR; dr <= CR; dr++) {
+        const rr = r + dr;
+        if (rr < 0 || rr >= rows) continue;
+        const w = Math.floor(Math.sqrt(CR * CR - dr * dr));
+        for (let cc = Math.max(0, c - w), ce = Math.min(cols - 1, c + w); cc <= ce; cc++) {
+          const j = rr * cols + cc;
+          if (cnt[j] < 255) cnt[j]++;
+        }
+      }
+    }
+    // 2b. Abstand zu nutzbaren Knoten (Breitensuche über eigenes Land, Grenzfelder des Gegners erhalten Werte)
     let dist = sim.supplyDist.get(n);
     if (!dist) { dist = new Uint16Array(N); sim.supplyDist.set(n, dist); }
     dist.fill(65535);
@@ -186,11 +216,13 @@ export function computeRailSupply(sim) {
       dist[i] = 0;
       q[tail++] = i;
     }
+    const maxD = R.rangeCells * (1 + modsOf(sim, n).supply) + 2;
+    const owner = sim.owner;
     while (head < tail) {
       const i = q[head++];
-      if (sim.owner[i] !== n) continue; // gegnerische Felder erhalten einen Wert, leiten aber nicht weiter
+      if (owner[i] !== n) continue; // gegnerische Felder erhalten einen Wert, leiten aber nicht weiter
       const d = dist[i] + 1;
-      if (d > R.rangeCells + 2) continue;
+      if (d > maxD) continue;
       for (let k = i * 4, e = k + 4; k < e; k++) {
         const j = nb[k];
         if (j < 0 || dist[j] <= d) continue;
@@ -208,17 +240,23 @@ export function computeRailSupply(sim) {
 export function railSupply(sim, n, cell) {
   const R = sim.bal.supply;
   const d = sim.supplyDist?.get(n)?.[cell] ?? 65535;
-  const t = d === 65535 ? 1 : Math.max(0, d - R.fullCells) / (R.rangeCells - R.fullCells);
+  const k = 1 + (sim.modsCache ? modsOf(sim, n).supply : 0); // Forschung Logistik
+  const full = R.fullCells * k;
+  const range = R.rangeCells * k;
+  const t = d === 65535 ? 1 : Math.max(0, d - full) / (range - full);
   const base = Math.max(R.minFactor, 1 - t);
   const lvl = levelOfCell(sim, cell);
-  return base * (1 - R.levelWeight * (5 - lvl) / 4);
+  const cnt = sim.nodeCount?.get(n)?.[cell] ?? R.capNodes;
+  const cap = 1 - R.capWeight + R.capWeight * Math.min(1, cnt / R.capNodes);
+  return base * cap * (1 - R.levelWeight * (5 - lvl) / 4);
 }
 
 /** Ausbau einer Region um eine Stufe (Kosten und Dauer aus balance.json). */
 export function upgradeCost(sim, sector) {
   const R = sim.bal.infrastructure;
   const to = sim.railLevel[sector] + 1;
-  return { to, cost: R.upgradeCostPerLevel * to, days: R.upgradeDaysPerLevel * to };
+  const n = sim.player;
+  return { to, cost: R.upgradeCostPerLevel * to * (1 + (sim.modsCache ? modsOf(sim, n).railCost : 0)), days: R.upgradeDaysPerLevel * to };
 }
 
 export function startUpgrade(sim, sector, n) {

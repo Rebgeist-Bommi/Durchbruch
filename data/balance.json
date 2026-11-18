@@ -188,7 +188,7 @@
   },
   "combat": {
     "_todo": "Spielwerte, durch Testläufe abgestimmt",
-    "baseRate": 0.32,
+    "baseRate": 0.39,
     "ratioExponent": 1.15,
     "maxChance": 0.93,
     "substeps": 3,
@@ -218,11 +218,14 @@
     "statusAdvanceKm": 2
   },
   "supply": {
-    "_todo": "Spielwerte (Phase 3: Nachschub über intakte Bahnknoten)",
+    "_todo": "Spielwerte (Nachschub über intakte Bahnknoten: Entfernung zum nächsten Knoten und Zahl der Knoten im Umkreis capRadius)",
     "fullCells": 14,
     "rangeCells": 50,
     "minFactor": 0.5,
-    "levelWeight": 0.08
+    "levelWeight": 0.08,
+    "capRadius": 10,
+    "capNodes": 2,
+    "capWeight": 0.4
   },
   "methods": {
     "_todo": "Spielwerte",
@@ -271,7 +274,10 @@
       0.9,
       1.0,
       1.15
-    ]
+    ],
+    "nodePenaltyRadius": 15,
+    "nodePenalty": 0.25,
+    "nodePenaltyMax": 2.0
   },
   "ai": {
     "_todo": "Spielwerte",
@@ -319,7 +325,9 @@
     "repairCrewsPerDay": 100,
     "repairDaysDamaged": 0.8,
     "repairDaysDestroyed": 4,
-    "repairCostPerCell": 0.3
+    "repairCostPerCell": 0.3,
+    "repairDaysNode": 12,
+    "repairDaysBridge": 8
   },
   "economy": {
     "_hinweis": "Geld in Mio. RM-Gegenwert je Tag (abstrakt, für alle Nationen gleich). Bevölkerung und BIP siehe SOURCES.md; alle anderen Zahlen sind Spielwerte # TODO historisch prüfen.",
@@ -504,6 +512,333 @@
         "tankEquipment": 0,
         "tankShare": 0.02
       }
+    }
+  },
+  "research": {
+    "_todo": "Spielwerte; Ergebnisse sind spielmechanisch abstrakt (keine technischen Details realer Waffen)",
+    "maxBudget": 1.5,
+    "defaultBudget": 0.8,
+    "baseCost": 60,
+    "costGrowth": 1.6,
+    "foci": {
+      "heer": {
+        "label": "Heer",
+        "results": [
+          {
+            "name": "Infanterieausrüstung",
+            "text": "Kampfwert +5 %",
+            "mods": {
+              "attack": 0.05,
+              "defense": 0.05
+            }
+          },
+          {
+            "name": "Panzer I",
+            "text": "Panzerwirkung +15 %",
+            "mods": {
+              "tank": 0.15
+            }
+          },
+          {
+            "name": "Artillerie",
+            "text": "Angriff +8 %",
+            "mods": {
+              "attack": 0.08
+            }
+          },
+          {
+            "name": "Panzer II",
+            "text": "Panzerwirkung +20 %",
+            "mods": {
+              "tank": 0.2
+            }
+          },
+          {
+            "name": "Verbundene Waffen",
+            "text": "Angriff und Abwehr +10 %",
+            "mods": {
+              "attack": 0.1,
+              "defense": 0.1
+            }
+          }
+        ]
+      },
+      "luft": {
+        "label": "Luftwaffe",
+        "results": [
+          {
+            "name": "Jagdflugzeuge",
+            "text": "Luftabwehr an der Front +20 %",
+            "mods": {
+              "airDefense": 0.2
+            }
+          },
+          {
+            "name": "Bomber",
+            "text": "Luftangriffe auf Infrastruktur +25 %",
+            "mods": {
+              "strike": 0.25
+            }
+          },
+          {
+            "name": "Frühwarnung",
+            "text": "Luftabwehr +15 %, Sabotageabwehr +0,3 Stufen",
+            "mods": {
+              "airDefense": 0.15,
+              "counter": 0.3
+            }
+          },
+          {
+            "name": "Strahlantrieb",
+            "text": "Luftunterstützung +20 %",
+            "mods": {
+              "air": 0.2
+            }
+          },
+          {
+            "name": "Luftüberlegenheit",
+            "text": "Luftunterstützung +20 %, Luftangriffe +25 %",
+            "mods": {
+              "air": 0.2,
+              "strike": 0.25
+            }
+          }
+        ]
+      },
+      "industrie": {
+        "label": "Industrie und Infrastruktur",
+        "results": [
+          {
+            "name": "Fließfertigung",
+            "text": "Fabriken +8 %",
+            "mods": {
+              "production": 0.08
+            }
+          },
+          {
+            "name": "Bahnbau",
+            "text": "Instandsetzung +40 %, Bahnausbau −20 % Kosten",
+            "mods": {
+              "repair": 0.4,
+              "railCost": -0.2
+            }
+          },
+          {
+            "name": "Ersatzstoffe",
+            "text": "Rohstoffförderung +10 %",
+            "mods": {
+              "resources": 0.1
+            }
+          },
+          {
+            "name": "Rüstungsrationalisierung",
+            "text": "Ausrüstung +12 %",
+            "mods": {
+              "equipment": 0.12
+            }
+          },
+          {
+            "name": "Logistik",
+            "text": "Nachschubreichweite +20 %",
+            "mods": {
+              "supply": 0.2
+            }
+          }
+        ]
+      },
+      "sonder": {
+        "label": "Sonderwaffen",
+        "results": [
+          {
+            "name": "Chemie",
+            "text": "Rohstoffe +5 % (Nebenprodukte)",
+            "mods": {
+              "resources": 0.05
+            }
+          },
+          {
+            "name": "Raketen I",
+            "text": "Luftangriffe auf Infrastruktur +20 %",
+            "mods": {
+              "strike": 0.2
+            }
+          },
+          {
+            "name": "Raketen II",
+            "text": "Luftangriffe +30 %",
+            "mods": {
+              "strike": 0.3
+            }
+          },
+          {
+            "name": "Kernphysik",
+            "text": "Voraussetzung für die Atombombe",
+            "mods": {}
+          },
+          {
+            "name": "Atombombe",
+            "text": "Fähigkeit freigeschaltet (Einsatz ab einer späteren Phase); braucht Uran",
+            "mods": {},
+            "needs": "Uran",
+            "unlock": "atombombe"
+          }
+        ]
+      }
+    },
+    "initialFocus": {
+      "Berlin": [
+        "heer",
+        "sonder"
+      ],
+      "Ludwigshafen": [
+        "sonder"
+      ],
+      "München": [
+        "luft"
+      ],
+      "Göttingen": [
+        "sonder"
+      ],
+      "Warschau": [
+        "heer"
+      ],
+      "Paris": [
+        "luft",
+        "sonder"
+      ],
+      "London": [
+        "luft",
+        "industrie"
+      ],
+      "Moskau": [
+        "heer",
+        "industrie"
+      ],
+      "Leningrad": [
+        "sonder"
+      ],
+      "Mailand": [
+        "luft"
+      ],
+      "Amsterdam": [
+        "industrie"
+      ],
+      "Helsinki": [
+        "heer"
+      ]
+    }
+  },
+  "scientists": {
+    "_todo": "Spielwerte",
+    "fleeChancePerDay": 0.004,
+    "leakChancePerResult": 0.35,
+    "guardCostPerLevel": 0.3,
+    "guardRiskFactor": 0.4,
+    "captureChance": 0.6,
+    "capturedLoyalty": 0.25,
+    "abductedLoyalty": 0.2,
+    "loyaltyGainPerDay": 0.0008
+  },
+  "intel": {
+    "_todo": "Spielwerte",
+    "startLevel": {
+      "DEU": 3,
+      "POL": 2,
+      "FRA": 3,
+      "GBR": 4,
+      "ITA": 2,
+      "SOV": 3,
+      "NLD": 2,
+      "FIN": 2
+    },
+    "agentCost": 15,
+    "agentTrainingDays": 14,
+    "maxAgents": 8,
+    "levelUpCost": 120,
+    "levelUpDays": 60,
+    "missions": {
+      "aufklaeren": {
+        "label": "Aufklären",
+        "base": 0.65,
+        "days": 5,
+        "revealDays": 30,
+        "exposeOnFail": 0.4
+      },
+      "sabotage": {
+        "label": "Sabotage",
+        "base": 0.5,
+        "days": 7,
+        "exposeOnFail": 0.6
+      },
+      "entfuehren": {
+        "label": "Wissenschaftler entführen",
+        "base": 0.3,
+        "days": 12,
+        "exposeOnFail": 0.8
+      },
+      "desinformation": {
+        "label": "Desinformation",
+        "base": 0.55,
+        "days": 6,
+        "effectDays": 14,
+        "phantomDivisions": 10,
+        "exposeOnFail": 0.5
+      }
+    },
+    "perLevel": 0.1,
+    "perGuard": 0.15,
+    "minChance": 0.05,
+    "maxChance": 0.95,
+    "relationLoss": 15,
+    "defaultGuard": {
+      "node": 0,
+      "bridge": 1,
+      "fabrik": 0,
+      "ruestung": 1,
+      "forschung": 1,
+      "scientist": 1
+    },
+    "ai": {
+      "intervalDays": 10,
+      "missionChance": 0.5
+    }
+  },
+  "airstrike": {
+    "_todo": "Spielwerte",
+    "shares": [
+      0,
+      0.1,
+      0.25,
+      0.5
+    ],
+    "rangeCells": 40,
+    "hitPerAirDivision": 0.12,
+    "maxHit": 0.85,
+    "buildingDamage": 0.25
+  },
+  "generals": {
+    "_todo": "Spielwerte für Eigenschaften",
+    "panzer": {
+      "tank": 0.3
+    },
+    "verteidiger": {
+      "defense": 0.15,
+      "fort": 0.3
+    },
+    "stratege": {
+      "prepSpeed": 0.5,
+      "prepMax": 0.15
+    },
+    "logistiker": {
+      "supply": 0.15
+    },
+    "vorsichtig": {
+      "lossAtt": -0.2,
+      "odds": -0.1
+    },
+    "ruecksichtslos": {
+      "odds": 0.12,
+      "lossAtt": 0.35
     }
   }
 }

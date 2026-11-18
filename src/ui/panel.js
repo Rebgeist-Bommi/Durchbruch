@@ -1,5 +1,6 @@
 import { inverse } from '../data/projection.js';
 import { flagUrl } from './flags.js';
+import { isRevealed } from '../sim/intel.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -49,7 +50,8 @@ export class Panel {
     $('f-neighbors').textContent = g.isLand(i) ? `${g.neighbors(i).length} Landfelder` : '–';
     const sim = this.sim;
     const land = g.isLand(i) && sim;
-    $('f-fort').textContent = land ? `${Math.round(sim.fort[i] * 100)} %` : '–';
+    const known = !land || isRevealed(sim, sim.player, i); // Nebel des Krieges
+    $('f-fort').textContent = land ? (known ? `${Math.round(sim.fort[i] * 100)} %` : 'unbekannt') : '–';
     $('f-supply').textContent = land && sim.supplyDist.has(sim.player) ? `${Math.round(sim.supply(sim.player, i) * 100)} % (für ${sim.nationName(sim.player)})` : '–';
     if (land && sim.conqDay[i] >= 0) {
       const how = sim.conqMethod[i] === 2 ? 'verwüstet' : sim.conqMethod[i] === 1 ? 'erobert' : 'angegliedert';
@@ -64,7 +66,7 @@ export class Panel {
       const cnt = (t) => list.filter((b) => b.type === t && b.done).length;
       const open = list.filter((b) => !b.done).length;
       const health = list.length ? Math.round((list.reduce((s2, b) => s2 + b.health, 0) / list.length) * 100) : 100;
-      $('f-industry').textContent = list.length
+      $('f-industry').textContent = !known ? 'unbekannt (Aufklärung nötig)' : list.length
         ? `${site ? `${site.name}: ` : ''}${cnt('fabrik')} Fabrik, ${cnt('ruestung')} Rüstung, ${cnt('forschung')} Forschung${open ? `, ${open} im Bau` : ''}${health < 100 ? ` · Zustand ${health} %` : ''}`
         : '–';
     } else {
@@ -74,7 +76,7 @@ export class Panel {
     const si = sim ? sim.siegeAt[i] : -1;
     if (si >= 0) {
       const s = sim.sieges[si];
-      $('f-terrain').textContent += s.fallen ? ' · Stadt gefallen' : ` · Großstadt, Verteidigung ${Math.round(s.defense)}/${s.max}${s.besieged ? ' (belagert)' : ''}`;
+      $('f-terrain').textContent += s.fallen ? ' · Stadt gefallen' : known ? ` · Großstadt, Verteidigung ${Math.round(s.defense)}/${s.max}${s.besieged ? ' (belagert)' : ''}` : ' · Großstadt, Verteidigung unbekannt';
     }
   }
 }

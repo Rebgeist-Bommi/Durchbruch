@@ -1,0 +1,17 @@
+{
+  "_hinweis": "Personen, Nation, Fachgebiet und Wirkungsort 1939 siehe SOURCES.md (belegt bzw. # TODO historisch prüfen). Bonus und Loyalität sind Spielwerte.",
+  "scientists": [
+    { "id": "schrader", "name": "Gerhard Schrader", "nation": "DEU", "field": "sonder", "topic": "Chemie", "place": "Leverkusen", "lat": 51.03, "lon": 6.98, "bonus": 0.3, "loyalty": 0.9 },
+    { "id": "hahn", "name": "Otto Hahn", "nation": "DEU", "field": "sonder", "topic": "Kernchemie", "place": "Berlin", "lat": 52.45, "lon": 13.28, "bonus": 0.4, "loyalty": 0.7 },
+    { "id": "heisenberg", "name": "Werner Heisenberg", "nation": "DEU", "field": "sonder", "topic": "Kernphysik", "place": "Leipzig", "lat": 51.34, "lon": 12.37, "bonus": 0.4, "loyalty": 0.8 },
+    { "id": "braun", "name": "Wernher von Braun", "nation": "DEU", "field": "sonder", "topic": "Raketen", "place": "Peenemünde", "lat": 54.14, "lon": 13.77, "bonus": 0.45, "loyalty": 0.9 },
+    { "id": "ohain", "name": "Hans von Ohain", "nation": "DEU", "field": "luft", "topic": "Strahltriebwerk", "place": "Rostock", "lat": 54.09, "lon": 12.13, "bonus": 0.35, "loyalty": 0.9 },
+    { "id": "watsonwatt", "name": "Robert Watson-Watt", "nation": "GBR", "field": "luft", "topic": "Radar", "place": "London", "lat": 51.51, "lon": -0.13, "bonus": 0.4, "loyalty": 0.95 },
+    { "id": "whittle", "name": "Frank Whittle", "nation": "GBR", "field": "luft", "topic": "Strahltriebwerk", "place": "Lutterworth", "lat": 52.45, "lon": -1.20, "bonus": 0.35, "loyalty": 0.95 },
+    { "id": "turing", "name": "Alan Turing", "nation": "GBR", "field": "geheimdienst", "topic": "Kryptoanalyse", "place": "Bletchley Park", "lat": 52.00, "lon": -0.74, "bonus": 0.5, "loyalty": 0.95 },
+    { "id": "joliot", "name": "Frédéric Joliot-Curie", "nation": "FRA", "field": "sonder", "topic": "Kernphysik", "place": "Paris", "lat": 48.85, "lon": 2.34, "bonus": 0.4, "loyalty": 0.9 },
+    { "id": "rejewski", "name": "Marian Rejewski", "nation": "POL", "field": "geheimdienst", "topic": "Kryptoanalyse", "place": "Pyry bei Warschau", "lat": 52.12, "lon": 21.01, "bonus": 0.5, "loyalty": 0.95 },
+    { "id": "kurchatov", "name": "Igor Kurtschatow", "nation": "SOV", "field": "sonder", "topic": "Kernphysik", "place": "Leningrad", "lat": 59.94, "lon": 30.32, "bonus": 0.4, "loyalty": 0.85 },
+    { "id": "korolev", "name": "Sergei Koroljow", "nation": "SOV", "field": "sonder", "topic": "Raketen", "place": "Kolyma (Lagerhaft)", "lat": null, "lon": null, "bonus": 0.45, "loyalty": 0.5, "status": "inhaftiert" }
+  ]
+}

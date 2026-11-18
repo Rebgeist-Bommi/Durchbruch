@@ -46,7 +46,7 @@ def test_industry_sites_belong_to_their_nation():
 def test_resource_regions():
     infra, terr, owner = load()
     kinds = {r["kind"] for r in infra["resources"]}
-    assert kinds == {"Kohle", "Erz", "Öl"}
+    assert kinds == {"Kohle", "Erz", "Öl", "Uran"}
     for r in infra["resources"]:
         assert r["cells"], r["name"]
     ruhr = next(r for r in infra["resources"] if r["name"] == "Ruhr")

@@ -1,5 +1,6 @@
 import { Camera } from './camera.js';
 import { STYLES, reliefGray } from './styles.js';
+import { isRevealed, describeTarget } from '../sim/intel.js';
 
 function pathFromLines(lines, closed = false, target = new Path2D()) {
   for (const flat of lines) {
@@ -173,6 +174,7 @@ export class MapRenderer {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (this.sim) this.drawSieges(st);
     if (st.spotlight) this.drawSpotlight();
+    if (this.sim && st.spotlight) this.drawIntel(st);
 
     this.lastFrameMs = performance.now() - t0;
     if (this.onAfterRender) this.onAfterRender();
@@ -930,7 +932,7 @@ export class MapRenderer {
     c.height = rows;
     const x = c.getContext('2d');
     const img = x.createImageData(cols, rows);
-    const color = { Kohle: [24, 24, 26], Erz: [150, 64, 40], Öl: [72, 46, 110] };
+    const color = { Kohle: [24, 24, 26], Erz: [150, 64, 40], Öl: [72, 46, 110], Uran: [150, 170, 40] };
     for (const r of this.sim.resourceRegions) {
       const [cr, cg, cb] = color[r.kind];
       for (const cell of r.cells) {
@@ -1083,6 +1085,7 @@ export class MapRenderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const [cell, g] of groups) {
+      if (!isRevealed(sim, sim.player, cell)) continue; // Nebel des Krieges: gegnerische Gebäude nur nach Aufklärung
       const b = this.grid.cellBounds(cell);
       const [mx, my] = this.map.worldToMap((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
       const [cx0, cy0] = cam.toScreen(mx, my);
@@ -1122,6 +1125,193 @@ export class MapRenderer {
         ctx.strokeText(label, sx, sy + r + 8);
         ctx.fillStyle = '#f1f3f5';
         ctx.fillText(label, sx, sy + r + 8);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- Phase 4: Geheimdienst
+  screenOfCell(cell) {
+    const b = this.grid.cellBounds(cell);
+    const [mx, my] = this.map.worldToMap((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
+    return this.camera.toScreen(mx, my);
+  }
+
+  /** Ziel unter dem Mauszeiger: Wissenschaftler, Gebäude, Brücke, Knoten, Front oder Gebiet. */
+  pickIntelTarget(sx, sy) {
+    const sim = this.sim;
+    let best = null;
+    let bd = 14 * 14;
+    const consider = (kind, id, cell, pri) => {
+      const [x, y] = this.screenOfCell(cell);
+      const d = (x - sx) ** 2 + (y - sy) ** 2 - pri * 20;
+      if (d < bd) { bd = d; best = { kind, id }; }
+    };
+    for (const s of sim.scientists) if (s.status === 'aktiv' && s.cell >= 0) consider('scientist', s.id, s.cell, 4);
+    const seen = new Set();
+    const pri = { ruestung: 3, forschung: 3, fabrik: 2 };
+    for (const b of [...sim.buildings].sort((a, c) => (pri[c.type] || 0) - (pri[a.type] || 0))) {
+      if (!b.done || seen.has(b.cell)) continue;
+      seen.add(b.cell);
+      if (isRevealed(sim, sim.player, b.cell)) consider('building', b.id, b.cell, pri[b.type]);
+    }
+    sim.bridges.forEach((b, i) => consider('bridge', i, b.cell, 1));
+    sim.nodes.forEach((x, i) => consider('node', i, x.cell, 0));
+    if (best) return best;
+    const fid = this.frontAtScreen(sx, sy);
+    if (fid) return { kind: 'front', id: fid };
+    const cell = this.cellAt(sx, sy);
+    if (cell >= 0 && this.grid.territory[cell]) return { kind: 'sector', id: sim.sectors.sectorOf[cell] };
+    return null;
+  }
+
+  /** Pinnwand: Ziele, Agenten (rote Nadeln), Fäden, Fadenkreuze; aufgeklärte Gebiete. */
+  drawIntel(st) {
+    const { ctx, camera: cam, sim } = this;
+    const p = sim.player;
+    const W = cam.width;
+    const H = cam.height;
+    const vis = (x, y) => x > -20 && y > -20 && x < W + 20 && y < H + 20;
+    const cellPx = this.cellU * cam.scale;
+    // aufgeklärte Gebiete (gestrichelter roter Rahmen um die Sektormitte)
+    const stI = sim.intel.get(p);
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = 'rgba(179,38,30,0.8)';
+    ctx.lineWidth = 1.2;
+    for (const [sec, until] of Object.entries(stI.revealedSectors)) {
+      if (until < sim.day) continue;
+      const [x, y] = this.screenOfCell(Math.round(sim.sectors.cy[sec]) * sim.cols + Math.round(sim.sectors.cx[sec]));
+      const r = 5.5 * cellPx;
+      if (vis(x, y)) ctx.strokeRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    ctx.restore();
+    // Ziele: Knoten, Brücken (ab näherer Ansicht), Gebäude, Wissenschaftler
+    // Knoten und Brücken: eigene und gegnerische immer, neutrale erst bei naher Ansicht
+    const relevant = (cell) => { const o = sim.owner[cell]; return o === p || sim.isWar(o, p) || cellPx >= 6; };
+    if (cellPx >= 3) {
+      for (const node of sim.nodes) {
+        if (!relevant(node.cell)) continue;
+        const [x, y] = this.screenOfCell(node.cell);
+        if (!vis(x, y)) continue;
+        ctx.fillStyle = node.state === 1 ? 'rgba(216,210,194,0.55)' : '#B3261E';
+        ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+      }
+      for (const b of sim.bridges) {
+        if (!relevant(b.cell)) continue;
+        const [x, y] = this.screenOfCell(b.cell);
+        if (!vis(x, y)) continue;
+        ctx.strokeStyle = b.state === 1 ? 'rgba(216,210,194,0.7)' : '#B3261E';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x - 3, y - 1.5); ctx.lineTo(x + 3, y - 1.5);
+        ctx.moveTo(x - 3, y + 1.5); ctx.lineTo(x + 3, y + 1.5);
+        ctx.stroke();
+      }
+    }
+    const seen = new Set();
+    for (const b of sim.buildings) {
+      if (!b.done || seen.has(b.cell) || !isRevealed(sim, p, b.cell)) continue;
+      seen.add(b.cell);
+      const [x, y] = this.screenOfCell(b.cell);
+      if (!vis(x, y)) continue;
+      ctx.strokeStyle = sim.owner[b.cell] === p ? 'rgba(216,210,194,0.7)' : 'rgba(216,210,194,0.95)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - 3, y - 3, 6, 6);
+    }
+    ctx.font = '11px "Special Elite", monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const placed = [...(this.placedLabels || [])];
+    for (const s of sim.scientists) {
+      if (s.status === 'aktiv' && s.cell >= 0) {
+        const [x, y] = this.screenOfCell(s.cell);
+        placed.push({ x0: x - 5, y0: y - 6, x1: x + 5, y1: y + 6 });
+      }
+    }
+    for (const s of sim.scientists) {
+      if (s.status !== 'aktiv' || s.cell < 0) continue;
+      const [x, y] = this.screenOfCell(s.cell);
+      if (!vis(x, y)) continue;
+      ctx.fillStyle = s.employer === p ? '#d8d2c2' : '#f1ece0';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 5); ctx.lineTo(x + 4, y); ctx.lineTo(x, y + 5); ctx.lineTo(x - 4, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = s.employer === p ? '#0C0E13' : '#B3261E';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      if (cam.scale > 0.05) {
+        // Namen ohne Überlappung mit Kartenbeschriftung und anderen Namen
+        const w = ctx.measureText(s.name).width;
+        const cands = [[x + 7, y, 'left'], [x - 7, y, 'right'], [x, y + 13, 'center'], [x, y - 13, 'center']];
+        for (const [lx, ly, al] of cands) {
+          const x0 = al === 'left' ? lx : al === 'right' ? lx - w : lx - w / 2;
+          const box = { x0: x0 - 2, y0: ly - 7, x1: x0 + w + 2, y1: ly + 7 };
+          if (placed.some((q) => box.x0 < q.x1 && box.x1 > q.x0 && box.y0 < q.y1 && box.y1 > q.y0)) continue;
+          placed.push(box);
+          ctx.textAlign = al;
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = 'rgba(12,14,19,0.9)';
+          ctx.strokeText(s.name, lx, ly);
+          ctx.fillStyle = '#d8d2c2';
+          ctx.fillText(s.name, lx, ly);
+          break;
+        }
+      }
+    }
+    // Agenten: Nadeln an der eigenen Hauptstadt, Fäden zu den Zielen
+    const cap = sim.capital.get(p);
+    if (cap === undefined) return;
+    const [cx, cy] = this.screenOfCell(cap);
+    const agents = stI.agents;
+    const crosshair = (x, y, r, color, lw) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.moveTo(x - r - 5, y); ctx.lineTo(x - r + 3, y);
+      ctx.moveTo(x + r - 3, y); ctx.lineTo(x + r + 5, y);
+      ctx.moveTo(x, y - r - 5); ctx.lineTo(x, y - r + 3);
+      ctx.moveTo(x, y + r - 3); ctx.lineTo(x, y + r + 5);
+      ctx.stroke();
+    };
+    agents.forEach((a, k) => {
+      const ang = -Math.PI / 2 + (k - (agents.length - 1) / 2) * 0.55;
+      const px = cx + Math.cos(ang) * 22;
+      const py = cy + Math.sin(ang) * 22;
+      if (a.state === 'mission') {
+        const d = describeTarget(sim, a.mission.target);
+        if (d) {
+          const [tx, ty] = this.screenOfCell(d.cell);
+          ctx.strokeStyle = 'rgba(179,38,30,0.85)';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.quadraticCurveTo((px + tx) / 2, Math.min(py, ty) - 40, tx, ty);
+          ctx.stroke();
+          crosshair(tx, ty, 8, '#B3261E', 1.6);
+        }
+      }
+      // Nadel
+      ctx.strokeStyle = '#8c8c8c';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px, py + 9);
+      ctx.stroke();
+      ctx.fillStyle = a.state === 'ready' ? '#e2382c' : a.state === 'mission' ? '#B3261E' : '#6d2420';
+      ctx.beginPath();
+      ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#0C0E13';
+      ctx.stroke();
+    });
+    if (this.intelTarget) {
+      const d = describeTarget(sim, this.intelTarget);
+      if (d) {
+        const [tx, ty] = this.screenOfCell(d.cell);
+        const pulse = 11 + Math.sin(performance.now() / 250) * 1.5;
+        crosshair(tx, ty, pulse, '#ff4a3d', 2.2);
       }
     }
   }

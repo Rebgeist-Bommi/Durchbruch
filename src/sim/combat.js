@@ -3,6 +3,8 @@
 // Abschnitt, Gelände, Befestigung, Angriffsvorbereitung, Luftanteil, Nachschub, Vorgehen und Zufall.
 // Bei hoher Überlegenheit stoßen Truppen im selben Tick weiter vor (bis zu `substeps` Felder tief).
 import { KM_PER_CELL } from './constants.js';
+import { mods } from './research.js';
+import { traitOf } from './generals.js';
 
 /** Land-Nachbarn (N, O, S, W) eines Feldes, -1 = keiner. Liefert eine Ansicht, kein neues Array. */
 function neighbors4(sim, i) {
@@ -74,8 +76,19 @@ function attackFront(sim, f, n, o) {
   if (!totalT) return;
   const method = sim.bal.methods[side.method];
   const methodCode = side.method === 'total' ? 2 : 1;
-  const prepMul = 1 + O.prepMaxBonus * side.prep;
-  const airMul = Math.max(0.3, 1 + C.airBonus * A.air - C.airDefense * D.air);
+  // Phase 4: Forschung (Nation) und Generalseigenschaft (Front)
+  const mA = mods(sim, n);
+  const mD = mods(sim, o);
+  const gA = traitOf(sim, f, n);
+  const gD = traitOf(sim, f, o);
+  const prepMul = 1 + (O.prepMaxBonus + (gA.prepMax || 0)) * side.prep;
+  const airFront = A.air * (1 - (side.airShare || 0)); // für Luftangriffe abgestellter Anteil fehlt an der Front
+  const airDefD = D.air * (1 - (f.side[o].airShare || 0));
+  const airMul = Math.max(0.3, 1 + C.airBonus * airFront * (1 + mA.air) - C.airDefense * airDefD * (1 + mD.airDefense));
+  const attMul = (1 + mA.attack) * (1 + (gA.odds || 0));
+  const defMul = (1 + mD.defense) * (1 + (gD.defense || 0));
+  const tankMul = (1 + mA.tank) * (1 + (gA.tank || 0));
+  const supplyBonus = gA.supply || 0;
   const encMul = f.encircled[o] ? C.encircledDefense : 1;
 
   const info = f.sections.map((sec) => {
@@ -83,7 +96,7 @@ function attackFront(sim, f, n, o) {
     const a = (strEff * nT) / totalT;
     const d = (D.str * (sec.stats.defWeight[o] ?? nT)) / (totalW || 1);
     const floor = C.defenseFloorPerCell * nT;
-    const R = (a * prepMul * airMul) / ((d + floor) * encMul);
+    const R = (a * prepMul * airMul * attMul) / ((d + floor) * encMul * defMul);
     return { sec, nT, a, d, R, Rx: Math.pow(R, C.ratioExponent), captured: 0 };
   });
 
@@ -107,9 +120,9 @@ function attackFront(sim, f, n, o) {
       const mountain = sim.terrain[cell] === 1;
       let odds = info[si].Rx * C.neighborFactor[nA];
       if (mountain) odds *= C.mountainFactor;
-      odds *= 1 + C.tankBonus * A.tank * (mountain ? C.tankMountainFactor : 1);
+      odds *= 1 + C.tankBonus * A.tank * tankMul * (mountain ? C.tankMountainFactor : 1);
       odds /= 1 + O.fortBonus * sim.fort[cell];
-      odds *= sim.supply(n, cell);
+      odds *= Math.min(1, sim.supply(n, cell) + supplyBonus);
       odds *= method.speed * wave;
       const noise = 1 + (sim.rng() - 0.5) * 2 * C.noise;
       const p = Math.min(C.maxChance, 1 - Math.exp(-C.baseRate * odds * noise));
@@ -151,7 +164,7 @@ function attackFront(sim, f, n, o) {
     kmWeighted += km * it.nT;
     if (it.a <= 0) continue;
     const R = Math.max(0.05, it.R);
-    attLoss += C.lossAttacker * it.a * men / Math.sqrt(R);
+    attLoss += (C.lossAttacker * it.a * men / Math.sqrt(R)) * (1 + (gA.lossAtt || 0));
     if (it.d > 0) {
       const dl = C.lossDefender * it.d * men * Math.sqrt(R);
       defLoss += dl;
@@ -189,13 +202,14 @@ export function updateOrdersOverTime(sim) {
     if (!f.alive) continue;
     for (const n of [f.a, f.b]) {
       const s = f.side[n];
-      if (s.order === 'prepare') s.prep = Math.min(1, s.prep + 1 / O.prepDays);
+      const g = traitOf(sim, f, n);
+      if (s.order === 'prepare') s.prep = Math.min(1, s.prep + (1 + (g.prepSpeed || 0)) / O.prepDays);
       else if (s.order === 'attack') s.prep = Math.max(0, s.prep - O.prepDecayPerDay);
       else s.prep = Math.max(0, s.prep - O.prepDecayPerDay / 2);
       const fortifies = s.order === 'hold' || (!O.fortHoldOnly && s.order === 'prepare');
       if (!fortifies) continue;
       for (const sec of f.sections) {
-        for (const c of n === f.b ? sec.cellsB : sec.cellsA) sim.fort[c] = Math.min(1, sim.fort[c] + 1 / O.fortDays);
+        for (const c of n === f.b ? sec.cellsB : sec.cellsA) sim.fort[c] = Math.min(1, sim.fort[c] + (1 + (g.fort || 0)) / O.fortDays);
       }
     }
   }

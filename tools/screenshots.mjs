@@ -159,7 +159,36 @@ await page.keyboard.press('1');
 await shot(page, '15-nach-dem-laden-front');
 await context.close();
 
-// ---------------------------------------------------------------- 5. Video: Angriff in Echtzeit (4×)
+// ---------------------------------------------------------------- 5. Phase 4: Forschung, Geheimdienst, General
+({ context, page } = await open());
+await page.evaluate(() => {
+  const D = window.__durchbruch;
+  for (const f of D.sim.fronts.values()) if (f.side[D.sim.player]) D.sim.attack(f.id);
+  for (let i = 0; i < 30; i++) D.doTick();
+});
+await page.keyboard.press('2');
+await page.click('[data-action="tab"][data-tab="forschung"]');
+await shot(page, '16-forschung');
+await page.keyboard.press('3');
+const nodePt = await page.evaluate(() => {
+  const { renderer: r, sim } = window.__durchbruch;
+  const i = sim.nodes.findIndex((n) => n.name.includes('Warschau'));
+  const [x, y] = r.screenOfCell(sim.nodes[i].cell);
+  const rc = r.canvas.getBoundingClientRect();
+  return [rc.left + x, rc.top + y];
+});
+await page.mouse.click(nodePt[0], nodePt[1]);
+await page.evaluate(() => { const D = window.__durchbruch; D.sim.intel.get(D.sim.player).agents.push({ id: 99, state: 'ready', ready: 0, mission: null }); D.intel.refresh(); });
+await page.click('[data-action="mission"]');
+await page.mouse.move(nodePt[0] + 80, nodePt[1] + 60);
+await shot(page, '17-geheimdienst-akte');
+report.intelMission = await page.evaluate(() => window.__durchbruch.sim.intel.get(window.__durchbruch.sim.player).agents.filter((a) => a.state === 'mission').length);
+await page.keyboard.press('1');
+await page.evaluate(() => { const D = window.__durchbruch; const f = [...D.sim.fronts.values()].find((x) => x.alive && x.side[D.sim.player]); D.ui.selectFront(f.id); });
+await shot(page, '18-frontfenster-general');
+await context.close();
+
+// ---------------------------------------------------------------- 6. Video: Angriff in Echtzeit (4×)
 ({ context, page } = await open({ recordVideo: { dir: OUT, size: { width: 1280, height: 800 } }, viewport: { width: 1280, height: 800 } }));
 await page.evaluate(() => {
   const { renderer: r } = window.__durchbruch;
