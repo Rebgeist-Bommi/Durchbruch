@@ -89,8 +89,7 @@ export class MainMenu {
       case 'settings':
         html = `<div class="menu-panel"><h2>Einstellungen</h2>
           <fieldset><legend>Spieltempo beim Fortsetzen</legend><div class="seg">${[1, 2, 4].map((v) => `<button type="button" data-speed="${v}" aria-pressed="${s.speed === v}">${v}×</button>`).join('')}</div></fieldset>
-          <fieldset><legend>Lautstärke</legend><input type="range" id="m-volume" min="0" max="100" value="${s.volume}" aria-label="Lautstärke"><small>${s.volume} % – Menümusik</small></fieldset>
-          <fieldset><legend>Musik</legend><div class="seg">${[['an', true], ['aus', false]].map(([l, v]) => `<button type="button" data-music="${v}" aria-pressed="${(s.music !== false) === v}">${l === 'an' ? 'An' : 'Aus'}</button>`).join('')}</div></fieldset>
+          <fieldset><legend>Lautstärke</legend><input type="range" id="m-volume" min="0" max="100" value="${s.volume}" aria-label="Lautstärke"><small>${s.volume} % – Menümusik folgt (Download der Aufnahmen steht noch aus)</small></fieldset>
           <fieldset><legend>Grafikdetail</legend><div class="seg">${['hoch', 'niedrig'].map((v) => `<button type="button" data-detail="${v}" aria-pressed="${s.detail === v}">${v === 'hoch' ? 'Hoch' : 'Niedrig'}</button>`).join('')}</div><small>Niedrig: Fronten als schlichte Linie, kein Pulsieren.</small></fieldset>
           <button type="button" class="menu-back" data-m="main">Zurück</button></div>`;
         break;
@@ -148,7 +147,7 @@ export class MainMenu {
       saveSettings(this.settings);
       this.onSettings(this.settings);
       const sm = e.target.parentElement.querySelector('small');
-      if (sm) sm.textContent = `${this.settings.volume} % – Menümusik`;
+      if (sm) sm.textContent = `${this.settings.volume} % – Menümusik folgt (Download der Aufnahmen steht noch aus)`;
     }
   }
 }

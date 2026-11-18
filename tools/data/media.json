@@ -29,15 +29,6 @@
       "motiv": "Westfront 1940, Panzer"
     },
     {
-      "id": "p04",
-      "title": "File:Bundesarchiv Bild 101III-Wittmar-005-33A, Russland-Nord, Vormarsch.jpg",
-      "focus": [
-        0.5,
-        0.5
-      ],
-      "motiv": "Ostfront 1941, marschierende Kolonne"
-    },
-    {
       "id": "p05",
       "title": "File:Bundesarchiv Bild 101I-393-1409-18, Russland, Flugzeug Junkers Ju 87.jpg",
       "focus": [
@@ -45,15 +36,6 @@
         0.5
       ],
       "motiv": "Flugzeug"
-    },
-    {
-      "id": "p06",
-      "title": "File:Bundesarchiv Bild 183-2008-0415-506, Polen, motorisierte deutsche Truppen.jpg",
-      "focus": [
-        0.5,
-        0.5
-      ],
-      "motiv": "Ostfront 1939, motorisierte Kolonne"
     },
     {
       "id": "p07",
@@ -193,6 +175,14 @@
     }
   ],
   "rejected": [
+    {
+      "title": "File:Bundesarchiv Bild 183-2008-0415-506, Polen, motorisierte deutsche Truppen.jpg",
+      "reason": "Lizenz klar (CC BY-SA 3.0 DE), aber eingezeichnete Retusche-Markierung im Bild – nicht verwendet."
+    },
+    {
+      "title": "File:Bundesarchiv Bild 101III-Wittmar-005-33A, Russland-Nord, Vormarsch.jpg",
+      "reason": "Lizenz klar (CC BY-SA 3.0 DE), aber SS-Runen und Totenkopf auf den Fahrzeugen sichtbar – als Menühintergrund nicht verwendet."
+    },
     {
       "title": "File:Bundesarchiv Bild 146-1976-071-36, Polen, an der Brahe, deutsche Panzer.jpg",
       "reason": "Lizenz klar (CC BY-SA 3.0 DE), aber am Bildrand liegt eine Gestalt, die ein Toter sein könnte – nach der Vorgabe (keine Toten) verworfen."

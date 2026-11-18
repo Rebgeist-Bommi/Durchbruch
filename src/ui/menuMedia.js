@@ -113,7 +113,8 @@ export class MenuMusic {
     this.unlocked = false;
     this.active = false; // Menü sichtbar
     this.fade = 0;
-    loadCredits().then((c) => { this.tracks = c.music.map((m) => BASE + m.file); });
+    button.hidden = true; // erst zeigen, wenn Aufnahmen vorhanden sind
+    loadCredits().then((c) => { this.tracks = c.music.map((m) => BASE + m.file); button.hidden = !this.tracks.length; });
     button.addEventListener('click', (e) => {
       e.stopPropagation();
       this.unlocked = true;
@@ -189,7 +190,7 @@ export function creditsHtml(c, esc) {
     <h3>Spiel</h3><p>Durchbruch – privates Strategiespiel. Karten- und Datenquellen siehe LICENSES.md, historische Werte siehe SOURCES.md.</p>
     <h3>Fotos</h3><ul>${c.photos.map(photo).join('')}</ul>
     <h3>Zeitungen</h3><ul>${c.papers.map(paper).join('')}</ul>
-    <h3>Musik</h3><ul>${c.music.map(music).join('')}</ul>
-    <p class="muted">Bundesarchiv-Fotos: CC BY-SA 3.0 DE (creativecommons.org/licenses/by-sa/3.0/de/); bearbeitete Fassungen unter derselben Lizenz. Fotos der US-Regierung und Aufnahmen der US-Militärkapellen: gemeinfrei. Vollständige Liste: MEDIA_SOURCES.md.</p>
+    ${c.music.length ? `<h3>Musik</h3><ul>${c.music.map(music).join('')}</ul>` : ''}
+    <p class="muted">Bundesarchiv-Fotos: CC BY-SA 3.0 DE (creativecommons.org/licenses/by-sa/3.0/de/); bearbeitete Fassungen unter derselben Lizenz. Fotos der US-Regierung: gemeinfrei. Vollständige Liste: MEDIA_SOURCES.md.</p>
   </div>`;
 }

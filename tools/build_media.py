@@ -41,7 +41,7 @@ PHOTO_MAX = 300 * 1024
 MUSIC_MAX = 5 * 1024 * 1024
 
 
-def http(url: str, accept: str = '*/*', tries: int = 20) -> bytes:
+def http(url: str, accept: str = '*/*', tries: int = 4) -> bytes:
     for k in range(tries):
         try:
             req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept': accept})
@@ -260,6 +260,10 @@ def write_sources(photos, papers, music, rejected) -> None:
           '## Musik (Wikimedia Commons)', '', row('Datei', 'Werk', 'Aufnahme/Urheber', 'Lizenz', 'Bearbeitung'), row('---', '---', '---', '---', '---')]
     for m in music:
         L.append(row(f"`{m['file']}`", f"[{m['label']}]({m['page']})", m['artist'], f"{m['license']} – {m['usage']}", m['changes']))
+    if not music:
+        L += ['Noch keine Musik eingebunden: Wikimedia Commons verweigert Skripten ohne Kontaktangabe den Download der',
+              'Originaldateien (HTTP 429). Vorgesehen sind Holst „Mars“ (US Air Force Band) und Wagner „Siegfrieds',
+              'Trauermarsch“ (US Marine Band), beide auf Commons als gemeinfrei gekennzeichnet; siehe `tools/data/media.json`.']
     L += ['', '## Verworfen', '', row('Datei / Quelle', 'Grund'), row('---', '---')]
     for r in rejected:
         L.append(row(r['title'], r['reason']))
@@ -283,7 +287,12 @@ def main() -> None:
     print(f'{len(usable)} Fotos verwendbar')
     photos = [build_photo(p, k) for k, p in enumerate(usable)]
     papers = [build_paper(p) for p in cfg['papers']]
-    music = [build_music(m) for m in cfg['music']]
+    music = []
+    for m in cfg['music']:
+        try:
+            music.append(build_music(m))
+        except urllib.error.HTTPError as e:  # Wikimedia drosselt Originale; Menü funktioniert auch ohne Musik
+            print(f"Musik nicht geladen ({e.code}): {m['title']}")
     credits = {
         'photos': [{k: p[k] for k in ('id', 'file', 'title', 'page', 'artist', 'date', 'license', 'licenseUrl', 'motiv', 'changes')} for p in photos],
         'papers': [{k: p[k] for k in ('id', 'file', 'label', 'page', 'author', 'provider', 'rights', 'changes')} for p in papers],
