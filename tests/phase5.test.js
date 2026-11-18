@@ -208,17 +208,18 @@ test('Schwierigkeit: Startwerte identisch, nur Wirkungen unterscheiden sich; San
   assert.ok(s.econ.get(s.player).pool >= s.bal.sandbox.pool * 0.9);
 });
 
-test('Spielende: Sieg nach Kapitulation aller Gegner, Niederlage bei Kapitulation Deutschlands', () => {
+test('Spielende: Sieg (Feldzug gewonnen, Spiel läuft weiter), Niederlage bei Kapitulation Deutschlands', () => {
   // ohne Bündnispartner Polens: Krieg nur gegen Polen
   const sim = newSim({ seed: SEED });
   sim.dip.alliances = sim.dip.alliances.filter(([a, b]) => a !== sim.idx('POL') && b !== sim.idx('POL'));
   sim.autoplay = autoplayCampaign;
   sim.autoDecide = () => 0;
-  while (!sim.isOver() && sim.day < 120) sim.tick();
-  assert.equal(sim.outcome?.result, 'sieg');
-  assert.equal(sim.outcome.allCapitulated, true);
-  assert.equal(sim.tick(), false, 'nach Spielende kein Tick');
-  assert.ok(sim.history.days.length >= sim.outcome.day, 'Momentaufnahmen vorhanden');
+  while (!sim.victory && sim.day < 120) sim.tick();
+  assert.equal(sim.victory?.result, 'sieg');
+  assert.equal(sim.victory.allCapitulated, true);
+  assert.equal(sim.outcome, null, 'Sieg beendet das Spiel nicht');
+  assert.equal(sim.tick(), true, 'nach gewonnenem Feldzug geht es weiter');
+  assert.ok(sim.history.days.length >= sim.victory.day, 'Momentaufnahmen vorhanden');
   const lose = newSim({ seed: SEED });
   lose.nations.get(lose.player).status = 'kapituliert';
   lose.checkOutcome();

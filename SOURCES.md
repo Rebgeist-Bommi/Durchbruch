@@ -98,3 +98,24 @@ Großbritanniens ohne Landfront (Version 1 ohne Seekrieg), alle Beziehungswerte,
 Schwellen und Fristen. Die Teilungslinien sind Näherungen aus Stützpunkten (Länge/Breite) entlang
 der Flüsse und nicht flussgenau. Die Zeitung erzeugt Schlagzeilen aus dem Spielverlauf, keine
 historischen Zeitungstexte.
+
+## Überarbeitung: Spielstart 1. März 1939
+
+Grenzverläufe weiter aus CShapes (Stand 31.08.1939, also nach dem Münchner Abkommen); Besitz zum
+01.03.1939: Böhmen und Mähren, Slowakei und Karpatenukraine bei der Tschecho-Slowakei, Memelland bei
+Litauen, Albanien selbstständig. Die folgenden Änderungen sind Ereignisse mit Datum
+(`scenario.annexations`, `scenario.treaties`); sie treten nur ein, wenn die Lage es zulässt.
+
+| Ereignis im Spiel | Datum im Spiel | Stand | Quelle |
+|---|---|---|---|
+| Slowakei erklärt die Unabhängigkeit | 14.03.1939 | belegt | https://www.history.com/this-day-in-history/march-15/nazis-take-czechoslovakia ; https://sites.lsa.umich.edu/ww2/1939-2/ |
+| Deutsche Truppen besetzen Böhmen und Mähren, Protektorat | 15.03.1939 (Erlass am 16.03.) | belegt | wie oben; https://cognito.org/courses/ib/history/ibhl/notes/SUJCSVlsSFA/5.7-destruction-of-czechoslovakia-march-1939 |
+| Ungarn besetzt die Karpatenukraine | 16.03.1939 im Spiel (Einmarsch ab 15./16.03.) | belegt, Tag je nach Quelle 15. oder 16. | https://test.omniatlas.com/maps/europe/19390315/ |
+| Litauen tritt das Memelland ab | 23.03.1939 (Vertrag 22.03., Einmarsch 23.03.) | belegt | https://www.wikipedia.org/wiki/March_1939 (über Suche) |
+| Britische Garantie für Polen, Frankreich schließt sich an | 31.03.1939 | belegt (Garantie der Unabhängigkeit) | https://history.blog.gov.uk/2019/03/28/whats-the-context-31-march-1939-the-british-guarantee-to-poland/ ; https://www.ibiblio.org/pha/policy/pre-war/390331a.html |
+| Italien besetzt Albanien | 07.04.1939 | belegt | https://sites.lsa.umich.edu/ww2/1939-2/ |
+| Stahlpakt, Hitler-Stalin-Pakt | 22.05. / 23.08.1939 | belegt (siehe Phase 5) | siehe oben |
+
+Nicht historisch bzw. Spielmechanik: Kriegsbeginn gegen Polen liegt beim Spieler (Testlauf: 01.09.),
+Danzig wird mit Kriegsbeginn angegliedert, Anschluss-Angebote an kleinere Staaten, Rohstoffabkommen,
+nationale Ziele (alle Werte Platzhalter), Armeestärken der kleineren Staaten (Platzhalter).

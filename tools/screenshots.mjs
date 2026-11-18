@@ -15,7 +15,7 @@ const browser = await chromium.launch();
 const errors = [];
 const report = { shots: [] };
 
-async function open(ctxOpts = {}, url = PAGE_URL) {
+async function open(ctxOpts = {}, url = PAGE_URL, opts = {}) {
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, ...ctxOpts });
   const page = await context.newPage();
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -30,6 +30,16 @@ async function open(ctxOpts = {}, url = PAGE_URL) {
       D.doTick();
     };
   });
+  // Start 01.03.1939 ohne Krieg: für die Kriegsbilder Polen über das Länderfenster den Krieg erklären
+  if (opts.war) {
+    await page.evaluate(() => {
+      const D = window.__durchbruch;
+      D.popover.show(D.sim.idx('POL'), 900, 400);
+      document.querySelector('#popover [data-act="war"]').click();
+      document.querySelector('#popover [data-act="war"]').click();
+      D.popover.hide();
+    });
+  }
   return { context, page };
 }
 
@@ -48,7 +58,7 @@ async function shot(page, name) {
 }
 
 // ---------------------------------------------------------------- 1. Modi am 31.08.1939
-let { context, page } = await open();
+let { context, page } = await open({}, PAGE_URL, { war: true });
 for (const [key, name] of [['1', '01-front'], ['2', '02-wirtschaft'], ['3', '03-geheimdienst']]) {
   await page.keyboard.press(key);
   if (key === '3') await page.mouse.move(820, 520);
@@ -113,6 +123,9 @@ await context.close();
 ({ context, page } = await open());
 await page.keyboard.press('2');
 await shot(page, '11-wirtschaft-uebersicht');
+await page.keyboard.press('4');
+await shot(page, '11b-diplomatie');
+await page.keyboard.press('2');
 // Region wählen (Ruhrgebiet) -> Infrastruktur mit Ausbau
 const screenOf = (name, d = 0) => page.evaluate(([n, dd]) => {
   const { renderer: r, sim } = window.__durchbruch;
@@ -148,6 +161,10 @@ report.buildByClick = after - before;
 // Krieg: Wirtschaftsmodus mit beschädigten Strecken in Polen
 await page.evaluate(() => {
   const D = window.__durchbruch;
+  D.popover.show(D.sim.idx('POL'), 900, 400);
+  document.querySelector('#popover [data-act="war"]').click();
+  document.querySelector('#popover [data-act="war"]').click();
+  D.popover.hide();
   for (const f of D.sim.fronts.values()) if (f.side[D.sim.player]) D.sim.attack(f.id);
   for (let i = 0; i < 20; i++) window.__tick();
   const r = D.renderer;
@@ -170,7 +187,7 @@ await shot(page, '15-nach-dem-laden-front');
 await context.close();
 
 // ---------------------------------------------------------------- 5. Phase 4: Forschung, Geheimdienst, General
-({ context, page } = await open());
+({ context, page } = await open({}, PAGE_URL, { war: true }));
 await page.evaluate(() => {
   const D = window.__durchbruch;
   for (const f of D.sim.fronts.values()) if (f.side[D.sim.player]) D.sim.attack(f.id);
@@ -209,10 +226,13 @@ await shot(page, '19b-mitwirkende');
 await page.click('#menu [data-m="main"]');
 await page.click('#menu [data-m="campaign"]');
 await page.click('#menu [data-m="start-campaign"]');
+await page.waitForTimeout(600);
+await shot(page, '19c-tutorial');
+await page.keyboard.press('Escape');
 report.phase5 = await page.evaluate(() => {
   const D = window.__durchbruch;
   D.sim.autoplay = D.autoplayCampaign;
-  while (!D.sim.pending && D.sim.day < 60) D.doTick();
+  while (!D.sim.pending && D.sim.day < 260) D.doTick();
   D.setSpeed(2); // bleibt wegen der Entscheidung angehalten
   return { decisionDay: D.sim.day, decision: D.sim.pending?.title, speedWhilePending: D.clock.speed };
 });
@@ -227,15 +247,15 @@ await shot(page, '22-diplomatie');
 await page.keyboard.press('Escape');
 report.phase5.end = await page.evaluate(() => {
   const D = window.__durchbruch;
-  while (!D.sim.isOver() && D.sim.day < 250) window.__tick();
-  return D.sim.outcome;
+  while (!D.sim.isOver() && !D.sim.victory && D.sim.day < 450) window.__tick();
+  return D.sim.victory || D.sim.outcome;
 });
 await page.waitForTimeout(300);
 await shot(page, '23-abschluss');
 await context.close();
 
 // ---------------------------------------------------------------- 7. Video: Angriff in Echtzeit (4×)
-({ context, page } = await open({ recordVideo: { dir: OUT, size: { width: 1280, height: 800 } }, viewport: { width: 1280, height: 800 } }));
+({ context, page } = await open({ recordVideo: { dir: OUT, size: { width: 1280, height: 800 } }, viewport: { width: 1280, height: 800 } }, PAGE_URL, { war: true }));
 await page.evaluate(() => {
   const { renderer: r } = window.__durchbruch;
   const [x0, y0] = r.map.worldToMap(4_700_000, 3_000_000);

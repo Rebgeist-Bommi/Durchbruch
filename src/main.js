@@ -103,6 +103,7 @@ async function main() {
   const ui = new GameUI({ sim, renderer, panel, onCenter: centerOnCell });
   ui.onGameOver = () => setSpeed(0);
   if (loadedFrom || sim.isOver()) ui.gameOverShown = sim.isOver();
+  ui.victoryShown = sim.dip.flags.lastVictory?.day; // alte Siegesbilanz nach dem Laden nicht erneut zeigen
   const econ = new EconomyUI({
     sim, renderer, onChange: () => { econ.refresh(); ui.refresh(); renderer.requestRender(); },
   });

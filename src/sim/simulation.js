@@ -73,7 +73,8 @@ export class Simulation {
     // Phase 5: Schwierigkeit und Sandbox (Startwerte sind auf allen Stufen gleich)
     this.settings = { difficulty: balance.difficulty.default, sandbox: false };
     this.pending = null; // anstehende Entscheidung (hält die Simulation an)
-    this.outcome = null; // Spielende: {result: 'sieg' | 'niederlage', day}
+    this.outcome = null; // Spielende (nur Niederlage): {result: 'niederlage', day}
+    this.victory = null; // zuletzt gewonnener Feldzug (Spiel läuft weiter)
     this.rng = createRng(this.seed);
     this.day = 0;
     this.cols = grid.cols;
@@ -598,12 +599,17 @@ export class Simulation {
       this.log('end', `Niederlage: ${this.nameNom(this.player)} hat kapituliert.`);
       return;
     }
+    // Überarbeitung: Ein gewonnener Feldzug beendet das Spiel nicht (Start im Frieden, weitere
+    // Kriege möglich). Er wird als Sieg festgehalten; die Oberfläche zeigt eine Bilanz.
     const ever = this.dip.everEnemies;
     if (!ever.length || this.enemiesOf(this.player).length) return;
     const caps = ever.filter((n) => this.nations.get(n)?.status === 'kapituliert');
-    if (!caps.length) return;
-    this.outcome = { result: 'sieg', day: this.day, allCapitulated: caps.length === ever.length };
-    this.log('end', `Sieg: Kein Kriegsgegner steht mehr im Feld.`);
+    const seen = this.dip.flags.victoryCaps || 0;
+    if (caps.length <= seen) return;
+    this.dip.flags.victoryCaps = caps.length;
+    this.victory = { result: 'sieg', day: this.day, allCapitulated: caps.length === ever.length, caps };
+    this.dip.flags.lastVictory = this.victory;
+    this.log('end', 'Sieg: Kein Kriegsgegner steht mehr im Feld.');
   }
 
   /**

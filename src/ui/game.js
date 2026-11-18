@@ -111,6 +111,8 @@ export class GameUI {
     renderMorale(sim, () => { this.refresh(); if (this.onPropaganda) this.onPropaganda(); });
     if (this.panel.selected >= 0) this.panel.showCell(this.panel.selected);
     if (sim.isOver() && !this.gameOverShown) this.showGameOver();
+    const v = sim.dip.flags.lastVictory;
+    if (v && this.victoryShown !== v.day) { this.victoryShown = v.day; this.showGameOver(v); }
   }
 
   setDayProgress(t) {
@@ -301,11 +303,11 @@ export class GameUI {
   }
 
   // ------------------------------------------------------------ Abschluss (Phase 5)
-  showGameOver() {
-    this.gameOverShown = true;
+  showGameOver(victory = null) {
+    if (!victory) this.gameOverShown = true;
     const sim = this.sim;
     const p = sim.player;
-    const o = sim.outcome || { result: 'sieg', day: sim.day };
+    const o = victory || sim.outcome || { result: 'sieg', day: sim.day };
     const win = o.result === 'sieg';
     const me = sim.nations.get(p);
     const ever = sim.dip.everEnemies;
@@ -313,7 +315,7 @@ export class GameUI {
     let conquered = 0;
     for (let i = 0; i < sim.N; i++) if (sim.owner[i] === p && sim.startOwner[i] !== p) conquered++;
     const enemyLoss = ever.reduce((t, n) => t + (sim.nations.get(n)?.lossesTotal || 0), 0);
-    const title = win ? 'Sieg' : 'Niederlage';
+    const title = win ? 'Feldzug gewonnen' : 'Niederlage';
     const sub = win
       ? (o.allCapitulated ? 'Alle Kriegsgegner haben kapituliert.' : `Kein Kriegsgegner steht mehr im Feld (Kapitulation: ${caps.map((n) => sim.nationName(n)).join(', ') || '–'}; übrige durch Frieden oder Waffenstillstand).`)
       : `${sim.nameNom(p)} hat am ${sim.dateText(o.day)} kapituliert.`;
@@ -341,6 +343,7 @@ export class GameUI {
       <ul class="go-events">${events.map((e) => `<li><time>${esc(e.date)}</time>${esc(e.text)}</li>`).join('')}</ul>
       ${ps && ps.status === 'kapituliert' ? `<p class="muted">Zum Vergleich: Historisch kapitulierten die letzten polnischen Verbände am 6. Oktober 1939 (Tag 36); im Spiel kapitulierte Polen am ${esc(sim.dateText(ps.capitulationDay))} (Tag ${ps.capitulationDay}).</p>` : ''}
       <p class="muted">Die täglichen Momentaufnahmen bleiben im Spielstand für einen späteren Zeitraffer erhalten.</p>`;
+    $('go-close').textContent = win ? 'Weiterspielen' : 'Karte weiter ansehen';
     $('gameover').hidden = false;
     if (this.onGameOver) this.onGameOver();
   }
