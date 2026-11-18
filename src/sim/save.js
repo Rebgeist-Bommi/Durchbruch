@@ -4,7 +4,7 @@
 import { updateFronts } from './fronts.js';
 import { indexBuildings } from './economy.js';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 const b64 = {
   enc(u8) {
@@ -99,6 +99,7 @@ export function serialize(sim) {
     outcome: sim.outcome,
     news: sim.news,
     newsSeen: sim.newsSeen,
+    goals: sim.goals,
     nodeGuard: sim.nodes.map((n) => n.guard),
     bridgeGuard: sim.bridges.map((b) => b.guard),
     history: {
@@ -187,6 +188,7 @@ export function deserialize(sim, s) {
   sim.outcome = s.outcome == null ? null : structuredClone(s.outcome);
   sim.news = s.news == null ? null : structuredClone(s.news);
   sim.newsSeen = s.newsSeen;
+  sim.goals = structuredClone(s.goals);
   sim._border = null; // Grenzfeldliste neu aufbauen
   s.nodeGuard.forEach((v, i) => { sim.nodes[i].guard = v; });
   s.bridgeGuard.forEach((v, i) => { sim.bridges[i].guard = v; });

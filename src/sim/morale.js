@@ -19,7 +19,8 @@ export function initMorale(sim) {
 export function moraleBase(sim, n) {
   const M = sim.bal.morale;
   const b = M.start[sim.code(n)] ?? M.start.default;
-  return n === sim.player ? b + sim.diff().morale : b;
+  const goal = (sim.dip?.effects || []).reduce((s, x) => (x.nation === n && x.kind === 'moraleBase' ? s + x.value : s), 0);
+  return (n === sim.player ? b + sim.diff().morale : b) + goal;
 }
 
 export function moraleOf(sim, n) {

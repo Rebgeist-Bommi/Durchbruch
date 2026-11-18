@@ -58,7 +58,7 @@ export function initEconomy(sim, infra) {
 /** Phase 5: Ertragsfaktor aus Moral und (beim Spieler) Schwierigkeit. */
 function yieldMul(sim, n) {
   if (!sim.nations) return 1;
-  return moraleProduction(sim, n) * (n === sim.player && sim.diff ? sim.diff().income : 1);
+  return moraleProduction(sim, n) * (n === sim.player && sim.diff ? sim.diff().income : 1) * (1 + (sim.dip ? effectSum(sim, n, 'income') : 0));
 }
 
 export function soldiersTarget(sim, e) {
@@ -146,6 +146,7 @@ export function computeFlows(sim, apply = true) {
     }
   }
   for (const [n, e] of sim.econ) {
+    e.resProducedToday += effectSum(sim, n, 'rohstoffe'); // Rohstoffabkommen
     const want = (armament.get(n) || 0) * Math.max(0, 1 + effectSum(sim, n, 'armament'));
     const need = want * E.resourcesPerEquipment;
     const stock = e.resources + e.resProducedToday;

@@ -42,9 +42,9 @@ export class EconomyUI {
       li.querySelector('.k-unit').textContent = unit;
       li.title = title;
     };
-    set('money', fmtInt(e.money), `${sign(net)}/Tag`, `Geld (Mio. RM-Gegenwert). Heute: Einnahmen ${f1(e.incomeToday)}, Unterhalt ${f1(e.upkeepToday)}, Bau/Ausbau ${f1(e.spentToday)}`);
-    set('resources', fmtInt(e.resources), `${sign(resNet)}/Tag`, `Rohstoffe (Kohle, Erz, Öl als ein Wert). Förderung ${f1(e.resProducedToday)}, Verbrauch Rüstung ${f1(e.resUsedToday)}`);
-    set('manpower', (e.workers / 1e6).toFixed(1).replace('.', ','), 'Mio. Arb.', `Arbeiter ${f1(e.workers / 1e6)} Mio., Soldaten-Ziel ${f1(e.soldiersTarget / 1e6)} Mio., Ersatz verfügbar ${fmtInt(e.pool)}`);
+    set('money', fmtInt(e.money), `${sign(net)}`, `Geld (Mio. RM-Gegenwert). Heute: Einnahmen ${f1(e.incomeToday)}, Unterhalt ${f1(e.upkeepToday)}, Bau/Ausbau ${f1(e.spentToday)}`);
+    set('resources', fmtInt(e.resources), `${sign(resNet)}`, `Rohstoffe (Kohle, Erz, Öl als ein Wert). Förderung ${f1(e.resProducedToday)}, Verbrauch Rüstung ${f1(e.resUsedToday)}`);
+    set('manpower', (e.workers / 1e6).toFixed(1).replace('.', ','), 'Mio.', `Arbeiter ${f1(e.workers / 1e6)} Mio., Soldaten-Ziel ${f1(e.soldiersTarget / 1e6)} Mio., Ersatz verfügbar ${fmtInt(e.pool)}`);
   }
 
   // ---------------------------------------------------------------- Seitenleiste

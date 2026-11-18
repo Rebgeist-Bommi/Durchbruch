@@ -1,6 +1,7 @@
 import { Camera } from './camera.js';
-import { STYLES, reliefGray } from './styles.js';
+import { DIPLO_COLORS, STYLES, reliefGray } from './styles.js';
 import { isRevealed, describeTarget } from '../sim/intel.js';
+import { statusOf as diploStatus, relation as diploRelation } from '../sim/diplomacy.js';
 
 function pathFromLines(lines, closed = false, target = new Path2D()) {
   for (const flat of lines) {
@@ -86,6 +87,7 @@ export class MapRenderer {
 
   setMode(mode) {
     this.mode = mode;
+    if (mode === 'diplomacy' && this.sim) this.updateDiploColors(false);
     this.layerVersion++;
     if (this.sim) this.rebuildOccupation();
     this.requestRender();
@@ -154,6 +156,7 @@ export class MapRenderer {
     ctx.globalAlpha = 1;
     ctx.drawImage(this.layers.under, 0, 0);
     if (this.sim) this.drawOccupation(st, t);
+    if (this.mode === 'front') this.drawSupply();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(this.layers.over, 0, 0);
 
@@ -557,8 +560,116 @@ export class MapRenderer {
     this.edgeFrontAt = new Int32Array(this.grid.size);
     this.hatch = this.makeHatch();
     this.rebuildOccupation();
+    this.annexApplied = 0;
+    this.applyAnnexations();
     this.frontGeom = this.buildFrontGeometry();
     this.prevFrontGeom = null;
+  }
+
+  /**
+   * Friedliche Gebietsänderungen (Szenario, Anschluss) in die Karte übernehmen: Besitzer und Name
+   * der Gebiete, Länderflächen und Ausgangsbesitz der Felder (keine Besatzungsschraffur).
+   */
+  applyAnnexations() {
+    const list = this.sim?.dip?.annexed || [];
+    if (this.annexApplied >= list.length) return false;
+    const idx = new Map(this.grid.nationCodes.map((c, i) => [c, i + 1]));
+    for (let k = this.annexApplied; k < list.length; k++) {
+      const a = list[k];
+      const to = idx.get(a.to);
+      const tid = a.territory ? this.grid.territories.findIndex((t) => t.key === a.territory) + 1 : 0;
+      const nat = a.nation ? idx.get(a.nation) : 0;
+      for (const t of this.map.territories) {
+        if ((a.territory && t.key === a.territory) || (a.nation && t.owner === a.nation)) {
+          t.owner = a.to;
+          if (a.rename) t.name = a.rename;
+        }
+      }
+      for (let i = 0; i < this.grid.size; i++) {
+        if (tid ? this.grid.territory[i] === tid : (nat && this.origOwner[i] === nat)) {
+          if (this.sim.owner[i] === to) this.origOwner[i] = to;
+        }
+      }
+    }
+    this.annexApplied = list.length;
+    // Länderflächen neu gruppieren, statische Ebenen und Besetzung neu zeichnen
+    this.ownerPaths = new Map();
+    for (const t of this.map.territories) {
+      if (!this.ownerPaths.has(t.owner)) this.ownerPaths.set(t.owner, new Path2D());
+      this.ownerPaths.get(t.owner).addPath(this.territoryPaths.get(t.key));
+    }
+    this.layerVersion++;
+    this.rebuildOccupation();
+    return true;
+  }
+
+  /** Diplomatie-Ansicht: Länderfarbe nach Stand und Beziehung zum Spieler. */
+  updateDiploColors(bump = true) {
+    const sim = this.sim;
+    const p = sim.player;
+    const nation = STYLES.diplomacy.nation;
+    for (let n = 1; n <= this.grid.nationCodes.length; n++) {
+      const code = sim.code(n);
+      let c;
+      if (n === p) c = DIPLO_COLORS.self;
+      else if (!sim.ownedCount[n]) c = DIPLO_COLORS.weg;
+      else {
+        const s = diploStatus(sim, p, n);
+        if (s !== 'neutral') c = DIPLO_COLORS[s];
+        else {
+          const r = diploRelation(sim, p, n);
+          c = r >= 30 ? DIPLO_COLORS.gut : r <= -30 ? DIPLO_COLORS.schlecht : DIPLO_COLORS.neutral;
+        }
+      }
+      nation[code] = c;
+    }
+    if (bump && this.mode === 'diplomacy') { this.layerVersion++; this.rebuildOccupation(); this.requestRender(); }
+  }
+
+  /** Nachschub-Schicht: eigene Felder mit schwachem Nachschub rötlich (Feldbild, einmal je Tag). */
+  buildSupplyImage() {
+    const { cols, rows } = this.grid;
+    if (!this.supplyCanvas) { this.supplyCanvas = document.createElement('canvas'); this.supplyCanvas.width = cols; this.supplyCanvas.height = rows; }
+    const ctx = this.supplyCanvas.getContext('2d');
+    const img = ctx.createImageData(cols, rows);
+    const sim = this.sim;
+    const p = sim.player;
+    // nur Frontnähe: Breitensuche von den eigenen Frontfeldern aus (bis 22 Felder ≈ 200 km)
+    const near = new Uint8Array(sim.N);
+    const q = [];
+    for (const f of sim.fronts.values()) {
+      if (!f.alive || !f.side[p]) continue;
+      for (const c of sim.frontCellsOf(f, p)) if (!near[c]) { near[c] = 1; q.push(c); }
+    }
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h];
+      if (near[i] > 22) continue;
+      for (let k = i * 4, e = k + 4; k < e; k++) {
+        const j = sim.nb[k];
+        if (j >= 0 && !near[j] && sim.owner[j] === p) { near[j] = near[i] + 1; q.push(j); }
+      }
+    }
+    for (const i of q) {
+      const s = sim.supplyDisplay(i);
+      if (s >= 0.97) continue;
+      const k = Math.min(1, (1 - s) / 0.5);
+      const o = i * 4;
+      img.data[o] = 200; img.data[o + 1] = 60 + 120 * (1 - k); img.data[o + 2] = 30; img.data[o + 3] = Math.round(70 + 120 * k);
+    }
+    ctx.putImageData(img, 0, 0);
+    this.supplyDay = sim.day;
+  }
+
+  drawSupply() {
+    if (!this.supplyOn || !this.sim) return;
+    if (this.supplyDay !== this.sim.day || !this.supplyCanvas) this.buildSupplyImage();
+    const main = this.mainCtx;
+    main.save();
+    main.setTransform(...this.camera.matrix(this.dpr));
+    main.imageSmoothingEnabled = false;
+    main.globalAlpha = 0.75;
+    this.drawCells(main, this.supplyCanvas);
+    main.restore();
   }
 
   makeHatch() {
@@ -648,6 +759,8 @@ export class MapRenderer {
 
   /** Nach jedem Simulations-Tick: geänderte Felder und Frontgeometrie übernehmen. */
   onTick() {
+    if (this.applyAnnexations()) this.frontGeom = this.buildFrontGeometry();
+    if (this.mode === 'diplomacy') this.updateDiploColors();
     const pc = this.occ.prev.getContext('2d');
     pc.clearRect(0, 0, this.occ.prev.width, this.occ.prev.height);
     pc.drawImage(this.occ.curr, 0, 0);
@@ -701,7 +814,7 @@ export class MapRenderer {
     tmp.clip(this.landPath);
     tmp.imageSmoothingEnabled = false;
     this.drawCells(tmp, this.occ.prev);
-    tmp.globalAlpha = Math.max(0, Math.min(1, t / 0.6)); // neue Felder blenden in 60 % des Tages ein
+    tmp.globalAlpha = ease(Math.max(0, Math.min(1, t / 0.85))); // neue Felder blenden weich über den Tag ein
     this.drawCells(tmp, this.occ.curr);
     tmp.restore();
     tmp.globalAlpha = 1;
@@ -888,7 +1001,7 @@ export class MapRenderer {
   drawWarFronts(st, u, t) {
     const fs = st.warFront;
     if (!fs) return;
-    const tt = Math.max(0, Math.min(1, t / 0.3));
+    const tt = ease(Math.max(0, Math.min(1, t / 0.85))); // Draht wandert weich über den Tag
     if (this.prevFrontGeom && tt < 1) this.drawWire(st, u, this.prevFrontGeom, 1 - tt);
     this.drawWire(st, u, this.frontGeom, this.prevFrontGeom ? tt : 1);
   }
@@ -1512,3 +1625,8 @@ function smoothChain(pts, attr, fid) {
   return { fid, p, cat: A.map((a) => a.cat), fort: A.map((a) => a.fort) };
 }
 
+
+/** weiche Übergänge (ease-in-out) */
+function ease(x) {
+  return x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2;
+}

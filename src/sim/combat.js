@@ -8,6 +8,7 @@ import { traitOf } from './generals.js';
 import { moraleCombat } from './morale.js';
 import { noteAttack } from './diplomacy.js';
 import { ensureSupply, railSupply } from './infra.js';
+import { effectSum } from './events.js';
 
 /** Land-Nachbarn (N, O, S, W) eines Feldes, -1 = keiner. Liefert eine Ansicht, kein neues Array. */
 function neighbors4(sim, i) {
@@ -89,10 +90,10 @@ function attackFront(sim, f, n, o) {
   const prepMul = 1 + (O.prepMaxBonus + (gA.prepMax || 0)) * side.prep;
   const airFront = A.air * (1 - (side.airShare || 0)); // für Luftangriffe abgestellter Anteil fehlt an der Front
   const airDefD = D.air * (1 - (f.side[o].airShare || 0));
-  const airMul = Math.max(0.3, 1 + C.airBonus * airFront * (1 + mA.air) - C.airDefense * airDefD * (1 + mD.airDefense));
+  const airMul = Math.max(0.3, 1 + C.airBonus * airFront * (1 + mA.air + effectSum(sim, n, 'air')) - C.airDefense * airDefD * (1 + mD.airDefense));
   const attMul = (1 + mA.attack) * (1 + (gA.odds || 0)) * moraleCombat(sim, n);
   const defMul = (1 + mD.defense) * (1 + (gD.defense || 0)) * moraleCombat(sim, o);
-  const tankMul = (1 + mA.tank) * (1 + (gA.tank || 0));
+  const tankMul = (1 + mA.tank + effectSum(sim, n, 'tank')) * (1 + (gA.tank || 0));
   const supplyBonus = gA.supply || 0;
   const encMul = f.encircled[o] ? C.encircledDefense : 1;
 

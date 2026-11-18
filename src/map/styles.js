@@ -7,7 +7,7 @@ const BASE = {
   CHE: '#b7aa88', LIE: '#a99d7d', AND: '#a99d7d', SMR: '#a99d7d', ESP: '#b59c64', PRT: '#8d9b74',
   YUG: '#9b8a74', GRC: '#7c95a1', BGR: '#92a079', ROU: '#b19a69', SOV: '#9b5e4f', EST: '#8b989e',
   LVA: '#a0796c', LTU: '#a5a26a', FIN: '#a3aeac', SWE: '#8c9fb1', NOR: '#a78170', DNK: '#b08e79',
-  TUR: '#a99470',
+  TUR: '#a99470', CSR: '#9c8a6e', ALB: '#a3866a',
 };
 
 function hexToRgb(h) {
@@ -123,4 +123,11 @@ export const STYLES = {
     grid: 'rgba(216,210,194,0.08)',
     spotlight: true,
   },
+};
+
+// Überarbeitung: Diplomatie-Ansicht = Front-Stil, Länderfarben nach Beziehung zum Spieler
+// (wird von renderer.updateDiploColors() je Nation gesetzt).
+STYLES.diplomacy = { ...STYLES.front, nation: { ...STYLES.front.nation } };
+export const DIPLO_COLORS = {
+  self: '#c8a156', buendnis: '#6f9a4a', pakt: '#a4a35a', krieg: '#b0402c', neutral: '#8f8a7c', gut: '#9fae7c', schlecht: '#a4786a', weg: '#5e5a52',
 };

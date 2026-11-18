@@ -10,11 +10,11 @@ const grid = new Grid(meta, readFileSync(new URL('grid.bin', dir)));
 
 // Dieselben Punktproben wie in tools/tests/test_points.py – hier über die Spiel-API
 const SAMPLES = [
-  ['Prag', 50.0755, 14.4378, 'DEU'],
+  ['Prag', 50.0755, 14.4378, 'CSR'],
   ['Wien', 48.2082, 16.3738, 'DEU'],
-  ['Pressburg', 48.1486, 17.1077, 'SVK'],
-  ['Chust', 48.17, 23.3, 'HUN'],
-  ['Memel', 55.71, 21.13, 'DEU'],
+  ['Pressburg', 48.1486, 17.1077, 'CSR'],
+  ['Chust', 48.17, 23.3, 'CSR'],
+  ['Memel', 55.71, 21.13, 'LTU'],
   ['Danzig', 54.352, 18.6466, 'DAN'],
   ['Karwin', 49.85, 18.54, 'POL'],
   ['Warschau', 52.2297, 21.0122, 'POL'],

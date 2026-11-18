@@ -1,0 +1,133 @@
+/* Überarbeitung: schlanke Kopfleiste (angelehnt an HoI4), Hinweise, Ziel, Banner, Länderfenster,
+   nationale Ziele, Tutorial, Diplomatie-Reiter. Gilt in allen Ansichten. */
+
+/* ---------- Kopfleiste ---------- */
+#topbar { min-height: 46px; padding: 4px 10px; gap: 10px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+#kpis { justify-content: flex-start; gap: 2px; align-items: center; }
+#kpis li { display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 7px; border-radius: 3px; }
+#kpis li.k-flag { padding: 0 6px 0 0; background: none !important; border: 0 !important; }
+#kpis .flag { width: 38px; height: 25px; }
+#kpis .k-label { display: none; }
+#kpis .k-ico { font-size: 14px; opacity: 0.8; width: 14px; text-align: center; }
+#kpis .k-value { font-size: 16px; }
+#kpis .k-unit { font-size: 11px; opacity: 0.8; }
+#modes { padding: 2px; }
+#modes button { padding: 4px 12px; font-size: 14px; }
+#modes kbd { font-size: 10px; }
+.brand { justify-content: flex-end; align-items: center; gap: 8px; }
+#time .date { font-size: 14px; min-width: 8.2em; text-align: right; }
+.speeds button { height: 24px; min-width: 28px; }
+
+/* Hinweise (Warnsymbole) */
+#alerts { display: flex; gap: 4px; }
+#alerts button {
+  width: 28px; height: 26px; display: grid; place-items: center; cursor: pointer; font-size: 14px; position: relative;
+  background: rgba(150, 40, 25, 0.75); color: #fff3df; border: 1px solid rgba(255, 210, 160, 0.45); border-radius: 3px;
+  animation: alertPulse 2.4s ease-in-out infinite;
+}
+#alerts button.info { background: rgba(60, 70, 50, 0.8); animation: none; }
+#alerts button b { position: absolute; top: -5px; right: -5px; font-size: 9.5px; background: #111; color: #fff; border-radius: 6px; padding: 0 3px; }
+@keyframes alertPulse { 50% { box-shadow: 0 0 0 3px rgba(224, 69, 42, 0.25); } }
+
+/* Nationales Ziel */
+#goal-chip {
+  display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; cursor: pointer; position: relative; max-width: 220px;
+  background: rgba(0, 0, 0, 0.35); color: inherit; border: 1px solid rgba(200, 161, 86, 0.55); border-radius: 3px; font: inherit; font-size: 13px;
+}
+#goal-chip .g-ico { color: var(--accent, #C8A156); }
+#goal-chip .g-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#goal-chip .g-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(0, 0, 0, 0.4); }
+#goal-chip .g-bar b { display: block; height: 100%; width: 0; background: var(--accent, #C8A156); transition: width 0.6s ease; }
+#goal-chip.idle { border-color: #e3b45c; animation: alertPulse 2.4s ease-in-out infinite; }
+
+/* ---------- Ereignis-Banner ---------- */
+#banner {
+  position: fixed; top: 64px; left: 50%; transform: translate(-50%, -12px); z-index: 18; opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 14px; padding: 12px 22px 12px 14px; min-width: 360px; max-width: min(720px, 90vw);
+  background: linear-gradient(180deg, rgba(48, 34, 22, 0.97), rgba(30, 22, 15, 0.97)); color: #f1e6c8;
+  border: 2px solid #C8A156; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6); transition: opacity 0.4s ease, transform 0.4s ease;
+}
+#banner.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; cursor: pointer; }
+#banner img { width: 54px; height: 36px; object-fit: cover; border: 1px solid #6b5326; }
+#banner .b-kind { font-family: "Saira Stencil One", sans-serif; letter-spacing: 0.12em; font-size: 11px; color: #e06a4f; text-transform: uppercase; }
+#banner .b-text { font-family: "IM Fell English SC", Georgia, serif; font-size: 20px; line-height: 1.2; }
+#banner.k-war { border-color: #c0503a; }
+
+/* ---------- Länderfenster an der Karte ---------- */
+#popover {
+  position: fixed; z-index: 22; width: 280px; padding: 12px 14px; background: rgba(36, 26, 18, 0.97); color: #E4D9BC;
+  border: 1px solid #C8A156; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.65); font-size: 13.5px;
+}
+#popover .p-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+#popover .p-head img { width: 36px; height: 24px; object-fit: cover; }
+#popover .p-head b { font-family: "IM Fell English SC", Georgia, serif; font-size: 18px; font-weight: 400; color: #f0dca8; flex: 1; }
+#popover .p-close { background: none; border: 0; color: inherit; font-size: 18px; cursor: pointer; }
+#popover .p-line { opacity: 0.85; margin: 2px 0; }
+#popover .p-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px; }
+#popover .p-acts button { font: inherit; font-size: 12.5px; padding: 6px 4px; cursor: pointer; background: rgba(0, 0, 0, 0.35); color: inherit; border: 1px solid rgba(200, 161, 86, 0.5); }
+#popover .p-acts button.war { border-color: #c0503a; }
+#popover .p-acts button.confirm { background: #a8321f; color: #fff; }
+#popover .p-acts button.main { background: linear-gradient(180deg, #d9b56a, #a8823f); color: #1A1C14; grid-column: 1 / -1; }
+#popover .p-acts button:disabled { opacity: 0.35; cursor: default; }
+#popover .p-msg { margin-top: 6px; color: #f0dca8; min-height: 1em; font-size: 12.5px; }
+
+/* ---------- Nationale Ziele ---------- */
+.goals-sheet { max-width: 980px; }
+.gl-intro { font-size: 13.5px; opacity: 0.85; margin: 0 0 12px; }
+.gl-tree { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: 14px; overflow-x: auto; padding-bottom: 6px; }
+.gl-col { display: grid; gap: 10px; align-content: start; }
+.gl-col h4 { margin: 0; font-family: "IM Fell English SC", Georgia, serif; font-weight: 400; color: #C8A156; font-size: 14px; opacity: 0.8; }
+.gl-card { text-align: left; font: inherit; padding: 9px 10px; cursor: pointer; background: rgba(0, 0, 0, 0.3); color: inherit; border: 1px solid rgba(200, 161, 86, 0.45); position: relative; }
+.gl-card b { display: block; font-family: "IM Fell English SC", Georgia, serif; font-weight: 400; font-size: 16px; color: #f0dca8; }
+.gl-card span { display: block; font-size: 12.5px; opacity: 0.85; margin-top: 2px; }
+.gl-card small { display: block; font-size: 11.5px; opacity: 0.65; margin-top: 4px; }
+.gl-card.fertig { border-color: #6f8f4a; background: rgba(80, 110, 50, 0.25); cursor: default; }
+.gl-card.laeuft { border-color: #e3b45c; box-shadow: 0 0 0 2px rgba(227, 180, 92, 0.35); cursor: default; }
+.gl-card.gesperrt { opacity: 0.45; cursor: default; }
+.gl-card.frei:hover { background: rgba(200, 161, 86, 0.18); }
+
+/* ---------- Tutorial ---------- */
+#tutorial { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+#tutorial .tut-ring { position: fixed; border: 2px solid #f0c66a; border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55); transition: all 0.35s ease; }
+#tutorial .tut-box {
+  position: fixed; width: min(380px, 90vw); padding: 14px 16px; pointer-events: auto; background: #2e2117; color: #E4D9BC;
+  border: 2px solid #C8A156; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.7); font-size: 14.5px; line-height: 1.45; transition: top 0.35s ease, left 0.35s ease;
+}
+#tutorial .tut-box h3 { margin: 0 0 6px; font-family: "IM Fell English SC", Georgia, serif; font-weight: 400; color: #C8A156; font-size: 19px; }
+#tutorial .tut-box p { margin: 0 0 10px; }
+#tutorial .tut-nav { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+#tutorial .tut-nav span { font-size: 12px; opacity: 0.65; }
+#tutorial .tut-nav button { font: inherit; font-size: 13.5px; padding: 5px 12px; cursor: pointer; background: rgba(0, 0, 0, 0.3); color: inherit; border: 1px solid rgba(200, 161, 86, 0.5); }
+#tutorial .tut-nav button.next { background: linear-gradient(180deg, #d9b56a, #a8823f); color: #1A1C14; }
+
+/* ---------- Diplomatie-Reiter ---------- */
+#diplopanel h2 { margin: 0 0 8px; }
+.dl-card { padding: 10px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(200, 161, 86, 0.4); margin-bottom: 12px; }
+.dl-card .p-head { display: flex; align-items: center; gap: 8px; }
+.dl-card .p-head img { width: 42px; height: 28px; object-fit: cover; }
+.dl-card .p-head b { font-family: "IM Fell English SC", Georgia, serif; font-weight: 400; font-size: 19px; color: #f0dca8; }
+.dl-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px; }
+.dl-acts button { font: inherit; font-size: 12.5px; padding: 6px 4px; cursor: pointer; background: rgba(0, 0, 0, 0.35); color: inherit; border: 1px solid rgba(200, 161, 86, 0.5); }
+.dl-acts button.war { border-color: #c0503a; }
+.dl-acts button.confirm { background: #a8321f; color: #fff; }
+.dl-acts button:disabled { opacity: 0.35; cursor: default; }
+.dl-msg { margin: 6px 0 0; color: #f0dca8; font-size: 12.5px; min-height: 1em; }
+.dl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13.5px; }
+.dl-list li { display: grid; grid-template-columns: 26px 1fr auto auto; gap: 6px; align-items: center; padding: 4px 6px; cursor: pointer; background: rgba(0, 0, 0, 0.2); border: 1px solid transparent; }
+.dl-list li:hover, .dl-list li.sel { border-color: rgba(200, 161, 86, 0.6); }
+.dl-list img { width: 22px; height: 15px; object-fit: cover; }
+.dl-list .rv { font-variant-numeric: tabular-nums; font-size: 12.5px; opacity: 0.85; min-width: 3ch; text-align: right; }
+.dl-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; margin: 6px 0 10px; opacity: 0.9; }
+.dl-legend i { display: inline-block; width: 12px; height: 10px; margin-right: 4px; vertical-align: -1px; }
+
+.toggle { display: block; margin-top: 8px; font-size: 13px; cursor: pointer; }
+.toggle input { accent-color: var(--accent, #C8A156); margin-right: 6px; }
+#frontwin details > summary { cursor: pointer; font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.9; margin: 0 0 6px; color: var(--accent); }
+#frontwin details { margin-bottom: 14px; }
+
+@media (max-width: 1366px) { #goal-chip { max-width: 150px; } #kpis .k-unit { display: none; } }
+@media (max-width: 1180px) { #goal-chip .g-text { display: none; } #modes button span { font-size: 13px; } }
+/* abgestufte Kopfleiste für schmale Fenster */
+@media (max-width: 1500px) { #kpis .k-unit { display: none; } #time .date { min-width: 0; } #modes button { padding: 4px 9px; } }
+@media (max-width: 1300px) { #modes button span { display: none; } #modes kbd { display: inline-block !important; font-size: 12px; padding: 1px 6px; } #goal-chip { max-width: 130px; } }
+@media (max-width: 1100px) { #goal-chip .g-text { display: none; } #kpis .k-ico { display: none; } #kpis li { padding: 3px 5px; } #kpis .k-value { font-size: 14px; } .speeds button { min-width: 24px; } }

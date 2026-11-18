@@ -2,7 +2,7 @@
 
 ## Projektziel
 "Durchbruch" ist ein privates Echtzeit-Strategiespiel im Browser (HTML/JavaScript) zum Zweiten
-Weltkrieg. Start am 31. August 1939, der Spieler führt Deutschland. Das Spiel wird in 6 Phasen
+Weltkrieg. Start am 1. März 1939 (seit der Überarbeitung), der Spieler führt Deutschland. Das Spiel wird in 6 Phasen
 gebaut.
 
 | Phase | Inhalt | Stand |
@@ -12,6 +12,7 @@ gebaut.
 | 3 | Wirtschaft, Infrastruktur, KI-Nationen, Speichern | fertig |
 | 4 | Forschung, Geheimdienst, Generäle | fertig |
 | 5 | Moral, Diplomatie, Ereignisse, Hauptmenü, Spielende (Version 1 fertig) | fertig |
+| – | Überarbeitung: Start 01.03.1939, Diplomatie-Reiter, Länderfenster, Ziele, Tutorial | fertig |
 | 6 | folgt | offen |
 
 ## Technik
@@ -58,6 +59,7 @@ src/sim/                   Simulation ohne DOM (läuft im Browser und in Node gl
                            Waffenstillstand ohne Landfront
   events.js                historische Ereignisse (Auslöser) und Entscheidungs-Pop-ups, Teilungslinie
   news.js                  Zeitung "Der Tagesanzeiger" (Schlagzeilen aus den Meldungen)
+  goals.js                 nationale Ziele (Zielbaum, dauerhafte Wirkungen über sim.dip.effects)
   sectors.js, rng.js (mit speicherbarem Zustand), calendar.js, constants.js
 src/data/projection.js     EPSG:3035 vorwärts/rückwärts (ellipsoidisch)
 src/data/grid.js           Feldraster: Besitzer, Terrain, Nachbarn
@@ -72,9 +74,10 @@ src/ui/                    panel.js (Feldinfo, Nation), game.js (Lage, Frontfens
                            Wirtschaftsleiste, Standortwahl, Reiter Forschung), intel.js (Akte,
                            Agenten, Missionen), phase5.js (Entscheidung, Diplomatie, Zeitung, Moral),
                            menu.js (Hauptmenü, Einstellungen, Mitwirkende), menuMedia.js (Diashow,
-                           Zeitungsstapel, Musik, Bildnachweise), flags.js
+                           Zeitungsstapel, Musik, Bildnachweise), ui2.js (Hinweise, Ziel, Banner,
+                           Länderfenster, Diplomatie-Reiter, Zielbaum, Tutorial), flags.js
 src/styles/                base.css + front.css / economy.css / intel.css (Layout je Modus), game.css, econ.css,
-                           phase5.css
+                           phase5.css, diplomacy.css (Ansicht 4), ui2.css (Kopfleiste, neue Elemente)
 src/assets/flags/          Nationalflaggen 1939 als SVG (vereinfacht)
 public/data/               erzeugte Spieldaten (nicht von Hand ändern)
 tools/                     Datenpipeline, Tests, Screenshot- und Layoutprüfung
@@ -228,3 +231,24 @@ node tools/sim_run.mjs [seed]    # Kampagne ohne Spieler (Normal, Angriff auf Po
 - Musik (MP3 < 5 MB) startet erst nach dem ersten Klick, Schalter „Musik an/aus“, Lautstärke aus
   den Einstellungen; spielt nur, solange das Menü sichtbar ist.
 - Das Menü erscheint sofort beim Seitenaufruf; die Karte lädt dahinter (Spielstart erst danach).
+
+## Überarbeitung (Start 1. März 1939, Bedienung)
+- Daten: Tschecho-Slowakei (CSR) und Albanien (ALB) als eigene Staaten, Memelland litauisch
+  (`tools/territories.py`, `tools/nations.py`). Tag 0 = 01.03.1939, kein Krieg zu Beginn.
+- Szenario: `scenario.annexations` (mit `day` oder `onWar`) und `scenario.treaties` (Tag, Paar,
+  Bedingungen). Friedliche Übertragung über `sim.annex()` (kein Ertragsverlust, Nation ohne Felder
+  wird aufgelöst); Liste in `sim.dip.annexed`, die Karte übernimmt Besitzer/Namen (`applyAnnexations`).
+- Kriegserklärung des Spielers: Aufmarsch der Reserve direkt an die neuen Fronten (`deployReserve`,
+  Anteil `reserveShare` bleibt zurück); Generäle werden sofort besetzt.
+- Kleine Staaten haben Platzhalter-Armeen und sind angreifbar; Anschluss-Angebot (`offerAnschluss`,
+  Bewertung aus Kräfteverhältnis, Beziehung, Schutzmächten) und Rohstoffabkommen (`offerRohstoffe`).
+- Nationale Ziele: `balance.json goals.list`; ein Ziel gleichzeitig; Wirkungen armament, income,
+  moraleBase, tank, air, research, borderFort, warPrep, relation, annex, mobilize.
+- Oberfläche: Kopfleiste links Flagge + Kennzahlen, Mitte Ansichten 1–4, rechts Hinweise, Ziel,
+  Datum/Tempo. Ansicht 4 Diplomatie (Karte nach Stand/Beziehung). Klick auf ein fremdes Land im
+  Frontmodus öffnet das Länderfenster mit Aktionen. Ereignis-Banner für Krieg, Verträge, Gebiete.
+  Nachschub-Schicht (Taste N) bis ca. 200 km hinter den Fronten. Tutorial beim ersten Spiel und
+  im Menü. Tasten: D Diplomatie, Z Ziele, T Zeitung.
+- Flüssigkeit: Besetzung und Draht blenden weich über den Tag über; Seitenleisten werden nur
+  aktualisiert, wenn sichtbar, und erst nach dem Bild des Tageswechsels.
+- Speicherstand Version 6 (Ziele; Nationsindizes geändert, ältere Stände werden nicht geladen).

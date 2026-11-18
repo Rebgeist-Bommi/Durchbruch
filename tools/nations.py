@@ -4,6 +4,8 @@ NATIONS = {
     "POL": "Polen",
     "DAN": "Freie Stadt Danzig",
     "SVK": "Slowakei",
+    "CSR": "Tschecho-Slowakei",
+    "ALB": "Albanien",
     "HUN": "Ungarn",
     "ITA": "Italien",
     "FRA": "Frankreich",

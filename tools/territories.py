@@ -1,4 +1,9 @@
-"""Schritt 2: Gebiete (Territorien) zum Stichtag 31.08.1939 erzeugen.
+"""Schritt 2: Gebiete (Territorien) zum Spielstart 01.03.1939 erzeugen.
+
+Grenzverläufe: CShapes zum 31.08.1939 (Grenzen nach dem Münchner Abkommen). Besitzer zum
+01.03.1939: Tschecho-Slowakei (Böhmen und Mähren, Slowakei, Karpatenukraine), Memelland bei
+Litauen, Albanien selbstständig. Spätere Änderungen (15.03., 23.03., 07.04.1939) sind Ereignisse
+im Spiel (data/balance.json, scenario.annexations).
 
 Ergebnis: tools/.cache/territories.gpkg mit den Layern
   raw         – unvereinfachte Flächen (Grundlage für Raster und Tests)
@@ -42,7 +47,7 @@ COW = {
     290: ("POL", "Polen", "POL"),
     310: ("HUN", "Ungarn", "HUN"),
     325: ("ITA", "Italien", "ITA"),
-    339: ("ALB", "Albanien (italienisch besetzt)", "ITA"),
+    339: ("ALB", "Albanien", "ALB"),
     345: ("YUG", "Jugoslawien", "YUG"),
     350: ("GRC", "Griechenland", "GRC"),
     355: ("BGR", "Bulgarien", "BGR"),
@@ -74,11 +79,11 @@ EXTRA_TERRITORIES = {
     "DOD": ("Dodekanes (italienisch)", "ITA"),
 }
 CORRECTION_TERRITORIES = {
-    "PROT": ("Protektorat Böhmen und Mähren", "DEU"),
-    "SVK": ("Slowakei", "SVK"),
-    "KARP": ("Karpatenukraine (ungarisch)", "HUN"),
+    "PROT": ("Böhmen und Mähren", "CSR"),
+    "SVK": ("Slowakei", "CSR"),
+    "KARP": ("Karpatenukraine", "CSR"),
     "OLSA": ("Olsagebiet (polnisch)", "POL"),
-    "MEMEL": ("Memelland", "DEU"),
+    "MEMEL": ("Memelland", "LTU"),
     "DAN": ("Freie Stadt Danzig", "DAN"),
 }
 DODECANESE = box(26.4, 35.3, 28.4, 37.6)   # lon/lat

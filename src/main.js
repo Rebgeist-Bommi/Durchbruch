@@ -13,6 +13,8 @@ import './styles/intel.css';
 import './styles/game.css';
 import './styles/econ.css';
 import './styles/phase5.css';
+import './styles/diplomacy.css';
+import './styles/ui2.css';
 
 import balance from '../data/balance.json';
 import scientistsData from '../data/scientists.json';
@@ -33,8 +35,10 @@ import { DecisionUI, DiplomacyUI, NewspaperUI } from './ui/phase5.js';
 import { MainMenu, loadSettings, saveSettingsNow } from './ui/menu.js';
 import { MenuBackdrop, MenuMusic } from './ui/menuMedia.js';
 import { autoplayCampaign } from './sim/autoplay.js';
+import { Popover, DiplomacyTab, Banner, GoalsUI, Tutorial, renderAlerts } from './ui/ui2.js';
+import { flagUrl } from './ui/flags.js';
 
-const MODES = ['front', 'economy', 'intel'];
+const MODES = ['front', 'economy', 'intel', 'diplomacy'];
 const FONT_FAMILIES = ['IM Fell English SC', 'Spectral', 'UnifrakturMaguntia', 'Saira Stencil One', 'Saira Condensed', 'Special Elite'];
 
 async function main() {
@@ -99,6 +103,7 @@ async function main() {
   const ui = new GameUI({ sim, renderer, panel, onCenter: centerOnCell });
   ui.onGameOver = () => setSpeed(0);
   if (loadedFrom || sim.isOver()) ui.gameOverShown = sim.isOver();
+  ui.victoryShown = sim.dip.flags.lastVictory?.day; // alte Siegesbilanz nach dem Laden nicht erneut zeigen
   const econ = new EconomyUI({
     sim, renderer, onChange: () => { econ.refresh(); ui.refresh(); renderer.requestRender(); },
   });
@@ -182,12 +187,43 @@ async function main() {
   clock.lastSpeed = settings.speed || 1;
   const afterChange = () => {
     renderer.onTick();
+    renderer.updateDiploColors();
     ui.refresh();
-    econ.refresh();
-    intel.refresh();
+    refreshPanels();
     paper.badge();
+    refreshUi2();
     renderer.requestRender();
   };
+  // Überarbeitung: Länderfenster, Diplomatie-Reiter, Banner, Ziele, Tutorial, Hinweise
+  const openFrontOf = (n) => {
+    const f = [...sim.fronts.values()].find((x) => x.alive && x.side[sim.player] && sim.enemyOn(x, sim.player) === n);
+    if (f) { setMode('front'); ui.selectFront(f.id, true); }
+  };
+  const popover = new Popover({ sim, onChange: () => afterChange(), openFront: openFrontOf });
+  const diploTab = new DiplomacyTab({ sim, onChange: () => afterChange(), openFront: openFrontOf });
+  const banner = new Banner({ sim, onClick: () => {} });
+  const goals = new GoalsUI({ sim, onChange: () => afterChange() });
+  const tutorial = new Tutorial({});
+  document.getElementById('top-flag').src = flagUrl(sim.code(sim.player));
+  document.getElementById('goal-chip').addEventListener('click', () => goals.show());
+  document.getElementById('supply-toggle').addEventListener('change', (e) => { renderer.supplyOn = e.target.checked; renderer.requestRender(); });
+  // nur sichtbare Seitenleisten neu aufbauen (Kennzahlen oben immer)
+  function refreshPanels() {
+    if (renderer.mode === 'economy') econ.refresh(); else econ.renderKpis();
+    if (renderer.mode === 'intel') intel.refresh();
+  }
+  function refreshUi2() {
+    renderAlerts(sim, {
+      front: (empty) => { if (empty[0]) { setMode('front'); ui.selectFront(empty[0].id, true); } },
+      decision: () => decision.show(),
+      equip: () => setMode('economy'),
+      money: () => setMode('economy'),
+      morale: () => setMode('front'),
+    });
+    banner.collect();
+    if (renderer.mode === 'diplomacy') diploTab.render();
+    if (popover.open) popover.render();
+  }
   const decision = new DecisionUI({
     sim,
     onDecided: () => {
@@ -210,9 +246,9 @@ async function main() {
     onVisible: (on) => { if (on) backdrop.start(); else backdrop.stop(); music.setActive(on); },
     levels: balance.difficulty.levels,
     inGame: () => sim.day > 0 || !!sim.started,
-    onStart: (level, sandbox) => {
+    onStart: (level, sandbox, tut = false) => {
       if (sim.day > 0 || sim.started) {
-        sessionStorage.setItem('durchbruch-start', JSON.stringify({ level, sandbox }));
+        sessionStorage.setItem('durchbruch-start', JSON.stringify({ level, sandbox, tut }));
         location.reload();
         return;
       }
@@ -220,6 +256,9 @@ async function main() {
       sim.started = true;
       menu.hide();
       afterChange();
+      let seen = false;
+      try { seen = localStorage.getItem('durchbruch-tutorial') === 'done'; } catch { /* ohne Speicher */ }
+      if (tut || (!seen && !sandbox)) setTimeout(() => tutorial.start(), 400);
       toast(`${sandbox ? 'Sandbox' : 'Kampagne'} · ${balance.difficulty.levels[level].label}${sandbox ? ' · unbegrenzte Mittel' : ''}`);
     },
     onLoad: (kind) => {
@@ -236,7 +275,7 @@ async function main() {
     const b = e.target.closest('[data-open]');
     if (!b) return;
     if (b.dataset.open === 'menu') { setSpeed(0); menu.show(); }
-    if (b.dataset.open === 'diplo') diplo.show();
+    if (b.dataset.open === 'diplo') setMode('diplomacy');
     if (b.dataset.open === 'paper') paper.show();
   });
 
@@ -266,12 +305,10 @@ async function main() {
     const advanced = sim.tick();
     if (!advanced) { pauseForDecision(); return; }
     renderer.onTick();
-    ui.onTick();
-    econ.refresh();
-    intel.refresh();
-    paper.badge();
-    if (diplo.open) diplo.render();
-    if (sim.day % 7 === 0) store('durchbruch-auto');
+    // Oberfläche nach dem nächsten Bild aktualisieren, damit der Tageswechsel nicht ruckelt
+    const ui2 = () => { ui.onTick(); refreshPanels(); paper.badge(); refreshUi2(); };
+    if (clock.speed > 0) setTimeout(ui2, 0); else ui2();
+    if (sim.day % 7 === 0) setTimeout(() => store('durchbruch-auto'), 50);
     if (sim.isOver()) { setSpeed(0); return; }
     pauseForDecision(); // Entscheidung erscheint sofort zum Tagesende
   }
@@ -316,7 +353,7 @@ async function main() {
     if (b) setSpeed(Number(b.dataset.speed));
   });
 
-  window.__durchbruch = { renderer, grid, data, sim, ui, econ, intel, setSpeed, doTick, clock, serialize, decision, diplo, paper, menu, autoplayCampaign };
+  window.__durchbruch = { renderer, grid, data, sim, ui, econ, intel, setSpeed, doTick, clock, serialize, decision, diplo, paper, menu, autoplayCampaign, popover, diploTab, goals, tutorial, banner };
 
   // ---- Statuszeile ----
   const zoomEl = document.getElementById('s-zoom');
@@ -331,6 +368,10 @@ async function main() {
     for (const m of MODES) document.body.classList.toggle(`mode-${m}`, m === mode);
     for (const b of document.querySelectorAll('#modes button')) b.setAttribute('aria-selected', String(b.dataset.mode === mode));
     if (mode !== 'economy' && econ.buildType) econ.setBuildMode(null);
+    if (mode === 'diplomacy') diploTab.render();
+    if (mode === 'economy') econ.refresh();
+    if (mode === 'intel') intel.refresh();
+    popover.hide();
     renderer.setMode(mode);
   }
   document.getElementById('modes').addEventListener('click', (e) => {
@@ -396,12 +437,19 @@ async function main() {
         econ.click(i);
       } else if (renderer.mode === 'intel') {
         intel.select(renderer.pickIntelTarget(sx, sy));
+      } else if (renderer.mode === 'diplomacy') {
+        diploTab.select(i >= 0 ? sim.owner[i] : 0);
+        renderer.selected = i;
       } else if (fid) {
+        popover.hide();
         ui.selectFront(fid);
       } else {
         renderer.selected = i;
         panel.showCell(i);
         if (renderer.mode === 'economy') econ.selectCell(i);
+        // fremdes Land: Länderfenster mit den möglichen Aktionen
+        if (renderer.mode === 'front' && i >= 0 && sim.owner[i] && sim.owner[i] !== sim.player) popover.show(sim.owner[i], e.clientX, e.clientY);
+        else popover.hide();
       }
       renderer.requestRender();
     }
@@ -416,20 +464,27 @@ async function main() {
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (menu.open || decision.open) return; // Menü und Entscheidung: nur Maus/Tab
+    if (tutorial.open && e.key !== 'Escape') return;
     const cam = renderer.camera;
     switch (e.key) {
       case '1': setMode('front'); break;
       case '2': setMode('economy'); break;
       case '3': setMode('intel'); break;
+      case '4': setMode('diplomacy'); break;
+      case 'n': case 'N': { const c = document.getElementById('supply-toggle'); c.checked = !c.checked; renderer.supplyOn = c.checked; renderer.requestRender(); break; }
       case ' ': setSpeed(clock.speed ? 0 : clock.lastSpeed); break;
-      case 'd': case 'D': if (diplo.open) diplo.close(); else diplo.show(); break;
-      case 'z': case 'Z': if (paper.open) paper.close(); else paper.show(); break;
+      case 'd': case 'D': setMode(renderer.mode === 'diplomacy' ? 'front' : 'diplomacy'); break;
+      case 'z': case 'Z': if (goals.open) goals.close(); else goals.show(); break;
+      case 't': case 'T': if (paper.open) paper.close(); else paper.show(); break;
       case 'g': case 'G': renderer.showGrid = !renderer.showGrid; renderer.requestRender(); break;
       case '0': renderer.focusStart(); renderer.requestRender(); break;
       case '+': case '=': cam.zoomAt(cam.width / 2, cam.height / 2, 1.25); renderer.requestRender(); break;
       case '-': cam.zoomAt(cam.width / 2, cam.height / 2, 0.8); renderer.requestRender(); break;
       case 'Escape':
-        if (diplo.open) diplo.close();
+        if (popover.open) popover.hide();
+        else if (goals.open) goals.close();
+        else if (tutorial.open) tutorial.end();
+        else if (diplo.open) diplo.close();
         else if (paper.open) paper.close();
         else if (econ.buildType) econ.setBuildMode(null);
         else ui.closeFront();
@@ -448,6 +503,9 @@ async function main() {
   // Hauptmenü beim Start (nicht nach Laden oder neuem Spiel aus dem Menü; ?menu=0 überspringt es)
   if (!loadedFrom && !startCfg && params.get('menu') !== '0') menu.show();
   if (sim.pending) decision.show();
+  refreshUi2();
+  banner.seen = sim.events.length; // alte Meldungen nicht erneut als Banner
+  if (startCfg?.tut) setTimeout(() => tutorial.start(), 600);
   document.body.dataset.ready = 'true';
 }
 

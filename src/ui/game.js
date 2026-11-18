@@ -24,6 +24,11 @@ export class GameUI {
     this.gameOverShown = false;
     this.transferTarget = 0;
     $('frontwin').addEventListener('click', (e) => this.onFrontAction(e));
+    this.openDetails = new Set();
+    $('frontwin').addEventListener('toggle', (e) => {
+      const d = e.target.closest?.('details[data-d]');
+      if (d) { if (d.open) this.openDetails.add(d.dataset.d); else this.openDetails.delete(d.dataset.d); }
+    }, true);
     $('frontwin').addEventListener('change', (e) => {
       if (e.target.id === 'tf-target') this.transferTarget = Number(e.target.value);
       if (e.target.id === 'gen-select') this.cmd(() => assignGeneral(this.sim, this.frontId, this.sim.player, e.target.value || null));
@@ -50,6 +55,9 @@ export class GameUI {
     $('go-menu').addEventListener('click', () => { $('gameover').hidden = true; if (this.onMenu) this.onMenu(); });
     this.refresh();
   }
+
+  /** aufgeklappte Abschnitte im Frontfenster bleiben über Ticks hinweg offen */
+  isOpen(k) { return this.openDetails?.has(k) ? 'open' : ''; }
 
   cmd(fn) {
     fn();
@@ -103,6 +111,8 @@ export class GameUI {
     renderMorale(sim, () => { this.refresh(); if (this.onPropaganda) this.onPropaganda(); });
     if (this.panel.selected >= 0) this.panel.showCell(this.panel.selected);
     if (sim.isOver() && !this.gameOverShown) this.showGameOver();
+    const v = sim.dip.flags.lastVictory;
+    if (v && this.victoryShown !== v.day) { this.victoryShown = v.day; this.showGameOver(v); }
   }
 
   setDayProgress(t) {
@@ -182,7 +192,7 @@ export class GameUI {
         <h3>Befehl</h3>
         <label class="radio"><input type="radio" name="order" value="hold" ${side.order === 'hold' ? 'checked' : ''} ${attacking ? 'disabled' : ''}> Halten und befestigen</label>
         <label class="radio"><input type="radio" name="order" value="prepare" ${side.order === 'prepare' ? 'checked' : ''} ${attacking ? 'disabled' : ''}> Angriff vorbereiten</label>
-        ${attacking ? `<p class="fw-status">Angriff läuft seit ${esc(sim.dateText(side.attackStartDay))} (Tag ${side.attackStartDay}).</p>` : ''}
+        ${attacking ? `<p class="fw-status">Angriff läuft seit ${esc(sim.dateText(side.attackStartDay))}.</p>` : ''}
         <div class="bar-label">Angriffsbonus <b>+${prepBonus} %</b>${side.order === 'prepare' && side.prep < 1 ? ' · baut sich auf' : ''}${attacking ? ' · wird verbraucht' : ''}</div>
         <div class="bar" title="Angriffsbonus"><i style="width:${Math.round(side.prep * 100)}%"></i></div>
         ${attacking
@@ -190,11 +200,11 @@ export class GameUI {
           : `<button type="button" class="btn btn-main" data-action="attack" ${sim.isOver() ? 'disabled' : ''}>Angriff auslösen</button>`}
       </section>
 
-      <section>
-        <h3>Vorgehen bei Eroberung</h3>
+      <details data-d="vorgehen" ${this.isOpen('vorgehen')}>
+        <summary>Vorgehen bei Eroberung</summary>
         <label class="radio"><input type="radio" name="method" value="minimal" ${side.method === 'minimal' ? 'checked' : ''}> Minimaler Schaden <span class="muted">– Land und Wirtschaft bleiben erhalten, langsamer</span></label>
         <label class="radio"><input type="radio" name="method" value="total" ${side.method === 'total' ? 'checked' : ''}> Totale Verwüstung <span class="muted">– schneller, kaum Ertrag für lange Zeit</span></label>
-      </section>
+      </details>
 
       ${this.airHtml(f, p)}
 
@@ -210,8 +220,8 @@ export class GameUI {
         </div>` : ''}
       </section>
 
-      <section>
-        <h3>Kampf</h3>
+      <details data-d="kampf" ${this.isOpen('kampf')}>
+        <summary>Kampfbericht</summary>
         <table class="fw-table">
           <thead><tr><th>Abschnitt</th><th class="num">km heute</th><th class="num">km ges.</th><th>Status</th></tr></thead>
           <tbody>${sections}</tbody>
@@ -223,7 +233,7 @@ export class GameUI {
           <dt>Gefangene</dt><dd>${fmtInt(side.prisonersToday)} heute · ${fmtInt(side.prisonersTotal)} gesamt</dd>
           <dt>Lufteinsätze</dt><dd>${fmtInt(side.airToday)} heute · ${fmtInt(side.airTotal)} gesamt</dd>
         </dl>
-      </section>`;
+      </details>`;
   }
 
   generalHtml(f, p) {
@@ -250,15 +260,15 @@ export class GameUI {
     const cur = side.strikeTarget ? `${side.strikeTarget.kind}:${side.strikeTarget.id}` : '';
     const power = strikePower(sim, f, p);
     const name = (t) => describeTarget(sim, t)?.name || '–';
-    return `<section>
-        <h3>Luftangriffe</h3>
+    return `<details data-d="luft" ${this.isOpen('luft')}>
+        <summary>Luftangriffe</summary>
         <div class="seg">${shares.map((v) => `<button type="button" role="radio" aria-checked="${Math.abs((side.airShare || 0) - v) < 1e-6}" data-action="airshare" data-v="${v}">${Math.round(v * 100)} %</button>`).join('')}</div>
         <select id="strike-target" aria-label="Ziel der Luftangriffe" class="full">
           <option value="">– Ziel hinter der Front wählen –</option>
           ${targets.map((t) => `<option value="${t.kind}:${t.id}" ${`${t.kind}:${t.id}` === cur ? 'selected' : ''}>${esc(name(t))} (${Math.round(t.d * 9)} km)</option>`).join('')}
         </select>
         <p class="fw-sub">${side.airShare ? `${Math.round(side.airShare * 100)} % des Luftanteils fehlen an der Front · Trefferchance ${Math.round(power.chance * 100)} % je Tag${side.strikeHits ? ` · ${side.strikeHits} Treffer` : ''}` : 'Kein Luftanteil abgestellt.'}</p>
-      </section>`;
+      </details>`;
   }
 
   onFrontAction(e) {
@@ -293,11 +303,11 @@ export class GameUI {
   }
 
   // ------------------------------------------------------------ Abschluss (Phase 5)
-  showGameOver() {
-    this.gameOverShown = true;
+  showGameOver(victory = null) {
+    if (!victory) this.gameOverShown = true;
     const sim = this.sim;
     const p = sim.player;
-    const o = sim.outcome || { result: 'sieg', day: sim.day };
+    const o = victory || sim.outcome || { result: 'sieg', day: sim.day };
     const win = o.result === 'sieg';
     const me = sim.nations.get(p);
     const ever = sim.dip.everEnemies;
@@ -305,7 +315,7 @@ export class GameUI {
     let conquered = 0;
     for (let i = 0; i < sim.N; i++) if (sim.owner[i] === p && sim.startOwner[i] !== p) conquered++;
     const enemyLoss = ever.reduce((t, n) => t + (sim.nations.get(n)?.lossesTotal || 0), 0);
-    const title = win ? 'Sieg' : 'Niederlage';
+    const title = win ? 'Feldzug gewonnen' : 'Niederlage';
     const sub = win
       ? (o.allCapitulated ? 'Alle Kriegsgegner haben kapituliert.' : `Kein Kriegsgegner steht mehr im Feld (Kapitulation: ${caps.map((n) => sim.nationName(n)).join(', ') || '–'}; übrige durch Frieden oder Waffenstillstand).`)
       : `${sim.nameNom(p)} hat am ${sim.dateText(o.day)} kapituliert.`;
@@ -333,6 +343,7 @@ export class GameUI {
       <ul class="go-events">${events.map((e) => `<li><time>${esc(e.date)}</time>${esc(e.text)}</li>`).join('')}</ul>
       ${ps && ps.status === 'kapituliert' ? `<p class="muted">Zum Vergleich: Historisch kapitulierten die letzten polnischen Verbände am 6. Oktober 1939 (Tag 36); im Spiel kapitulierte Polen am ${esc(sim.dateText(ps.capitulationDay))} (Tag ${ps.capitulationDay}).</p>` : ''}
       <p class="muted">Die täglichen Momentaufnahmen bleiben im Spielstand für einen späteren Zeitraffer erhalten.</p>`;
+    $('go-close').textContent = win ? 'Weiterspielen' : 'Karte weiter ansehen';
     $('gameover').hidden = false;
     if (this.onGameOver) this.onGameOver();
   }
