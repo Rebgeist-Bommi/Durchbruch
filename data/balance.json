@@ -1,0 +1,143 @@
+{
+  "_hinweis": "# TODO historisch prüfen – ALLE Zahlen in dieser Datei sind Platzhalter für das Spielgleichgewicht. Sie sind weder recherchiert noch als historische Angaben zu verstehen.",
+  "seed": 1939,
+
+  "time": {
+    "_todo": "Vorgabe aus Phase 2, keine historische Angabe",
+    "startDate": "1939-08-31",
+    "msPerDayAt1x": 4500,
+    "speeds": [0, 1, 2, 4]
+  },
+
+  "scenario": {
+    "_todo": "# TODO historisch prüfen",
+    "playerNation": "DEU",
+    "wars": [["DEU", "POL"]],
+    "annexations": [
+      { "day": 1, "territory": "DAN", "to": "DEU", "text": "Danzig wird dem Deutschen Reich angegliedert." }
+    ]
+  },
+
+  "divisions": {
+    "_todo": "# TODO historisch prüfen – Anzahl, Panzeranteil und Luftanteil sind Platzhalter",
+    "menPerDivision": 15000,
+    "destroyedBelow": 0.25,
+    "nations": {
+      "DEU": {
+        "label": "Div.",
+        "reserveShare": 0.12,
+        "groups": [
+          { "count": 42, "tank": 0.03, "air": 0.15 },
+          { "count": 8, "tank": 0.70, "air": 0.30 },
+          { "count": 6, "tank": 0.35, "air": 0.25 }
+        ]
+      },
+      "POL": {
+        "label": "Dyw.",
+        "reserveShare": 0.15,
+        "groups": [
+          { "count": 30, "tank": 0.02, "air": 0.04 },
+          { "count": 8, "tank": 0.08, "air": 0.04 }
+        ]
+      }
+    }
+  },
+
+  "start": {
+    "_todo": "# TODO historisch prüfen",
+    "prep": { "DEU": 0.6 },
+    "fortification": { "POL": 0.25 }
+  },
+
+  "orders": {
+    "_todo": "Spielwerte",
+    "prepDays": 7,
+    "prepMaxBonus": 0.6,
+    "prepDecayPerDay": 0.04,
+    "fortDays": 18,
+    "fortBonus": 1.6,
+    "fortHoldOnly": true
+  },
+
+  "combat": {
+    "_todo": "Spielwerte, durch Testläufe abgestimmt",
+    "baseRate": 0.32,
+    "ratioExponent": 1.15,
+    "maxChance": 0.93,
+    "substeps": 3,
+    "exploitFactor": 0.5,
+    "neighborFactor": [0, 1.0, 1.9, 2.8, 3.6],
+    "mountainFactor": 0.3,
+    "tankBonus": 1.2,
+    "tankMountainFactor": 0.25,
+    "airBonus": 0.9,
+    "airDefense": 0.6,
+    "defenseFloorPerCell": 0.06,
+    "noise": 0.5,
+    "encircledDefense": 0.55,
+    "lossAttacker": 0.004,
+    "lossDefender": 0.011,
+    "prisonerBase": 0.15,
+    "prisonerPerRatio": 0.15,
+    "prisonerMax": 0.7,
+    "airMissionsPerDivision": 40,
+    "statusBreakthroughKm": 12,
+    "statusAdvanceKm": 2
+  },
+
+  "supply": {
+    "_todo": "Spielwerte",
+    "rangeCells": 75,
+    "minFactor": 0.35
+  },
+
+  "methods": {
+    "_todo": "Spielwerte",
+    "minimal": { "label": "Minimaler Schaden", "speed": 0.75, "yieldStart": 0.7, "recoverDays": 60 },
+    "total": { "label": "Totale Verwüstung", "speed": 1.2, "yieldStart": 0.05, "recoverDays": 540 }
+  },
+
+  "siege": {
+    "_todo": "# TODO historisch prüfen",
+    "capitalDefense": 100,
+    "cityDefense": 40,
+    "cityMaxRank": 2,
+    "damagePerDay": 5,
+    "airDamageBonus": 1.0,
+    "bindDivisionsCapital": 6,
+    "bindDivisionsCity": 3
+  },
+
+  "pocket": {
+    "_todo": "Spielwerte",
+    "instantCells": 6,
+    "surrenderBaseDays": 3,
+    "surrenderDaysPer100Cells": 4,
+    "messageMinCells": 10
+  },
+
+  "capitulation": {
+    "_todo": "# TODO historisch prüfen",
+    "requireCapital": true,
+    "lostShare": 0.55
+  },
+
+  "transfer": {
+    "_todo": "Spielwerte",
+    "kmPerDay": 160,
+    "minDays": 1
+  },
+
+  "ai": {
+    "_todo": "Spielwerte",
+    "retreatDepthCells": 3,
+    "maxTransfersPerDay": 4,
+    "rebalanceThreshold": 1.5,
+    "dangerWeight": 3
+  },
+
+  "sectors": {
+    "_todo": "Abschnittslänge ca. 100 km (Vorgabe Phase 2)",
+    "spacingCells": 11
+  }
+}

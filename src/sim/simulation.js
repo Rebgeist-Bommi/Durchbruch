@@ -1,0 +1,530 @@
+// Simulation von Phase 2: Zeit (1 Tick = 1 Tag), Divisionen, Fronten, Vormarsch, Kessel,
+// Belagerung, Kapitulation. Kein DOM, keine Darstellung: läuft identisch im Browser und in Node.
+import { createRng, hash01 } from './rng.js';
+import { buildSectors } from './sectors.js';
+import { updateFronts } from './fronts.js';
+import { resolveCombat, updateOrdersOverTime } from './combat.js';
+import { resolvePockets, resolveSieges, checkCapitulation, markExclaves } from './pockets.js';
+import { runAi, warmupAi } from './ai.js';
+import { formatDate } from './calendar.js';
+
+import { NMAX, KM_PER_CELL } from './constants.js';
+
+export { NMAX, KM_PER_CELL };
+
+export class Simulation {
+  /**
+   * Einmaliger Vorlauf je Programmstart: zwei Ticks auf einer Wegwerf-Kopie, damit die
+   * JavaScript-Engine die Tick-Funktionen schon vor dem ersten echten Spieltag optimiert.
+   * Das echte Spiel bleibt unberührt (eigenes Raster, eigener Zufall).
+   */
+  static warmup({ grid, map, balance }) {
+    Simulation.warmedUp = true;
+    const bytes = new Uint8Array(grid.size * 2);
+    bytes.set(grid.territory, 0);
+    bytes.set(grid.terrain, grid.size);
+    const copy = new grid.constructor(grid.meta, bytes);
+    const sim = new Simulation({ grid: copy, map, balance, seed: 1, warm: true });
+    for (const f of sim.fronts.values()) if (f.side[sim.player]) sim.attack(f.id);
+    for (let k = 0; k < 3; k++) sim.tick();
+  }
+
+  constructor({ grid, map, balance, seed, warm = false }) {
+    this.grid = grid;
+    this.map = map;
+    this.bal = balance;
+    this.seed = seed ?? balance.seed;
+    this.rng = createRng(this.seed);
+    this.day = 0;
+    this.cols = grid.cols;
+    this.rows = grid.rows;
+    this.N = grid.size;
+    this.codes = grid.nationCodes;
+    this.codeIndex = new Map(this.codes.map((c, i) => [c, i + 1]));
+    this.player = this.idx(balance.scenario.playerNation);
+
+    this.owner = grid.owner; // gemeinsam mit Grid: Feldinfo zeigt immer den aktuellen Besitzer
+    // Nachbartabelle (N, O, S, W; -1 = Rand oder Meer): vermeidet Speicheranlagen im Tick
+    this.nb = new Int32Array(this.N * 4).fill(-1);
+    for (let i = 0; i < this.N; i++) {
+      if (!grid.territory[i]) continue;
+      const r = Math.floor(i / this.cols);
+      const c = i - r * this.cols;
+      const cand = [r > 0 ? i - this.cols : -1, c < this.cols - 1 ? i + 1 : -1, r < this.rows - 1 ? i + this.cols : -1, c > 0 ? i - 1 : -1];
+      for (let k = 0; k < 4; k++) if (cand[k] >= 0 && grid.territory[cand[k]]) this.nb[i * 4 + k] = cand[k];
+    }
+    this.ownedCount = new Int32Array(NMAX);
+    for (let i = 0; i < this.N; i++) this.ownedCount[this.owner[i]]++;
+    this.terrain = grid.terrain;
+    this.fort = new Float32Array(this.N);
+    this.conqDay = new Int16Array(this.N).fill(-1);
+    this.conqMethod = new Uint8Array(this.N); // 0 –, 1 minimal, 2 total
+    this.frontHint = new Int32Array(this.N);
+    this.pocketSince = new Int16Array(this.N).fill(-1);
+    this.changed = []; // in diesem Tick geänderte Felder (für die Darstellung)
+    this.events = [];
+    this.tickMs = [];
+
+    this.atWar = new Uint8Array(NMAX * NMAX);
+    this.inWar = new Uint8Array(NMAX);
+    this.box = { r0: this.rows, r1: -1, c0: this.cols, c1: -1 };
+    this.wars = [];
+    for (const [a, b] of balance.scenario.wars) this.declareWar(this.idx(a), this.idx(b), false);
+
+    this.sectors = buildSectors(grid, balance.sectors.spacingCells);
+    this.initCities();
+    this.nations = new Map();
+    for (const n of this.warNations()) {
+      this.nations.set(n, {
+        status: 'aktiv', capitulationDay: -1, startCells: 0,
+        lossesTotal: 0, prisonersTaken: 0, menLostAsPrisoners: 0, airTotal: 0,
+      });
+    }
+    this.fronts = new Map();
+    this.nextFrontId = 1;
+    this.sectionStats = new Map(); // `${frontKey}` je Sektor und Seite
+    this.divisions = [];
+    this.createDivisions();
+    this.computeStartState();
+    updateFronts(this);
+    this.initialDeployment();
+    // Vorlauf: rechenintensive Teile einmal ausführen (ohne Wirkung auf den Spielstand),
+    // damit schon der erste Tick ohne Anlaufkosten läuft.
+    resolvePockets(this);
+    updateFronts(this);
+    for (const n of this.nations.keys()) if (n !== this.player) warmupAi(this, n);
+    if (!warm && !Simulation.warmedUp) Simulation.warmup({ grid, map, balance });
+    this.log('info', `Aufmarsch abgeschlossen. Kriegszustand mit ${this.nationName(this.idx('POL'))}.`);
+  }
+
+  // ---------------------------------------------------------------- Hilfen
+  idx(code) {
+    const i = this.codeIndex.get(code);
+    if (!i) throw new Error(`unbekannte Nation ${code}`);
+    return i;
+  }
+  code(i) { return this.codes[i - 1]; }
+  nationName(i) { return this.grid.nationNames[this.code(i)]; }
+  isWar(a, b) { return this.atWar[a * NMAX + b] === 1; }
+  warNations() {
+    const s = new Set();
+    for (const [a, b] of this.wars) { s.add(a); s.add(b); }
+    return [...s].sort((x, y) => x - y);
+  }
+  enemiesOf(n) {
+    return this.wars.filter(([a, b]) => a === n || b === n).map(([a, b]) => (a === n ? b : a));
+  }
+  dateText(day = this.day) { return formatDate(this.bal.time.startDate, day); }
+
+  declareWar(a, b, message = true) {
+    this.atWar[a * NMAX + b] = 1;
+    this.atWar[b * NMAX + a] = 1;
+    this.wars.push([a, b]);
+    this.inWar[a] = 1;
+    this.inWar[b] = 1;
+    for (let i = 0; i < this.N; i++) if (this.inWar[this.owner[i]]) this.growBox(i);
+    if (message) this.log('war', `${this.nationName(a)} und ${this.nationName(b)} befinden sich im Krieg.`);
+  }
+
+  /** Rechteck um alle Felder kriegführender Nationen (Suchbereich der Tick-Berechnungen). */
+  growBox(i) {
+    const r = (i / this.cols) | 0;
+    const c = i - r * this.cols;
+    const b = this.box;
+    if (r < b.r0) b.r0 = r;
+    if (r > b.r1) b.r1 = r;
+    if (c < b.c0) b.c0 = c;
+    if (c > b.c1) b.c1 = c;
+  }
+
+  /** Feldindizes im Suchbereich (+1 Feld Rand), zeilenweise. */
+  boxRange() {
+    const b = this.box;
+    return [Math.max(0, b.r0 - 1), Math.min(this.rows - 1, b.r1 + 1), Math.max(0, b.c0 - 1), Math.min(this.cols - 1, b.c1 + 1)];
+  }
+
+  endWar(a, b) {
+    this.atWar[a * NMAX + b] = 0;
+    this.atWar[b * NMAX + a] = 0;
+    this.wars = this.wars.filter(([x, y]) => !((x === a && y === b) || (x === b && y === a)));
+  }
+
+  log(type, text, cell = -1) {
+    this.events.push({ day: this.day, date: this.dateText(), type, text, cell });
+  }
+
+  /** Nächstgelegene Stadt; mit `nation` nur Städte, die vor dem Krieg zu dieser Nation gehörten. */
+  nearestCityName(col, row, maxRank = 4, nation = 0) {
+    let best = null;
+    let bd = Infinity;
+    for (const c of this.cities) {
+      if (c.rank > maxRank || (nation && c.nation !== nation)) continue;
+      const d = (c.col - col) ** 2 + (c.row - row) ** 2;
+      if (d < bd) { bd = d; best = c; }
+    }
+    return best ? best.name : '–';
+  }
+
+  // ---------------------------------------------------------------- Aufbau
+  initCities() {
+    const m = this.map;
+    this.cities = [];
+    this.cityAt = new Int32Array(this.N).fill(-1);
+    for (const c of m.cities) {
+      const [wx, wy] = [m.originX + c.x * m.unit, m.originY + c.y * m.unit];
+      const cell = this.grid.cellAtWorld(wx, wy);
+      if (cell < 0) continue;
+      const entry = { name: c.name, rank: c.rank, capital: c.capital, cell, col: cell % this.cols, row: Math.floor(cell / this.cols), nation: this.owner[cell] };
+      this.cityAt[cell] = this.cities.length;
+      this.cities.push(entry);
+    }
+    this.capital = new Map();
+    for (const c of this.cities) if (c.capital) this.capital.set(c.nation, c.cell);
+    const S = this.bal.siege;
+    const warSet = new Set(this.warNations());
+    this.sieges = [];
+    this.siegeAt = new Int32Array(this.N).fill(-1);
+    for (const c of this.cities) {
+      if (!warSet.has(c.nation)) continue;
+      const isCap = this.capital.get(c.nation) === c.cell;
+      if (!isCap && c.rank > S.cityMaxRank) continue;
+      const max = isCap ? S.capitalDefense : S.cityDefense;
+      this.siegeAt[c.cell] = this.sieges.length;
+      this.sieges.push({ city: c, cell: c.cell, nation: c.nation, capital: isCap, defense: max, max, besieged: false, since: -1, fallen: false, by: 0 });
+    }
+  }
+
+  createDivisions() {
+    const D = this.bal.divisions;
+    let id = 1;
+    for (const [code, cfg] of Object.entries(D.nations)) {
+      const n = this.idx(code);
+      let k = 1;
+      for (const g of cfg.groups) {
+        for (let i = 0; i < g.count; i++) {
+          this.divisions.push({
+            id: id++, nation: n, name: `${k}. ${cfg.label}`, men: D.menPerDivision, maxMen: D.menPerDivision,
+            tank: g.tank, air: g.air, front: 0, transit: null,
+          });
+          k++;
+        }
+      }
+    }
+  }
+
+  computeStartState() {
+    for (const [n, st] of this.nations) st.startCells = this.ownedCount[n];
+    this.computeSupply();
+    markExclaves(this);
+  }
+
+  /**
+   * Nachschub: Abstand (in Feldern, über Land) zum Gebiet bei Kriegsbeginn.
+   * Mit `added` (Map Nation -> neue Felder) wird nur ab den neuen Feldern nachgerechnet.
+   */
+  computeSupply(added = null) {
+    if (!this.supplyDist) this.supplyDist = new Map();
+    const q = this._sq || (this._sq = new Int32Array(this.N));
+    const nb = this.nb;
+    for (const n of this.nations.keys()) {
+      if (added && !added.has(n)) continue;
+      let dist = this.supplyDist.get(n);
+      let head = 0;
+      let tail = 0;
+      if (added && dist) {
+        for (const i of added.get(n)) { dist[i] = 0; q[tail++] = i; }
+      } else {
+        dist = dist || new Uint16Array(this.N);
+        dist.fill(65535);
+        for (let i = 0; i < this.N; i++) if (this.owner[i] === n) { dist[i] = 0; q[tail++] = i; }
+      }
+      while (head < tail) {
+        const i = q[head++];
+        const d = dist[i] + 1;
+        for (let k = i * 4, e = k + 4; k < e; k++) {
+          const j = nb[k];
+          if (j < 0 || dist[j] <= d) continue;
+          dist[j] = d;
+          q[tail++] = j;
+        }
+      }
+      this.supplyDist.set(n, dist);
+    }
+  }
+
+  supply(n, cell) {
+    const S = this.bal.supply;
+    const d = this.supplyDist.get(n)?.[cell] ?? 0;
+    return Math.max(S.minFactor, 1 - d / S.rangeCells);
+  }
+
+  initialDeployment() {
+    const prep = this.bal.start.prep || {};
+    const fortStart = this.bal.start.fortification || {};
+    for (const f of this.fronts.values()) {
+      for (const n of [f.a, f.b]) {
+        const side = f.side[n];
+        const p = prep[this.code(n)];
+        if (p !== undefined) { side.order = 'prepare'; side.prep = p; }
+        const fv = fortStart[this.code(n)];
+        if (fv !== undefined) for (const c of this.frontCellsOf(f, n)) this.fort[c] = Math.max(this.fort[c], fv);
+      }
+    }
+    // Spieler: Divisionen nach Frontlänge verteilen, Panzer gestreut, Rest in Reserve
+    for (const n of this.nations.keys()) {
+      const cfg = this.bal.divisions.nations[this.code(n)];
+      const own = this.divisions.filter((d) => d.nation === n).sort((x, y) => y.tank - x.tank || x.id - y.id);
+      const nReserve = Math.round(own.length * (cfg?.reserveShare ?? 0));
+      const fronts = [...this.fronts.values()].filter((f) => f.side[n]);
+      if (!fronts.length) continue;
+      const deployable = own.slice(0, own.length - nReserve);
+      const count = new Map(fronts.map((f) => [f.id, 0]));
+      const weight = new Map(fronts.map((f) => [f.id, this.frontCellsOf(f, this.enemyOn(f, n)).length]));
+      for (const d of deployable) {
+        let best = fronts[0];
+        let bestNeed = -Infinity;
+        for (const f of fronts) {
+          const need = weight.get(f.id) / (count.get(f.id) + 1);
+          if (need > bestNeed) { bestNeed = need; best = f; }
+        }
+        d.front = best.id;
+        count.set(best.id, count.get(best.id) + 1);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- Abfragen
+  enemyOn(front, n) { return front.a === n ? front.b : front.a; }
+
+  frontCellsOf(front, n) {
+    const out = [];
+    for (const s of front.sections) out.push(...(n === front.b ? s.cellsB : s.cellsA));
+    return out;
+  }
+
+  divisionsOn(frontId, n) {
+    return this.divisions.filter((d) => d.nation === n && d.front === frontId && !d.transit);
+  }
+
+  inTransitTo(frontId, n) {
+    return this.divisions.filter((d) => d.nation === n && d.transit && d.transit.to === frontId);
+  }
+
+  reserveOf(n) { return this.divisions.filter((d) => d.nation === n && d.front === 0 && !d.transit); }
+
+  /** Kampfkraft einer Seite an einer Front (in "vollen Divisionen"). */
+  sideStrength(frontId, n) {
+    let str = 0;
+    let tank = 0;
+    let air = 0;
+    let count = 0;
+    for (const d of this.divisions) {
+      if (d.nation !== n || d.front !== frontId || d.transit) continue;
+      const s = d.men / d.maxMen;
+      str += s;
+      tank += s * d.tank;
+      air += s * d.air;
+      count++;
+    }
+    return { str, tank: str ? tank / str : 0, air: str ? air / str : 0, count };
+  }
+
+  /** Geschätzte Gegnerzahl (Aufklärung ungenau, aber stabil über 3 Tage). */
+  estimate(frontId, n) {
+    const real = this.divisionsOn(frontId, n).length;
+    const noise = (hash01(frontId, n, Math.floor(this.day / 3)) - 0.5) * 0.5;
+    return Math.max(0, Math.round(real * (1 + noise)));
+  }
+
+  yieldOf(cell) {
+    if (this.conqDay[cell] < 0) return 1;
+    const m = this.conqMethod[cell] === 2 ? this.bal.methods.total : this.bal.methods.minimal;
+    const t = Math.min(1, (this.day - this.conqDay[cell]) / m.recoverDays);
+    return m.yieldStart + (1 - m.yieldStart) * t;
+  }
+
+  frontAt(cell) {
+    const id = this.frontHint[cell];
+    const f = this.fronts.get(id);
+    return f && f.alive ? f : null;
+  }
+
+  // ---------------------------------------------------------------- Befehle
+  frontSide(frontId, n) {
+    const f = this.fronts.get(frontId);
+    if (!f || !f.alive || !f.side[n]) throw new Error(`Front ${frontId} unbekannt`);
+    return f.side[n];
+  }
+
+  setOrder(frontId, order, n = this.player) {
+    if (!['hold', 'prepare'].includes(order)) throw new Error(`Befehl ${order}`);
+    this.frontSide(frontId, n).order = order;
+  }
+
+  attack(frontId, n = this.player) {
+    const s = this.frontSide(frontId, n);
+    if (s.order === 'attack') return;
+    s.order = 'attack';
+    s.attackStartDay = this.day;
+    s.attackPrep = s.prep;
+  }
+
+  stopAttack(frontId, n = this.player) {
+    const s = this.frontSide(frontId, n);
+    if (s.order === 'attack') s.order = 'hold';
+  }
+
+  setMethod(frontId, method, n = this.player) {
+    if (!this.bal.methods[method]) throw new Error(`Vorgehen ${method}`);
+    this.frontSide(frontId, n).method = method;
+  }
+
+  /** Ort einer Front oder der Reserve (Hauptstadt) in Feldkoordinaten. */
+  placeOf(frontId, n) {
+    if (frontId) {
+      const f = this.fronts.get(frontId);
+      if (f) return [f.cx, f.cy];
+    }
+    const cap = this.capital.get(n);
+    return cap !== undefined ? [cap % this.cols, Math.floor(cap / this.cols)] : [this.cols / 2, this.rows / 2];
+  }
+
+  travelDays(fromId, toId, n) {
+    const [x0, y0] = this.placeOf(fromId, n);
+    const [x1, y1] = this.placeOf(toId, n);
+    const km = Math.hypot(x1 - x0, y1 - y0) * KM_PER_CELL;
+    const T = this.bal.transfer;
+    return Math.max(T.minDays, Math.ceil(km / T.kmPerDay));
+  }
+
+  /** Verlegt bis zu `count` Divisionen. Quelle/Ziel 0 = Reserve. Gibt die Anzahl zurück. */
+  transfer(fromId, toId, count, n = this.player) {
+    if (fromId === toId || count <= 0) return 0;
+    if (fromId) {
+      const f = this.fronts.get(fromId);
+      if (!f || !f.alive || f.encircled[n]) return 0; // aus Kesseln gibt es keinen Ausweg
+    }
+    if (toId) {
+      const t = this.fronts.get(toId);
+      if (!t || !t.alive || !t.side[n] || t.encircled[n]) return 0;
+    }
+    const pool = (fromId ? this.divisionsOn(fromId, n) : this.reserveOf(n)).sort((x, y) => x.tank - y.tank || y.id - x.id);
+    const days = this.travelDays(fromId, toId, n);
+    let moved = 0;
+    for (const d of pool.slice(0, count)) {
+      d.front = 0;
+      d.transit = { from: fromId, to: toId, arrive: this.day + days, days };
+      moved++;
+    }
+    return moved;
+  }
+
+  // ---------------------------------------------------------------- Tick
+  tick() {
+    const t0 = (globalThis.performance || Date).now();
+    this.changed = [];
+    this.day += 1;
+    if (this.isOver()) { this.tickMs.push(0); return; }
+
+    const added = new Map();
+    for (const a of this.bal.scenario.annexations || []) {
+      if (a.day !== this.day) continue;
+      const to = this.idx(a.to);
+      const tid = this.grid.territories.findIndex((t) => t.key === a.territory) + 1;
+      if (!added.has(to)) added.set(to, []);
+      for (let i = 0; i < this.N; i++) {
+        if (this.grid.territory[i] === tid && this.owner[i] !== to) {
+          this.setOwner(i, to, 0, true);
+          added.get(to).push(i);
+        }
+      }
+      this.log('annex', a.text);
+    }
+    if (added.size) { this.computeSupply(added); updateFronts(this); }
+
+    // Ankunft verlegter Divisionen
+    for (const d of this.divisions) {
+      if (!d.transit || d.transit.arrive > this.day) continue;
+      const to = d.transit.to;
+      const f = to ? this.fronts.get(to) : null;
+      d.transit = null;
+      if (to && (!f || !f.alive)) d.front = this.nearestFront(d.nation, ...this.placeOf(to, d.nation)) || 0;
+      else d.front = to;
+    }
+
+    for (const st of this.nations.values()) st.airToday = 0;
+    const clock = globalThis.performance || Date;
+    const phases = this.phaseMs || (this.phaseMs = {});
+    const run = (name, fn) => {
+      const a = clock.now();
+      fn();
+      phases[name] = clock.now() - a;
+    };
+    run('ki', () => runAi(this));
+    run('auto', () => this.autoplay && this.autoplay(this));
+    run('belagerung', () => resolveSieges(this));
+    run('kampf', () => resolveCombat(this));
+    run('kessel', () => resolvePockets(this));
+    run('kapitulation', () => checkCapitulation(this));
+    run('fronten', () => updateFronts(this));
+    run('befehle', () => updateOrdersOverTime(this));
+    this.cleanupDivisions();
+    const ms = clock.now() - t0;
+    this.tickMs.push(ms);
+    this.phaseLog = this.phaseLog || [];
+    this.phaseLog.push({ day: this.day, ms, ...phases });
+  }
+
+  setOwner(cell, n, method, quiet = false) {
+    const old = this.owner[cell];
+    if (old === n) return;
+    this.owner[cell] = n;
+    this.ownedCount[old]--;
+    this.ownedCount[n]++;
+    if (this.inWar[n]) this.growBox(cell);
+    this.fort[cell] = 0;
+    this.conqDay[cell] = this.day;
+    this.conqMethod[cell] = method;
+    this.pocketSince[cell] = -1;
+    this.changed.push(cell);
+    const ci = this.cityAt[cell];
+    if (ci >= 0) {
+      const c = this.cities[ci];
+      const si = this.siegeAt[cell];
+      if (si >= 0 && !this.sieges[si].fallen) {
+        const s = this.sieges[si];
+        s.fallen = true;
+        s.by = n;
+      }
+      if (c.rank <= 4 && !quiet) this.log('city', `${c.name} eingenommen.`, cell);
+    }
+  }
+
+  nearestFront(n, x, y) {
+    let best = 0;
+    let bd = Infinity;
+    for (const f of this.fronts.values()) {
+      if (!f.alive || !f.side[n] || f.encircled[n]) continue;
+      const d = (f.cx - x) ** 2 + (f.cy - y) ** 2;
+      if (d < bd) { bd = d; best = f.id; }
+    }
+    return best;
+  }
+
+  cleanupDivisions() {
+    const lim = this.bal.divisions.destroyedBelow;
+    this.divisions = this.divisions.filter((d) => d.men >= d.maxMen * lim);
+  }
+
+  isOver() {
+    return this.wars.length === 0;
+  }
+
+  /** Prüfsumme des Spielzustands (für Reproduzierbarkeitstests). */
+  stateHash() {
+    let h = 2166136261;
+    for (let i = 0; i < this.N; i++) { h ^= this.owner[i]; h = Math.imul(h, 16777619); }
+    for (const d of this.divisions) { h ^= (d.id * 31 + Math.round(d.men)) | 0; h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(16);
+  }
+}

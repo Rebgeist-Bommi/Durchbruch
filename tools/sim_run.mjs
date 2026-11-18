@@ -1,0 +1,52 @@
+// Testlauf der Simulation ohne Spieler (Node). Deutschland greift an allen Fronten an.
+// Aufruf: node tools/sim_run.mjs [seed] [--quiet]
+import { readFileSync } from 'node:fs';
+import { Grid } from '../src/data/grid.js';
+import { decodeMap } from '../src/data/loader.js';
+import { Simulation } from '../src/sim/simulation.js';
+import { autoplayAllAttack } from '../src/sim/autoplay.js';
+
+export function loadInputs() {
+  const dir = new URL('../public/data/', import.meta.url);
+  const meta = JSON.parse(readFileSync(new URL('grid.json', dir), 'utf8'));
+  const bin = readFileSync(new URL('grid.bin', dir));
+  const map = decodeMap(JSON.parse(readFileSync(new URL('map.json', dir), 'utf8')));
+  const balance = JSON.parse(readFileSync(new URL('../data/balance.json', import.meta.url), 'utf8'));
+  return { meta, bin, map, balance };
+}
+
+export function runCampaign({ seed, maxDays = 200, onDay } = {}) {
+  const { meta, bin, map, balance } = loadInputs();
+  const grid = new Grid(meta, new Uint8Array(bin));
+  const sim = new Simulation({ grid, map, balance, seed: seed ?? balance.seed });
+  sim.autoplay = autoplayAllAttack;
+  while (!sim.isOver() && sim.day < maxDays) {
+    sim.tick();
+    if (onDay) onDay(sim);
+  }
+  return sim;
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const seed = Number(process.argv[2] || 1939);
+  const quiet = process.argv.includes('--quiet');
+  const POL = (s) => s.idx('POL');
+  const sim = runCampaign({
+    seed,
+    onDay: (s) => {
+      if (quiet) return;
+      const st = s.nations.get(POL(s));
+      const pd = s.divisions.filter((d) => d.nation === POL(s)).length;
+      const gd = s.divisions.filter((d) => d.nation === s.player).length;
+      const war = s.sieges.find((x) => x.city.name === 'Warschau');
+      const fr = [...s.fronts.values()].filter((f) => f.alive).length;
+      const lost = 1 - [...s.owner].filter((o) => o === POL(s)).length / st.startCells;
+      console.log(`Tag ${String(s.day).padStart(3)} ${s.dateText().padEnd(20)} Polen verloren ${(lost * 100).toFixed(0).padStart(3)}% | Div DEU ${gd} POL ${pd} | Fronten ${fr} | Warschau ${war.fallen ? 'gefallen' : war.besieged ? `belagert ${war.defense.toFixed(0)}` : 'frei'} | Tick ${s.tickMs.at(-1).toFixed(1)} ms`);
+      for (const e of s.events.filter((x) => x.day === s.day)) console.log(`        · ${e.text}`);
+    },
+  });
+  const st = sim.nations.get(sim.idx('POL'));
+  const ms = sim.tickMs.slice(1);
+  console.log(`\nErgebnis Seed ${seed}: Polen ${st.status}${st.capitulationDay >= 0 ? ` an Tag ${st.capitulationDay} (${sim.dateText(st.capitulationDay)})` : ''}`);
+  console.log(`Tick: Mittel ${(ms.reduce((a, b) => a + b, 0) / ms.length).toFixed(2)} ms, Max ${Math.max(...ms).toFixed(2)} ms, Prüfsumme ${sim.stateHash()}`);
+}
