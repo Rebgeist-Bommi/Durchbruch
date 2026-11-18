@@ -62,14 +62,14 @@ export class MainMenu {
     switch (this.panel) {
       case 'campaign':
         html = `<div class="menu-panel"><h2>Kampagne</h2>
-          <p>Deutsches Reich, 31. August 1939. Startwerte sind auf allen Stufen gleich; die Schwierigkeit wirkt über KI, Erträge, Nachschub, Moral und Geheimdienst.</p>
+          <p>Deutsches Reich, 1. März 1939. Startwerte sind auf allen Stufen gleich; die Schwierigkeit wirkt über KI, Erträge, Nachschub, Moral und Geheimdienst.</p>
           <fieldset><legend>Schwierigkeit</legend>${this.levelsHtml()}</fieldset>
           <button type="button" class="menu-start" data-m="start-campaign">Kampagne beginnen</button>
           <button type="button" class="menu-back" data-m="main">Zurück</button></div>`;
         break;
       case 'sandbox':
         html = `<div class="menu-panel"><h2>Sandbox</h2>
-          <p>Freies Spiel ab 31. August 1939.</p>
+          <p>Freies Spiel ab 1. März 1939.</p>
           <fieldset><legend>Mittel</legend><label><input type="checkbox" id="m-unlimited" ${this.unlimited ? 'checked' : ''}>unbegrenzte Mittel<small>Geld, Rohstoffe und Arbeitskräfte gehen nie aus</small></label></fieldset>
           <fieldset><legend>Schwierigkeit</legend>${this.levelsHtml()}</fieldset>
           <button type="button" class="menu-start" data-m="start-sandbox">Sandbox beginnen</button>
@@ -106,6 +106,7 @@ export class MainMenu {
         html = `<div class="menu-list">
             ${this.inGame() ? '<button type="button" data-m="resume">Weiterspielen</button>' : ''}
             <button type="button" data-m="campaign">Kampagne</button>
+            <button type="button" data-m="tutorial">Tutorial</button>
             <button type="button" data-m="sandbox">Sandbox</button>
             <button type="button" data-m="load-panel">Spiel laden</button>
             <button type="button" data-m="settings">Einstellungen</button>
@@ -132,6 +133,7 @@ export class MainMenu {
       case 'load-panel': this.show('load'); break;
       case 'resume': this.hide(); this.onResume(); break;
       case 'start-campaign': this.onStart(this.level, false); break;
+      case 'tutorial': this.onStart('normal', false, true); break;
       case 'start-sandbox': this.onStart(this.level, this.unlimited); break;
       case 'load': case 'auto': case 'import': this.onLoad(m); break;
       case 'quit': this.show('bye'); try { window.close(); } catch { /* Browser lässt Schließen nicht zu */ } break;

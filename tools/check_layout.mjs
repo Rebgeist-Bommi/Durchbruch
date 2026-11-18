@@ -12,7 +12,7 @@ for (const [w, h] of sizes) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   await page.goto(PAGE_URL);
   await page.waitForSelector('body[data-ready="true"]');
-  for (const key of ['1', '2', '3']) {
+  for (const key of ['1', '2', '3', '4']) {
     await page.keyboard.press(key);
     await page.waitForTimeout(150);
     const res = await page.evaluate(() => {

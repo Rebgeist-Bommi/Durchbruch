@@ -4,37 +4,40 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Durchbruch</title>
-  <meta name="description" content="Durchbruch – Echtzeit-Strategie, Europa ab 31. August 1939" />
+  <meta name="description" content="Durchbruch – Echtzeit-Strategie, Europa ab 1. März 1939" />
   <link rel="preload" as="image" href="media/photos/p01.webp" type="image/webp" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231A1C14'/%3E%3Cpath d='M3 11 8 4l5 7' fill='none' stroke='%23C8A156' stroke-width='2'/%3E%3C/svg%3E" />
 </head>
 <body class="mode-front">
   <div id="app">
     <header id="topbar">
+      <ul id="kpis" aria-label="Kennzahlen">
+        <li class="k-flag"><img class="flag" id="top-flag" alt="Deutsches Reich" /></li>
+        <li data-kpi="money" title="Geld (Mio. RM-Gegenwert) und Veränderung je Tag"><span class="k-ico">ℳ</span><span class="k-label">Geld</span><span class="k-value">–</span><span class="k-unit"></span></li>
+        <li data-kpi="resources" title="Rohstoffe und Veränderung je Tag"><span class="k-ico">⛏</span><span class="k-label">Rohstoffe</span><span class="k-value">–</span><span class="k-unit"></span></li>
+        <li data-kpi="manpower" title="Arbeitskräfte (Mio.)"><span class="k-ico">⚒</span><span class="k-label">Arbeitskräfte</span><span class="k-value">–</span><span class="k-unit"></span></li>
+        <li data-kpi="morale" title="Moral der Bevölkerung"><span class="k-ico">✦</span><span class="k-label">Moral</span><span class="k-value">–</span><span class="k-unit">%</span></li>
+      </ul>
+      <nav id="modes" role="tablist" aria-label="Kartenmodus">
+        <button type="button" role="tab" data-mode="front" aria-selected="true"><kbd>1</kbd><span>Front</span></button>
+        <button type="button" role="tab" data-mode="economy" aria-selected="false"><kbd>2</kbd><span>Wirtschaft</span></button>
+        <button type="button" role="tab" data-mode="intel" aria-selected="false"><kbd>3</kbd><span>Geheimdienst</span></button>
+        <button type="button" role="tab" data-mode="diplomacy" aria-selected="false"><kbd>4</kbd><span>Diplomatie</span></button>
+      </nav>
       <div class="brand">
-        <span class="title">Durchbruch</span>
+        <div id="alerts" aria-label="Hinweise"></div>
+        <button type="button" id="goal-chip" title="Nationales Ziel (Z)"><span class="g-ico">◆</span><span class="g-text">Ziel wählen</span><i class="g-bar"><b></b></i></button>
         <div id="time" aria-label="Zeit">
-          <span class="date" id="date">31. August 1939</span>
+          <span class="date" id="date">1. März 1939</span>
           <span class="day-progress" aria-hidden="true"><i id="day-bar"></i></span>
           <span class="speeds" role="group" aria-label="Geschwindigkeit">
             <button type="button" data-speed="0" title="Pause (Leertaste)" aria-pressed="true"><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><rect x="1.5" y="1" width="2.5" height="8" fill="currentColor"/><rect x="6" y="1" width="2.5" height="8" fill="currentColor"/></svg><span class="sr">Pause</span></button>
-            <button type="button" data-speed="1" title="1× – ein Tag in 4,5 Sekunden" aria-pressed="false">1×</button>
+            <button type="button" data-speed="1" title="1×" aria-pressed="false">1×</button>
             <button type="button" data-speed="2" title="2×" aria-pressed="false">2×</button>
             <button type="button" data-speed="4" title="4×" aria-pressed="false">4×</button>
           </span>
         </div>
       </div>
-      <nav id="modes" role="tablist" aria-label="Kartenmodus">
-        <button type="button" role="tab" data-mode="front" aria-selected="true"><kbd>1</kbd><span>Front</span></button>
-        <button type="button" role="tab" data-mode="economy" aria-selected="false"><kbd>2</kbd><span>Wirtschaft</span></button>
-        <button type="button" role="tab" data-mode="intel" aria-selected="false"><kbd>3</kbd><span>Geheimdienst</span></button>
-      </nav>
-      <ul id="kpis" aria-label="Kennzahlen">
-        <li data-kpi="money"><span class="k-label">Geld</span><span class="k-value">2.450</span><span class="k-unit">Mio. RM</span></li>
-        <li data-kpi="resources"><span class="k-label">Rohstoffe</span><span class="k-value">1.180</span><span class="k-unit">kt</span></li>
-        <li data-kpi="manpower"><span class="k-label">Arbeitskräfte</span><span class="k-value">21,4</span><span class="k-unit">Mio.</span></li>
-        <li data-kpi="morale"><span class="k-label">Moral</span><span class="k-value">78</span><span class="k-unit">%</span></li>
-      </ul>
     </header>
 
     <aside id="panel" aria-live="polite" data-map-overlay>
@@ -66,6 +69,10 @@
         <h2>Lage</h2>
         <div id="lage"></div>
         <button type="button" class="btn btn-main" id="all-attack">Alle Fronten: Angriff</button>
+        <label class="toggle"><input type="checkbox" id="supply-toggle"> Nachschub auf der Karte (N)</label>
+      </section>
+      <section class="mode-section" data-for="diplomacy">
+        <div id="diplopanel"></div>
       </section>
       <section class="mode-section moral-section" data-for="front">
         <h2>Moral</h2>
@@ -99,7 +106,7 @@
     <footer id="statusbar">
       <span id="s-coord">–</span>
       <span id="s-zoom">–</span>
-      <span class="keys">Mausrad: Zoom · Ziehen: Verschieben · Klick: Feld/Front · Leertaste: Pause · 1/2/3: Modus · G: Felder · 0: Ansicht</span>
+      <span class="keys">Mausrad: Zoom · Ziehen: Karte · Klick: Land/Front · Leertaste: Pause · 1–4: Ansicht</span>
       <span class="gamebar" role="group" aria-label="Spiel">
         <button type="button" data-open="menu" title="Hauptmenü (Spiel wird angehalten)">Menü</button>
         <button type="button" data-open="diplo" title="Diplomatie (D)">Diplomatie</button>
@@ -122,6 +129,15 @@
   </div>
   <div id="buildtip" hidden></div>
   <div id="toast" hidden></div>
+  <div id="banner" hidden aria-live="assertive"></div>
+  <div id="popover" hidden role="dialog" aria-label="Land"></div>
+  <div id="goals" class="modal" hidden>
+    <div class="sheet goals-sheet" role="dialog" aria-modal="true" aria-labelledby="gl-title">
+      <header class="sheet-head"><h2 id="gl-title">Nationale Ziele</h2><button type="button" class="close" data-close aria-label="Schließen">×</button></header>
+      <div id="goals-body"></div>
+    </div>
+  </div>
+  <div id="tutorial" hidden><div class="tut-shade"></div><div class="tut-ring"></div><div class="tut-box" role="dialog" aria-live="polite"></div></div>
   <div id="gameover" hidden>
     <div class="card" role="dialog" aria-modal="true" aria-labelledby="go-title">
       <h2 id="go-title">Feldzug beendet</h2>
@@ -167,7 +183,7 @@
     <button type="button" class="m-music" aria-pressed="false" title="Musik an/aus">♪ Musik: aus</button>
     <div class="menu-board" role="dialog" aria-modal="true" aria-labelledby="menu-title">
       <h1 id="menu-title">Durchbruch</h1>
-      <p class="menu-sub">Europa · 31. August 1939</p>
+      <p class="menu-sub">Europa · 1. März 1939</p>
       <div id="menu-body"><p class="menu-wait">Karte wird geladen …</p></div>
     </div>
   </div>
