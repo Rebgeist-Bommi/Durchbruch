@@ -97,7 +97,10 @@ def commons_prefetch(titles: list[str]) -> None:
 
 
 def commons_info(title: str) -> dict:
-    return json.loads(meta_path(title).read_text())
+    info = json.loads(meta_path(title).read_text())
+    for k in ('date', 'artist'):  # Wikidata-Kodierung aus der Vorlage entfernen
+        info[k] = re.sub(r'\s*(date\s*)?QS:\S+', '', info.get(k, '')).strip()
+    return info
 
 
 def commons_file(info: dict, dest: Path) -> Path:

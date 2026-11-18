@@ -151,7 +151,11 @@ export class MenuMusic {
     this.render();
     const play = this.enabled && this.unlocked && this.active;
     if (play) {
-      if (!this.tracks.length) { loadCredits().then(() => this.update()); return; }
+      if (!this.tracks.length) {
+        // Aufnahmen noch nicht bekannt: einmal nach dem Laden der Nachweise erneut versuchen
+        if (!this.waiting) { this.waiting = true; loadCredits().then(() => { if (this.tracks.length) this.update(); }); }
+        return;
+      }
       if (!this.audio.src) this.audio.src = this.tracks[this.track];
       this.fadeTo(this.target());
       this.audio.play().catch(() => {});
