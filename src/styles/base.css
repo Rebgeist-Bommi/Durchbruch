@@ -90,7 +90,7 @@ dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 }
 @media (max-width: 1180px) {
   #kpis .k-unit { display: none; }
-  .brand .date { display: none; }
+  .brand .title { display: none; }
 }
 @media (max-width: 900px) {
   #topbar { grid-template-columns: auto 1fr; }

@@ -13,8 +13,9 @@ body.mode-intel #app {
 }
 body.mode-intel #topbar { background: #0C0E13; border-bottom: 1px solid rgba(179, 38, 30, 0.6); min-height: 54px; }
 body.mode-intel #statusbar { background: #0C0E13; border-top: 1px solid rgba(216, 210, 194, 0.12); color: rgba(216, 210, 194, 0.7); }
-body.mode-intel .brand .title { font-family: var(--font-head); font-size: 24px; letter-spacing: 0.25em; text-transform: uppercase; }
-body.mode-intel .brand .date::before { content: "Stand: "; }
+body.mode-intel .brand .title { font-family: var(--font-head); font-size: 22px; letter-spacing: 0.12em; text-transform: uppercase; }
+body.mode-intel #time .date { min-width: 0; font-size: 13.5px; }
+body.mode-intel .day-progress { width: 30px; }
 body.mode-intel #modes { border: 1px dashed rgba(216, 210, 194, 0.35); }
 body.mode-intel #modes button { font-family: var(--font-head); text-transform: uppercase; letter-spacing: 0.12em; font-size: 13.5px; }
 body.mode-intel #modes button[aria-selected="true"] { color: #f1ece0; border-color: var(--accent); background: rgba(179, 38, 30, 0.22); }

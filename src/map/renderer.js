@@ -32,6 +32,19 @@ export class MapRenderer {
 
     this.buildPaths(data.relief);
     this.reliefCanvas = document.createElement('canvas');
+    this.mainCtx = this.ctx;
+    // zwischengespeicherte Ebenen (nur bei Kamera-/Moduswechsel neu gezeichnet)
+    this.layers = {};
+    for (const k of ['under', 'over', 'labels', 'tmp']) this.layers[k] = document.createElement('canvas');
+    this.cacheKey = '';
+    this.layerVersion = 0;
+    this.sim = null;
+    this.selectedFront = 0;
+    this.time = 0;
+    const g = this.grid;
+    this.cellU = g.cellSize / this.map.unit;
+    this.gx0 = (g.originX - this.map.originX) / this.map.unit;
+    this.gy1 = (g.originY - this.map.originY) / this.map.unit;
   }
 
   buildPaths(relief) {
@@ -70,6 +83,13 @@ export class MapRenderer {
 
   setMode(mode) {
     this.mode = mode;
+    this.layerVersion++;
+    if (this.sim) this.rebuildOccupation();
+    this.requestRender();
+  }
+
+  invalidate() {
+    this.layerVersion++;
     this.requestRender();
   }
 
@@ -84,6 +104,11 @@ export class MapRenderer {
     this.canvas.style.height = `${h}px`;
     this.reliefCanvas.width = this.canvas.width;
     this.reliefCanvas.height = this.canvas.height;
+    for (const c of Object.values(this.layers)) {
+      c.width = this.canvas.width;
+      c.height = this.canvas.height;
+    }
+    this.layerVersion++;
     const first = this.camera.width === 1;
     this.camera.resize(w, h);
     if (first) this.focusStart();
@@ -102,37 +127,77 @@ export class MapRenderer {
     this.pending = true;
     requestAnimationFrame(() => {
       this.pending = false;
-      this.render();
+      this.render(this.t ?? 1);
     });
   }
 
-  render() {
+  /** Ein Bild zeichnen. `t` (0–1) = Fortschritt innerhalb des laufenden Spieltags. */
+  render(t = 1) {
     const t0 = performance.now();
-    const { ctx, camera: cam, dpr } = this;
+    const { camera: cam, dpr } = this;
     const st = STYLES[this.mode];
     const W = this.canvas.width;
     const H = this.canvas.height;
-    const u = 1 / cam.scale; // Karteneinheiten je CSS-Pixel
+    const key = `${this.mode}|${cam.cx.toFixed(3)}|${cam.cy.toFixed(3)}|${cam.scale.toFixed(6)}|${W}|${H}|${this.layerVersion}`;
+    if (key !== this.cacheKey) {
+      this.renderStatic(st);
+      this.cacheKey = key;
+    }
+    const ctx = this.mainCtx;
+    this.ctx = ctx;
+    const u = 1 / cam.scale;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(this.layers.under, 0, 0);
+    if (this.sim) this.drawOccupation(st, t);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(this.layers.over, 0, 0);
 
+    ctx.setTransform(...cam.matrix(dpr));
+    if (this.showGrid) this.drawGrid(st, u);
+    if (st.front) this.drawStaticFronts(st, u);
+    if (this.sim) this.drawWarFronts(st, u, t);
+    if (this.selected >= 0) this.drawSelection(st, u);
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(this.layers.labels, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (this.sim) this.drawSieges(st);
+    if (st.spotlight) this.drawSpotlight();
+
+    this.lastFrameMs = performance.now() - t0;
+    if (this.onAfterRender) this.onAfterRender();
+  }
+
+  /** Statische Ebenen: Meer, Länder, Relief (unter der Besetzung); Grenzen, Bahn (darüber); Beschriftung. */
+  renderStatic(st) {
+    const { camera: cam, dpr } = this;
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const u = 1 / cam.scale;
+    const t0 = performance.now();
+
+    let ctx = this.layers.under.getContext('2d');
+    this.ctx = ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.fillStyle = st.sea;
     ctx.fillRect(0, 0, W, H);
-
     ctx.setTransform(...cam.matrix(dpr));
     this.drawSeaGrid(st, u);
-
-    // Länder
     for (const t of this.map.territories) {
       ctx.fillStyle = st.nation[t.owner] || '#888';
       ctx.fill(this.territoryPaths.get(t.key));
     }
-
-    // Relief (facettiert), auf Land beschnitten
     this.drawRelief(st, u);
 
-    // Bahn
+    ctx = this.layers.over.getContext('2d');
+    this.ctx = ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.setTransform(...cam.matrix(dpr));
     if (st.rails) {
       ctx.lineJoin = 'round';
       ctx.strokeStyle = st.rails.color;
@@ -145,8 +210,6 @@ export class MapRenderer {
       ctx.stroke(this.railPath);
       ctx.restore();
     }
-
-    // Grenzen
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     if (st.coastGlow) {
@@ -166,17 +229,14 @@ export class MapRenderer {
     ctx.lineWidth = st.land.width * u;
     ctx.stroke(this.landBorderPath);
 
-    if (this.showGrid) this.drawGrid(st, u);
-    if (st.front) this.drawFronts(st, u);
-    if (this.selected >= 0) this.drawSelection(st, u);
-
-    // Bildschirmraum: Beschriftungen, Lichtkegel
+    ctx = this.layers.labels.getContext('2d');
+    this.ctx = ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.drawLabels(st);
-    if (st.spotlight) this.drawSpotlight();
-
-    this.lastFrameMs = performance.now() - t0;
-    if (this.onAfterRender) this.onAfterRender();
+    this.ctx = this.mainCtx;
+    this.lastStaticMs = performance.now() - t0;
   }
 
   drawSeaGrid(st, u) {
@@ -250,25 +310,29 @@ export class MapRenderer {
     ctx.restore();
   }
 
-  drawFronts(st, u) {
+  /** Phase-1-Grenzlinien (z. B. deutsch-französisch) nur, solange dort kein Krieg geführt wird. */
+  drawStaticFronts(st, u) {
     const { ctx } = this;
-    const f = st.front;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    // Zähne zur Gegnerseite (rechts der Laufrichtung, deutsches Gebiet liegt links)
-    const teeth = f.teeth ? this.frontTeeth(16 * u, 6.5 * u) : null;
-    ctx.strokeStyle = f.edge;
-    ctx.lineWidth = (f.width + 2.4) * u;
-    ctx.stroke(this.frontPath);
-    if (teeth) {
-      ctx.lineWidth = 2 * u;
-      ctx.stroke(teeth);
-      ctx.fillStyle = f.color;
-      ctx.fill(teeth);
+    const scenarioPairs = this.scenarioPairs || new Set();
+    const p = new Path2D();
+    let any = false;
+    for (const fr of this.map.fronts) {
+      const key = [fr.attacker, fr.defender].sort().join('-');
+      if (scenarioPairs.has(key)) continue;
+      for (const flat of fr.lines) {
+        p.moveTo(flat[0], flat[1]);
+        for (let i = 2; i < flat.length; i += 2) p.lineTo(flat[i], flat[i + 1]);
+        any = true;
+      }
     }
-    ctx.strokeStyle = f.color;
-    ctx.lineWidth = f.width * u;
-    ctx.stroke(this.frontPath);
+    if (!any) return;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = 'rgba(200,161,86,0.85)';
+    ctx.lineWidth = 2.2 * u;
+    ctx.setLineDash([7 * u, 5 * u]);
+    ctx.stroke(p);
+    ctx.setLineDash([]);
   }
 
   frontTeeth(spacing, size) {
@@ -454,6 +518,355 @@ export class MapRenderer {
     ctx.fillStyle = l;
     ctx.fillRect(0, 0, W, H);
     ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // ---------------------------------------------------------------- Phase 2: Simulation
+  attachSim(sim) {
+    this.sim = sim;
+    this.scenarioPairs = new Set(sim.bal.scenario.wars.map((w) => [...w].sort().join('-')));
+    const { cols, rows } = this.grid;
+    const mk = () => {
+      const c = document.createElement('canvas');
+      c.width = cols;
+      c.height = rows;
+      return c;
+    };
+    this.occ = { prev: mk(), curr: mk(), annex: mk() };
+    this.occImg = this.occ.curr.getContext('2d').createImageData(cols, rows);
+    this.annexImg = this.occ.annex.getContext('2d').createImageData(cols, rows);
+    this.origOwner = new Uint8Array(this.grid.size);
+    const idx = new Map(this.grid.nationCodes.map((c, i) => [c, i + 1]));
+    for (let i = 0; i < this.grid.size; i++) {
+      const t = this.grid.territory[i];
+      if (t) this.origOwner[i] = idx.get(this.grid.territories[t - 1].owner);
+    }
+    this.edgeFrontAt = new Int32Array(this.grid.size);
+    this.hatch = this.makeHatch();
+    this.rebuildOccupation();
+    this.frontGeom = this.buildFrontGeometry();
+    this.prevFrontGeom = null;
+  }
+
+  makeHatch() {
+    const c = document.createElement('canvas');
+    c.width = 8;
+    c.height = 8;
+    const x = c.getContext('2d');
+    x.strokeStyle = 'rgba(0,0,0,0.32)';
+    x.lineWidth = 1.4;
+    x.beginPath();
+    x.moveTo(-2, 10);
+    x.lineTo(10, -2);
+    x.moveTo(6, 10);
+    x.lineTo(10, 6);
+    x.moveTo(-2, 2);
+    x.lineTo(2, -2);
+    x.stroke();
+    return this.ctx.createPattern(c, 'repeat');
+  }
+
+  /** Farbe eines besetzten Feldes (RGB) im aktuellen Modus. */
+  occColor(i) {
+    const st = STYLES[this.mode];
+    const code = this.grid.nationCodes[this.sim.owner[i] - 1];
+    const css = st.nation[code] || '#888888';
+    let rgb = css.startsWith('#')
+      ? [1, 3, 5].map((k) => parseInt(css.slice(k, k + 2), 16))
+      : css.match(/\d+/g).slice(0, 3).map(Number);
+    if (this.sim.conqMethod[i] === 2) rgb = rgb.map((v, k) => v * 0.55 + [59, 42, 27][k] * 0.45); // verwüstet
+    return rgb;
+  }
+
+  /** Felder kriegführender Nationen, die an ein erobertes Feld grenzen (8er-Nachbarschaft). */
+  nearConquest(i) {
+    const sim = this.sim;
+    const { cols, rows } = this.grid;
+    const r = Math.floor(i / cols);
+    const c = i - r * cols;
+    for (let dr = -1; dr <= 1; dr++) {
+      const rr = r + dr;
+      if (rr < 0 || rr >= rows) continue;
+      for (let dc = -1; dc <= 1; dc++) {
+        const cc = c + dc;
+        if ((!dr && !dc) || cc < 0 || cc >= cols) continue;
+        const j = rr * cols + cc;
+        if (sim.owner[j] && sim.owner[j] !== this.origOwner[j]) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Pixel je Feld: eroberte Felder in "occ" (schraffiert), angegliederte Felder und ein Saum
+   * aus Feldern neben eroberten Feldern in "annex" (ohne Schraffur). Der Saum deckt kleine
+   * Abweichungen zwischen Grenzflächen und 9-km-Raster an der alten Grenze ab.
+   */
+  writeOccPixel(i) {
+    const sim = this.sim;
+    const o = i * 4;
+    const occ = this.occImg.data;
+    const ann = this.annexImg.data;
+    occ[o + 3] = 0;
+    ann[o + 3] = 0;
+    const own = sim.owner[i];
+    if (!own) return;
+    const conquered = own !== this.origOwner[i];
+    let d = null;
+    if (conquered) d = sim.conqMethod[i] === 0 ? ann : occ;
+    else if (sim.inWar[own] && this.nearConquest(i)) d = ann;
+    if (!d) return;
+    const [r, g, b] = this.occColor(i);
+    d[o] = r;
+    d[o + 1] = g;
+    d[o + 2] = b;
+    d[o + 3] = 255;
+  }
+
+  rebuildOccupation() {
+    if (!this.sim) return;
+    for (let i = 0; i < this.grid.size; i++) this.writeOccPixel(i);
+    this.occ.curr.getContext('2d').putImageData(this.occImg, 0, 0);
+    const pc = this.occ.prev.getContext('2d');
+    pc.clearRect(0, 0, this.occ.prev.width, this.occ.prev.height);
+    pc.drawImage(this.occ.curr, 0, 0);
+    this.occ.annex.getContext('2d').putImageData(this.annexImg, 0, 0);
+  }
+
+  /** Nach jedem Simulations-Tick: geänderte Felder und Frontgeometrie übernehmen. */
+  onTick() {
+    const pc = this.occ.prev.getContext('2d');
+    pc.clearRect(0, 0, this.occ.prev.width, this.occ.prev.height);
+    pc.drawImage(this.occ.curr, 0, 0);
+    const { cols, rows } = this.grid;
+    const touched = new Set();
+    for (const i of this.sim.changed) {
+      const r = Math.floor(i / cols);
+      const c = i - r * cols;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const rr = r + dr;
+          const cc = c + dc;
+          if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) touched.add(rr * cols + cc);
+        }
+      }
+    }
+    for (const i of touched) this.writeOccPixel(i);
+    this.occ.curr.getContext('2d').putImageData(this.occImg, 0, 0);
+    if (touched.size) this.occ.annex.getContext('2d').putImageData(this.annexImg, 0, 0);
+    this.prevFrontGeom = this.frontGeom;
+    this.frontGeom = this.buildFrontGeometry();
+  }
+
+  /** Feldbild in Karteneinheiten zeichnen (Zeile 0 = Norden). */
+  drawCells(ctx, img) {
+    ctx.save();
+    ctx.translate(this.gx0, this.gy1);
+    ctx.scale(this.cellU, -this.cellU);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+  }
+
+  drawOccupation(st, t) {
+    const { camera: cam, dpr } = this;
+    const main = this.mainCtx;
+    // angegliederte Gebiete (z. B. Danzig): voll eingefärbt, ohne Schraffur
+    main.save();
+    main.setTransform(...cam.matrix(dpr));
+    main.clip(this.landPath);
+    main.imageSmoothingEnabled = false;
+    this.drawCells(main, this.occ.annex);
+    main.restore();
+    // eroberte Felder: Vortag voll, neue Felder blenden über den Tag ein; dann Schraffur
+    const tmp = this.layers.tmp.getContext('2d');
+    tmp.setTransform(1, 0, 0, 1, 0, 0);
+    tmp.globalCompositeOperation = 'source-over';
+    tmp.globalAlpha = 1;
+    tmp.clearRect(0, 0, this.layers.tmp.width, this.layers.tmp.height);
+    tmp.save();
+    tmp.setTransform(...cam.matrix(dpr));
+    tmp.clip(this.landPath);
+    tmp.imageSmoothingEnabled = false;
+    this.drawCells(tmp, this.occ.prev);
+    tmp.globalAlpha = Math.max(0, Math.min(1, t / 0.6)); // neue Felder blenden in 60 % des Tages ein
+    this.drawCells(tmp, this.occ.curr);
+    tmp.restore();
+    tmp.globalAlpha = 1;
+    tmp.globalCompositeOperation = 'source-atop';
+    tmp.setTransform(dpr, 0, 0, dpr, 0, 0);
+    tmp.fillStyle = this.hatch;
+    tmp.fillRect(0, 0, cam.width, cam.height);
+    tmp.globalCompositeOperation = 'source-over';
+    main.setTransform(1, 0, 0, 1, 0, 0);
+    main.globalAlpha = st.occAlpha ?? 0.92;
+    main.drawImage(this.layers.tmp, 0, 0);
+    main.globalAlpha = 1;
+  }
+
+  /** Frontbalken aus den Kontaktkanten der Simulation (Karteneinheiten). */
+  buildFrontGeometry() {
+    const sim = this.sim;
+    const E = sim.edges;
+    const { cols } = this.grid;
+    const cu = this.cellU;
+    const gx0 = this.gx0;
+    const gy1 = this.gy1;
+    const paths = new Map();
+    const byFront = new Map();
+    const teeth = [];
+    this.edgeFrontAt.fill(0);
+    const player = sim.player;
+    for (let k = 0; k < E.count; k++) {
+      const fid = E.front[k];
+      const f = sim.fronts.get(fid);
+      if (!f || !f.alive) continue;
+      const a = E.a[k];
+      const b = E.b[k];
+      this.edgeFrontAt[a] = fid;
+      this.edgeFrontAt[b] = fid;
+      const lo = a < b ? a : b;
+      const r = Math.floor(lo / cols);
+      const c = lo - r * cols;
+      let x1;
+      let y1;
+      let x2;
+      let y2;
+      if (E.dir[k] === 0) {
+        x1 = x2 = gx0 + (c + 1) * cu;
+        y1 = gy1 - r * cu;
+        y2 = gy1 - (r + 1) * cu;
+      } else {
+        y1 = y2 = gy1 - (r + 1) * cu;
+        x1 = gx0 + c * cu;
+        x2 = x1 + cu;
+      }
+      const me = f.side[player] ? player : f.a;
+      const side = f.side[me];
+      let status = 'halten';
+      if (side.order === 'prepare') status = 'vorbereiten';
+      if (side.order === 'attack') {
+        const sec = f.sections.find((x) => x.sector === sim.sectors.sectorOf[b]);
+        status = sec?.stats.status[me] || 'Vormarsch';
+        // Zahn zeigt in das gegnerische Feld
+        const myCell = me === f.a ? a : b;
+        const enemyCell = me === f.a ? b : a;
+        let nx = 0;
+        let ny = 0;
+        if (E.dir[k] === 0) nx = enemyCell > myCell ? 1 : -1;
+        else ny = enemyCell > myCell ? -1 : 1;
+        teeth.push((x1 + x2) / 2, (y1 + y2) / 2, nx, ny, (a * 7 + b * 13) % 997);
+      }
+      if (!paths.has(status)) paths.set(status, new Path2D());
+      const p = paths.get(status);
+      p.moveTo(x1, y1);
+      p.lineTo(x2, y2);
+      if (!byFront.has(fid)) byFront.set(fid, new Path2D());
+      const q = byFront.get(fid);
+      q.moveTo(x1, y1);
+      q.lineTo(x2, y2);
+    }
+    return { paths, byFront, teeth };
+  }
+
+  drawWarFronts(st, u, t) {
+    const fs = st.warFront;
+    if (!fs) return;
+    const { ctx } = this;
+    const pulse = 0.7 + 0.3 * Math.sin(performance.now() / 160);
+    const draw = (g, alpha) => {
+      if (!g || alpha <= 0.01) return;
+      ctx.globalAlpha = alpha;
+      ctx.lineCap = 'square';
+      ctx.lineJoin = 'miter';
+      const sel = this.selectedFront && g.byFront.get(this.selectedFront);
+      if (sel) {
+        ctx.strokeStyle = fs.selected;
+        ctx.lineWidth = (fs.width + 9) * u;
+        ctx.stroke(sel);
+      }
+      ctx.strokeStyle = fs.edge;
+      ctx.lineWidth = (fs.width + 3) * u;
+      for (const p of g.paths.values()) ctx.stroke(p);
+      // Zähne zur Gegnerseite bei Angriff
+      const cellPx = this.cellU / u;
+      const every = Math.max(1, Math.ceil(13 / cellPx));
+      const size = Math.min(7, Math.max(3.5, cellPx * 0.45)) * u;
+      const tp = new Path2D();
+      for (let i = 0; i < g.teeth.length; i += 5) {
+        if (g.teeth[i + 4] % every) continue;
+        const mx = g.teeth[i];
+        const my = g.teeth[i + 1];
+        const nx = g.teeth[i + 2];
+        const ny = g.teeth[i + 3];
+        tp.moveTo(mx - ny * size * 0.7, my + nx * size * 0.7);
+        tp.lineTo(mx + nx * size * 1.25, my + ny * size * 1.25);
+        tp.lineTo(mx + ny * size * 0.7, my - nx * size * 0.7);
+        tp.closePath();
+      }
+      ctx.fillStyle = fs.edge;
+      ctx.lineWidth = 2 * u;
+      ctx.strokeStyle = fs.edge;
+      ctx.stroke(tp);
+      for (const [status, p] of g.paths) {
+        ctx.strokeStyle = fs.colors[status] || fs.colors.halten;
+        ctx.globalAlpha = alpha * (status === 'Durchbruch' ? pulse : 1);
+        ctx.lineWidth = fs.width * u;
+        ctx.stroke(p);
+      }
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = fs.colors.Vormarsch;
+      ctx.fill(tp);
+      ctx.globalAlpha = 1;
+    };
+    // kurze Überblendung im ersten Drittel des Tages, danach steht die neue Front
+    const tt = Math.max(0, Math.min(1, t / 0.3));
+    if (this.prevFrontGeom && tt < 1) draw(this.prevFrontGeom, 1 - tt);
+    draw(this.frontGeom, this.prevFrontGeom ? tt : 1);
+  }
+
+  /** Belagerte Städte: Ring mit verbleibendem Verteidigungswert. */
+  drawSieges(st) {
+    const { ctx, camera: cam } = this;
+    for (const s of this.sim.sieges) {
+      if (!s.besieged || s.fallen) continue;
+      const b = this.grid.cellBounds(s.cell);
+      const [mx, my] = this.map.worldToMap((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
+      const [sx, sy] = cam.toScreen(mx, my);
+      if (sx < -20 || sy < -20 || sx > cam.width + 20 || sy > cam.height + 20) continue;
+      const r = 11;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(20,20,16,0.85)';
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = st.siege || '#d4452c';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * s.defense) / s.max);
+      ctx.stroke();
+    }
+  }
+
+  /** Front unter dem Mauszeiger (Toleranz ca. 10 px), 0 = keine. */
+  frontAtScreen(sx, sy) {
+    if (!this.sim) return 0;
+    const i = this.cellAt(sx, sy);
+    if (i < 0) return 0;
+    const { cols, rows } = this.grid;
+    const cellPx = this.cellU * this.camera.scale;
+    const R = Math.max(1, Math.ceil(10 / cellPx));
+    const r0 = Math.floor(i / cols);
+    const c0 = i % cols;
+    let best = 0;
+    let bd = Infinity;
+    for (let r = Math.max(0, r0 - R); r <= Math.min(rows - 1, r0 + R); r++) {
+      for (let c = Math.max(0, c0 - R); c <= Math.min(cols - 1, c0 + R); c++) {
+        const f = this.edgeFrontAt[r * cols + c];
+        if (!f) continue;
+        const d = (r - r0) ** 2 + (c - c0) ** 2;
+        if (d < bd) { bd = d; best = f; }
+      }
+    }
+    return best;
   }
 
   /** Feld unter Bildschirmposition (CSS-Pixel relativ zum Canvas). */

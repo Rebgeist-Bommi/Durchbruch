@@ -12,7 +12,16 @@
     <header id="topbar">
       <div class="brand">
         <span class="title">Durchbruch</span>
-        <span class="date" id="date">31. August 1939</span>
+        <div id="time" aria-label="Zeit">
+          <span class="date" id="date">31. August 1939</span>
+          <span class="day-progress" aria-hidden="true"><i id="day-bar"></i></span>
+          <span class="speeds" role="group" aria-label="Geschwindigkeit">
+            <button type="button" data-speed="0" title="Pause (Leertaste)" aria-pressed="true"><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><rect x="1.5" y="1" width="2.5" height="8" fill="currentColor"/><rect x="6" y="1" width="2.5" height="8" fill="currentColor"/></svg><span class="sr">Pause</span></button>
+            <button type="button" data-speed="1" title="1× – ein Tag in 4,5 Sekunden" aria-pressed="false">1×</button>
+            <button type="button" data-speed="2" title="2×" aria-pressed="false">2×</button>
+            <button type="button" data-speed="4" title="4×" aria-pressed="false">4×</button>
+          </span>
+        </div>
       </div>
       <nav id="modes" role="tablist" aria-label="Kartenmodus">
         <button type="button" role="tab" data-mode="front" aria-selected="true"><kbd>1</kbd><span>Front</span></button>
@@ -45,14 +54,15 @@
           <dt>Feld</dt><dd id="f-cell"></dd>
           <dt>Lage</dt><dd id="f-coord"></dd>
           <dt>Nachbarn</dt><dd id="f-neighbors"></dd>
+          <dt>Befestigung</dt><dd id="f-fort"></dd>
+          <dt>Nachschub</dt><dd id="f-supply"></dd>
+          <dt>Ertrag</dt><dd id="f-yield"></dd>
         </dl>
       </section>
       <section class="mode-section" data-for="front">
         <h2>Lage</h2>
-        <ul class="sectors">
-          <li><span class="dot"></span>Ostfront · Polen</li>
-          <li><span class="dot"></span>Westfront · Frankreich</li>
-        </ul>
+        <div id="lage"></div>
+        <button type="button" class="btn btn-main" id="all-attack">Alle Fronten: Angriff</button>
       </section>
       <section class="mode-section" data-for="economy">
         <h2>Bahnnetz</h2>
@@ -74,12 +84,23 @@
       <div id="loading">Karte wird geladen …</div>
     </main>
 
+    <aside id="frontwin" aria-live="polite"></aside>
+
+    <div id="messages" aria-live="polite" aria-label="Meldungen"></div>
+
     <footer id="statusbar">
       <span id="s-coord">–</span>
       <span id="s-zoom">–</span>
-      <span class="keys">Mausrad: Zoom · Ziehen: Verschieben · Klick: Feld · 1/2/3: Modus · G: Felder · 0: Ansicht</span>
+      <span class="keys">Mausrad: Zoom · Ziehen: Verschieben · Klick: Feld/Front · Leertaste: Pause · 1/2/3: Modus · G: Felder · 0: Ansicht</span>
       <span class="credits" title="Grenzen: CShapes 2.0 (Weidmann, Schvitz, Girardin; GPL ≥ 2) · Natural Earth (gemeinfrei) · Höhenmodell: ETOPO1 (NOAA) über Fatiando a Terra, CC BY 4.0">Quellen: CShapes 2.0 · Natural Earth · ETOPO1/Fatiando (CC BY 4.0)</span>
     </footer>
+  </div>
+  <div id="gameover" hidden>
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="go-title">
+      <h2 id="go-title">Feldzug beendet</h2>
+      <div id="go-body"></div>
+      <button type="button" class="btn btn-main" id="go-close">Karte weiter ansehen</button>
+    </div>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>

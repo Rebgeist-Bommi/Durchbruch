@@ -8,7 +8,8 @@ gebaut.
 | Phase | Inhalt | Stand |
 |---|---|---|
 | 1 | Karte und Grundgerüst | fertig |
-| 2–6 | folgen | offen |
+| 2 | Echtzeit und Kampf (Deutschland gegen Polen spielbar) | fertig |
+| 3–6 | folgen | offen |
 
 ## Technik
 - Reines HTML/CSS/JavaScript (ES-Module), kein Framework. Build mit Vite (`base: './'`).
@@ -21,22 +22,36 @@ gebaut.
 
 ## Ordnerstruktur
 ```
-index.html                 Einstieg, Layout (Kopfleiste, Seitenleiste, Karte, Statusleiste)
-src/main.js                Start, Eingaben (Zoom, Ziehen, Klick, Tasten 1/2/3, G, 0, +/-)
+index.html                 Einstieg, Layout (Kopfleiste mit Zeit, Seitenleiste, Karte, Frontfenster,
+                           Meldungsleiste, Statusleiste, Abschlussdialog)
+src/main.js                Start, Spielschleife (Tick je Spieltag, Animation dazwischen), Eingaben
+                           (Zoom, Ziehen, Klick auf Feld/Front, Tasten 1/2/3, Leertaste, G, 0, +/-, Esc)
+data/balance.json          Spielwerte (alle Platzhalter, "# TODO historisch prüfen")
+src/sim/                   Simulation ohne DOM (läuft im Browser und in Node gleich):
+  simulation.js            Zustand, Tick-Ablauf, Befehle, Nachschub, Verlegung, Ereignisse
+  fronts.js                Fronten aus Kontaktkanten, Identität über Ticks, Abschnitte (~100 km)
+  combat.js                Kampf, feldweiser Vormarsch, Verluste, Vorbereitung/Befestigung
+  pockets.js               Kessel, Belagerung von Groß-/Hauptstädten, Kapitulation
+  ai.js                    einfache KI (Polen): Verteilung, Befestigung, Rückzug bei Kesselgefahr
+  autoplay.js              "Alle Fronten: Angriff" (Schaltfläche und Testlauf)
+  sectors.js, rng.js, calendar.js, constants.js
 src/data/projection.js     EPSG:3035 vorwärts/rückwärts (ellipsoidisch)
 src/data/grid.js           Feldraster: Besitzer, Terrain, Nachbarn
 src/data/loader.js         Laden und Dekodieren von public/data/*
 src/map/camera.js          Kamera (Zoom um Mauszeiger, Verschieben, Begrenzung)
-src/map/renderer.js        Kartenzeichnung (Länder, Relief, Grenzen, Fronten, Bahn, Beschriftung)
+src/map/renderer.js        Kartenzeichnung in Ebenen: statisch (Länder, Relief, Grenzen, Bahn,
+                           Beschriftung; nur bei Kamera-/Moduswechsel neu) und dynamisch (Besetzung
+                           feldweise mit Schraffur, Frontbalken mit Abschnittsstatus, Belagerungen)
 src/map/styles.js          Farben und Schriften je Kartenmodus
-src/ui/                    Seitenleiste (Feldinfo, Nationenanzeige), Flaggen
-src/styles/                base.css + front.css / economy.css / intel.css (Layout je Modus)
+src/ui/                    panel.js (Feldinfo, Nation), game.js (Lage, Frontfenster, Kampfanzeige,
+                           Meldungen, Abschluss), flags.js
+src/styles/                base.css + front.css / economy.css / intel.css (Layout je Modus), game.css
 src/assets/flags/          Nationalflaggen 1939 als SVG (vereinfacht)
 public/data/               erzeugte Spieldaten (nicht von Hand ändern)
 tools/                     Datenpipeline, Tests, Screenshot- und Layoutprüfung
 tools/data/                handgepflegte Eingaben (Städte, Näherungspolygone)
-tests/                     JavaScript-Tests (node:test)
-screenshots/               Abnahme-Screenshots der letzten Phase
+tests/                     JavaScript-Tests (node:test), u. a. Testlauf Polenfeldzug
+screenshots/               Abnahme-Screenshots und Video der letzten Phase
 ```
 
 ## Befehle
@@ -47,14 +62,18 @@ npm ci
 npm test                         # JavaScript-Tests
 npm run dev                      # Entwicklungsserver
 npm run build && npm run preview # Produktionsbuild lokal (Port 4173)
-npm run screenshots              # Playwright-Screenshots aller Modi (Preview muss laufen)
-node tools/check_layout.mjs      # Überlappungsprüfung der Kopfleiste in 4 Fenstergrößen
+npm run screenshots              # Playwright-Screenshots + Video eines Angriffs (Preview muss laufen)
+node tools/check_layout.mjs      # Überlappungsprüfung der Kopfleiste in 6 Fenstergrößen × 3 Modi
+node tools/sim_run.mjs [seed]    # Feldzug ohne Spieler im Terminal (Tagesprotokoll, Tickzeiten)
 ```
 
 ## Arbeitsregeln
 - Pro Sitzung genau eine Phase.
 - Erst testen, dann berichten: `python tools/build_all.py` (pytest) und `npm test` müssen grün sein,
   Screenshots aller drei Modi werden angesehen und geprüft.
+- Spielwerte nur in `data/balance.json`; nichts als historische Tatsache ausgeben, was nicht geprüft ist.
+- Simulation bleibt frei von DOM und Darstellung; Zufall nur über `sim.rng` (Seed), damit Läufe
+  reproduzierbar sind. Ein Tick muss unter 16 ms bleiben (Test in `tests/sim.test.js`).
 - Alle Datenschritte reproduzierbar als Skripte in `/tools`. Keine Handbearbeitung erzeugter Dateien.
 - Jede Datenquelle mit Lizenz in `LICENSES.md`.
 
@@ -68,3 +87,21 @@ node tools/check_layout.mjs      # Überlappungsprüfung der Kopfleiste in 4 Fen
   (für spätere Frontverschiebung).
 - Kartenkoordinaten im Frontend: Hektometer ab (2.500.000 / 1.350.000), y nach Norden.
 - Frontlinien in `map.json` sind so orientiert, dass Deutschland links der Laufrichtung liegt.
+
+## Datenmodell (Phase 2)
+- Zeit: 1 Tick = 1 Spieltag, Tag 0 = 31.08.1939. Geschwindigkeit Pause/1×/2×/4×, 1× = 4,5 s je Tag.
+  Die Darstellung blendet zwischen zwei Ticks über (`render(t)`, t = Anteil des Tages).
+- Kriegszustand aus `balance.json` (`scenario.wars`), Danzig wird an Tag 1 angegliedert.
+- Divisionen: `{id, nation, men, maxMen, tank, air, front, transit}`; `front = 0` heißt Reserve.
+  Verlegung dauert `ceil(Entfernung / kmPerDay)` Tage.
+- Fronten: zusammenhängende Ketten von Kontaktkanten zwischen Kriegsgegnern; Identität über
+  `frontHint` je Feld (Mehrheitsentscheid), Teilung verteilt Divisionen anteilig, Verschmelzung
+  vereinigt sie. Abschnitt = Front ∩ Sektor (feste Voronoi-Aufteilung, ca. 100 km).
+- Je Front und Seite: Befehl (`hold` / `prepare` / `attack`), Vorbereitung `prep` (0–1),
+  Vorgehen (`minimal` / `total`), Tagesstatistik. Befestigung je Feld (`sim.fort`).
+- Vormarsch: Chance je gegnerischem Grenzfeld aus Kräfteverhältnis, Gelände, Befestigung,
+  Vorbereitung, Luft, Panzer, Nachschub (`sim.supply`), Vorgehen, Zufall; bis zu 3 Felder pro Tag.
+- Kessel = Fläche ohne Verbindung zum größten zusammenhängenden Gebiet (vor Kriegsbeginn
+  abgetrennte Teile wie Ostpreußen ausgenommen). Belagerung für Hauptstädte und Städte bis Rang 2.
+- Kapitulation: Hauptstadt verloren und Gebietsverlust ≥ `capitulation.lostShare`.
+- Ertrag eroberter Felder: `sim.yieldOf(cell)` (für die Wirtschaft in späteren Phasen).

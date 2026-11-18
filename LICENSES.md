@@ -11,7 +11,8 @@
 | Vite | Build-Werkzeug | https://vitejs.dev | MIT |
 
 ## Eigene Daten
-- `tools/data/cities.csv`: Städteliste (deutsche Namen von 1939, Koordinaten, Rang), selbst zusammengestellt.
+- `tools/data/cities.csv`: Städteliste (deutsche Namen von 1939, Koordinaten, Rang 1–4), selbst zusammengestellt.
+- `data/balance.json`: Spielwerte (Platzhalter), selbst festgelegt, keine historische Quelle.
 - `tools/data/corrections.geojson`: Näherungspolygone für Memelland, Danzig (Rahmen) und Olsagebiet, selbst erstellt.
 - `src/assets/flags/*.svg`: vereinfachte Nachzeichnungen der Nationalflaggen 1939, selbst erstellt.
 
