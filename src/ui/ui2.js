@@ -192,14 +192,17 @@ export class Banner {
       this.queue.push(e);
     }
     this.seen = ev.length;
-    if (this.queue.length > 4) this.queue.splice(0, this.queue.length - 4); // nicht überfluten
-    if (!this.timer) this.next();
+    // nur Aktuelles zeigen: Meldungen älter als 3 Spieltage verfallen, höchstens 4 in der Warteschlange
+    const day = this.sim.day;
+    this.queue = this.queue.filter((e) => day - e.day <= 3).slice(-4);
+    if (!this.timer || (this.current && day - this.current.day > 3)) this.next();
   }
 
   next() {
     clearTimeout(this.timer);
     const el = $('banner');
     const e = this.queue.shift();
+    this.current = e || null;
     if (!e) { el.classList.remove('show'); this.timer = 0; setTimeout(() => { if (!el.classList.contains('show')) el.hidden = true; }, 450); return; }
     const sim = this.sim;
     const code = flagFor(sim, e.text);
