@@ -16,8 +16,8 @@ gebaut.
 - Darstellung mit Canvas 2D. Schriften lokal über `@fontsource` (keine Anfragen an Google).
 - Datenpipeline in Python (geopandas, shapely ≥ 2.1, rasterio, xarray, scipy) unter `tools/`.
   Die erzeugten Spieldateien liegen versioniert in `public/data/`. Die CI braucht kein Python.
-- Deployment: `.github/workflows/deploy.yml` baut bei jedem Push auf `main` und veröffentlicht
-  `dist/` auf GitHub Pages.
+- Deployment: `.github/workflows/deploy.yml` baut bei jedem Push auf `main` und schreibt `dist/`
+  in den Branch `gh-pages` (Pages-Quelle: „Deploy from a branch“). Live: https://rebgeist-bommi.github.io/Durchbruch/
 
 ## Ordnerstruktur
 ```
