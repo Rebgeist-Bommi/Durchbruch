@@ -30,13 +30,29 @@ import { serialize, deserialize } from './sim/save.js';
 import { checkDecisions } from './sim/events.js';
 import { declareWar } from './sim/diplomacy.js';
 import { DecisionUI, DiplomacyUI, NewspaperUI } from './ui/phase5.js';
-import { MainMenu, loadSettings } from './ui/menu.js';
+import { MainMenu, loadSettings, saveSettingsNow } from './ui/menu.js';
+import { MenuBackdrop, MenuMusic } from './ui/menuMedia.js';
 import { autoplayCampaign } from './sim/autoplay.js';
 
 const MODES = ['front', 'economy', 'intel'];
 const FONT_FAMILIES = ['IM Fell English SC', 'Spectral', 'UnifrakturMaguntia', 'Saira Stencil One', 'Saira Condensed', 'Special Elite'];
 
 async function main() {
+  // Hauptmenü sofort zeigen (Fotos, Zeitungen, Musik), während die Karte noch lädt
+  const settings = loadSettings();
+  const earlyParams = new URLSearchParams(location.search);
+  let hasPending = false;
+  let hasStart = false;
+  try { hasPending = !!sessionStorage.getItem('durchbruch-pending'); hasStart = !!sessionStorage.getItem('durchbruch-start'); } catch { /* ohne sessionStorage */ }
+  const menuAtStart = !hasPending && !hasStart && earlyParams.get('menu') !== '0';
+  const menuRoot = document.getElementById('menu');
+  const backdrop = new MenuBackdrop(menuRoot);
+  const music = new MenuMusic({ button: menuRoot.querySelector('.m-music'), settings, onSettings: (st) => saveSettingsNow(st) });
+  if (menuAtStart) {
+    menuRoot.hidden = false;
+    backdrop.start();
+    music.setActive(true);
+  }
   const data = await loadAll(import.meta.env.BASE_URL);
   const grid = new Grid(data.gridMeta, data.gridBuf);
   const canvas = document.getElementById('map-canvas');
@@ -158,7 +174,6 @@ async function main() {
   if (loadedFrom) setTimeout(() => toast(`Spielstand geladen: ${loadedFrom}`), 300);
 
   // ---- Phase 5: Entscheidungen, Diplomatie, Zeitung, Hauptmenü ----
-  const settings = loadSettings();
   const applySettings = (st) => {
     renderer.lowDetail = st.detail === 'niedrig';
     renderer.requestRender();
@@ -191,6 +206,8 @@ async function main() {
     return true;
   };
   const menu = new MainMenu({
+    settings,
+    onVisible: (on) => { if (on) backdrop.start(); else backdrop.stop(); music.setActive(on); },
     levels: balance.difficulty.levels,
     inGame: () => sim.day > 0 || !!sim.started,
     onStart: (level, sandbox) => {
@@ -211,7 +228,7 @@ async function main() {
       if (t) loadText(t);
     },
     onResume: () => { if (settings.speed) clock.lastSpeed = settings.speed; },
-    onSettings: (st) => { Object.assign(settings, st); applySettings(settings); clock.lastSpeed = settings.speed || 1; },
+    onSettings: (st) => { Object.assign(settings, st); applySettings(settings); clock.lastSpeed = settings.speed || 1; music.setVolume(settings.volume); music.update(); },
   });
   ui.onMenu = () => { setSpeed(0); menu.show(); };
   ui.onPropaganda = () => econ.refresh();
