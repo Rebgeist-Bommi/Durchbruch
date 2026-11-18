@@ -70,6 +70,7 @@ def commons_prefetch(titles: list[str]) -> None:
             continue
         page = 'https://commons.wikimedia.org/wiki/' + urllib.parse.quote(title.replace(' ', '_'))
         h = http(page, 'text/html').decode('utf-8', 'replace')
+        h = h.replace('&#95;', '_')  # manche Seiten maskieren Unterstriche in Klassennamen
         def field(fid):
             m = re.search(r'id="' + fid + r'"[^>]*>.*?</td>\s*<td[^>]*>(.*?)</td>', h, re.S)
             return strip(m.group(1)) if m else ''
