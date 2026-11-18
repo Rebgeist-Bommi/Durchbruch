@@ -144,10 +144,10 @@ export function computeRailSupply(sim) {
   if (!sim.supplyDist) sim.supplyDist = new Map();
   const q = sim._sq || (sim._sq = new Int32Array(N));
   const conn = sim._conn || (sim._conn = new Int32Array(N));
-  const [r0, r1, c0, c1] = sim.boxRange();
   sim._connStamp = (sim._connStamp || 0) + 1;
   for (const n of [...sim.nations.keys()].sort((x, y) => x - y)) {
     if (!sim.inWar[n] || !sim.enemiesOf(n).length) continue;
+    const [r0, r1, c0, c1] = sim.nationRange(n);
     const stamp = sim._connStamp * 64 + n;
     // 1. verbundenes Netz: Breitensuche über intakte eigene Bahnfelder ab dem Kernnetz (8er)
     let head = 0;

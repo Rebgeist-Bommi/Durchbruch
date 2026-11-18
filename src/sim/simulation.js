@@ -61,6 +61,9 @@ export class Simulation {
     }
     this.ownedCount = new Int32Array(NMAX);
     for (let i = 0; i < this.N; i++) this.ownedCount[this.owner[i]]++;
+    // Rechteck je Nation um ihre Felder (Suchbereich für Kessel, KI, Nachschub)
+    this.nationBox = new Map();
+    for (let i = 0; i < this.N; i++) if (this.owner[i]) this.growNationBox(this.owner[i], i);
     this.terrain = grid.terrain;
     this.fort = new Float32Array(this.N);
     this.conqDay = new Int16Array(this.N).fill(-1);
@@ -83,7 +86,7 @@ export class Simulation {
     this.initCities();
     // Nationen mit eigener Wirtschaft (Spieler + KI) und alle Kriegsparteien
     this.nations = new Map();
-    const all = new Set([...Object.keys(balance.economy.nations).map((c) => this.idx(c)), ...this.warNations()]);
+    const all = new Set([...Object.keys(balance.economy.nations).filter((c) => !c.startsWith('_')).map((c) => this.idx(c)), ...this.warNations()]);
     for (const n of [...all].sort((x, y) => x - y)) {
       this.nations.set(n, {
         status: 'aktiv', capitulationDay: -1, startCells: 0,
@@ -149,6 +152,24 @@ export class Simulation {
     if (r > b.r1) b.r1 = r;
     if (c < b.c0) b.c0 = c;
     if (c > b.c1) b.c1 = c;
+  }
+
+  growNationBox(n, i) {
+    let b = this.nationBox.get(n);
+    if (!b) { b = { r0: this.rows, r1: -1, c0: this.cols, c1: -1 }; this.nationBox.set(n, b); }
+    const r = (i / this.cols) | 0;
+    const c = i - r * this.cols;
+    if (r < b.r0) b.r0 = r;
+    if (r > b.r1) b.r1 = r;
+    if (c < b.c0) b.c0 = c;
+    if (c > b.c1) b.c1 = c;
+  }
+
+  /** Suchbereich einer Nation (+1 Feld Rand). */
+  nationRange(n) {
+    const b = this.nationBox.get(n);
+    if (!b) return [0, -1, 0, -1];
+    return [Math.max(0, b.r0 - 1), Math.min(this.rows - 1, b.r1 + 1), Math.max(0, b.c0 - 1), Math.min(this.cols - 1, b.c1 + 1)];
   }
 
   /** Feldindizes im Suchbereich (+1 Feld Rand), zeilenweise. */
@@ -478,6 +499,7 @@ export class Simulation {
     this.ownedCount[old]--;
     this.ownedCount[n]++;
     if (this.inWar[n]) this.growBox(cell);
+    this.growNationBox(n, cell);
     this.fort[cell] = 0;
     this.conqDay[cell] = this.day;
     this.conqMethod[cell] = method;

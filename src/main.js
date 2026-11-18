@@ -11,6 +11,7 @@ import './styles/front.css';
 import './styles/economy.css';
 import './styles/intel.css';
 import './styles/game.css';
+import './styles/econ.css';
 
 import balance from '../data/balance.json';
 import { loadAll } from './data/loader.js';
@@ -20,6 +21,8 @@ import { MapRenderer } from './map/renderer.js';
 import { Panel } from './ui/panel.js';
 import { GameUI } from './ui/game.js';
 import { Simulation } from './sim/simulation.js';
+import { EconomyUI } from './ui/economy.js';
+import { serialize, deserialize } from './sim/save.js';
 
 const MODES = ['front', 'economy', 'intel'];
 const FONT_FAMILIES = ['IM Fell English SC', 'Spectral', 'UnifrakturMaguntia', 'Saira Stencil One', 'Saira Condensed', 'Special Elite'];
@@ -30,8 +33,22 @@ async function main() {
   const canvas = document.getElementById('map-canvas');
   const renderer = new MapRenderer(canvas, data, grid);
   const panel = new Panel(grid);
-  const seed = Number(new URLSearchParams(location.search).get('seed')) || balance.seed;
-  const sim = new Simulation({ grid, map: data.map, balance, seed });
+  const params = new URLSearchParams(location.search);
+  const seed = Number(params.get('seed')) || balance.seed;
+  const sim = new Simulation({ grid, map: data.map, balance, infra: data.infra, seed });
+  // Spielstand laden, der vor dem Neuladen der Seite hinterlegt wurde (Laden/Import)
+  let loadedFrom = null;
+  try {
+    const pending = sessionStorage.getItem('durchbruch-pending');
+    if (pending) {
+      sessionStorage.removeItem('durchbruch-pending');
+      deserialize(sim, JSON.parse(pending));
+      loadedFrom = sim.dateText();
+    }
+  } catch (err) {
+    console.error(err);
+    alert(`Spielstand konnte nicht geladen werden: ${err.message}`);
+  }
   panel.sim = sim;
   renderer.attachSim(sim);
 
@@ -48,18 +65,114 @@ async function main() {
   };
   const ui = new GameUI({ sim, renderer, panel, onCenter: centerOnCell });
   ui.onGameOver = () => setSpeed(0);
+  if (loadedFrom || sim.isOver()) ui.gameOverShown = sim.isOver();
+  const econ = new EconomyUI({
+    sim, renderer, onChange: () => { econ.refresh(); ui.refresh(); renderer.requestRender(); },
+  });
+  panel.railInfo = (i) => econ.railInfo(i);
+
+  // ---- Speichern, Laden, Export, Import, Autosave ----
+  const toast = (text) => {
+    const t = document.getElementById('toast');
+    t.textContent = text;
+    t.hidden = false;
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => { t.hidden = true; }, 2600);
+  };
+  const store = (key) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(serialize(sim)));
+      return true;
+    } catch (err) {
+      console.error(err);
+      toast(`Speichern fehlgeschlagen: ${err.message}`);
+      return false;
+    }
+  };
+  const loadText = (text) => {
+    sessionStorage.setItem('durchbruch-pending', text);
+    location.reload();
+  };
+  async function exportFile() {
+    const text = JSON.stringify(serialize(sim));
+    let blob = new Blob([text], { type: 'application/json' });
+    let ext = 'json';
+    if (typeof CompressionStream !== 'undefined') {
+      blob = await new Response(blob.stream().pipeThrough(new CompressionStream('gzip'))).blob();
+      ext = 'durchbruch';
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const dt = sim.dateText().replace(/\s+/g, '-').replace(/\./g, '');
+    a.download = `durchbruch-${dt}.${ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast(`Exportiert: ${a.download} (${Math.round(blob.size / 1024)} kB)`);
+  }
+  async function importFile(file) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    let text;
+    if (buf[0] === 0x1f && buf[1] === 0x8b) {
+      text = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    } else {
+      text = new TextDecoder().decode(buf);
+    }
+    JSON.parse(text); // Prüfung vor dem Neuladen
+    loadText(text);
+  }
+  document.querySelector('.savebar').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-save]');
+    if (!b) return;
+    const k = b.dataset.save;
+    if (k === 'save' && store('durchbruch-save')) toast(`Gespeichert: ${sim.dateText()}`);
+    if (k === 'load' || k === 'auto') {
+      const t = localStorage.getItem(k === 'load' ? 'durchbruch-save' : 'durchbruch-auto');
+      if (!t) toast(k === 'load' ? 'Kein Spielstand gespeichert.' : 'Noch kein automatischer Speicherstand.');
+      else loadText(t);
+    }
+    if (k === 'export') exportFile();
+    if (k === 'import') document.getElementById('import-file').click();
+  });
+  document.getElementById('import-file').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) importFile(f).catch((err) => toast(`Import fehlgeschlagen: ${err.message}`));
+  });
+  if (loadedFrom) setTimeout(() => toast(`Spielstand geladen: ${loadedFrom}`), 300);
+
+  // ---- Debug-Schalter für Kriegserklärungen (?debug=1); Diplomatie folgt in Phase 5 ----
+  if (params.get('debug')) {
+    const bar = document.getElementById('debugbar');
+    const sel = document.getElementById('debug-nation');
+    const fill = () => {
+      sel.innerHTML = Object.keys(balance.economy.nations).filter((c) => !c.startsWith('_') && c !== 'DEU' && !sim.isWar(sim.player, sim.idx(c)))
+        .map((c) => `<option value="${c}">${grid.nationNames[c]}</option>`).join('');
+    };
+    fill();
+    bar.hidden = false;
+    document.getElementById('debug-war').addEventListener('click', () => {
+      if (!sel.value) return;
+      sim.startWar('DEU', sel.value);
+      renderer.onTick();
+      ui.refresh();
+      econ.refresh();
+      fill();
+      renderer.requestRender();
+    });
+  }
 
   function doTick() {
     sim.tick();
     renderer.onTick();
     ui.onTick();
+    econ.refresh();
+    if (sim.day % 7 === 0) store('durchbruch-auto');
   }
 
   function frame(now) {
     if (!clock.running) return;
     const dt = Math.min(250, now - clock.last);
     clock.last = now;
-    if (clock.speed > 0 && !sim.isOver()) {
+    if (clock.speed > 0) {
       clock.acc += dt * clock.speed;
       if (clock.acc >= msPerDay) {
         clock.acc = Math.min(clock.acc - msPerDay, msPerDay * 0.5);
@@ -70,7 +183,7 @@ async function main() {
     renderer.t = t;
     ui.setDayProgress(t);
     renderer.render(t);
-    if (clock.speed > 0 && !sim.isOver()) requestAnimationFrame(frame);
+    if (clock.speed > 0) requestAnimationFrame(frame);
     else clock.running = false;
   }
 
@@ -79,7 +192,7 @@ async function main() {
     if (s > 0) clock.lastSpeed = s;
     for (const b of document.querySelectorAll('#time [data-speed]')) b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === s));
     document.body.classList.toggle('paused', s === 0);
-    if (s > 0 && !clock.running && !sim.isOver()) {
+    if (s > 0 && !clock.running) {
       clock.running = true;
       clock.last = performance.now();
       requestAnimationFrame(frame);
@@ -90,7 +203,7 @@ async function main() {
     if (b) setSpeed(Number(b.dataset.speed));
   });
 
-  window.__durchbruch = { renderer, grid, data, sim, ui, setSpeed, doTick, clock };
+  window.__durchbruch = { renderer, grid, data, sim, ui, econ, setSpeed, doTick, clock, serialize };
 
   // ---- Statuszeile ----
   const zoomEl = document.getElementById('s-zoom');
@@ -104,6 +217,7 @@ async function main() {
     if (!MODES.includes(mode)) return;
     for (const m of MODES) document.body.classList.toggle(`mode-${m}`, m === mode);
     for (const b of document.querySelectorAll('#modes button')) b.setAttribute('aria-selected', String(b.dataset.mode === mode));
+    if (mode !== 'economy' && econ.buildType) econ.setBuildMode(null);
     renderer.setMode(mode);
   }
   document.getElementById('modes').addEventListener('click', (e) => {
@@ -143,6 +257,7 @@ async function main() {
     }
     if (!drag) {
       canvas.classList.toggle('over-front', renderer.mode === 'front' && renderer.frontAtScreen(px, py) > 0);
+      if (econ.buildType) econ.hover(renderer.cellAt(px, py), e.clientX, e.clientY);
       return;
     }
     if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) {
@@ -163,12 +278,15 @@ async function main() {
       const sx = e.clientX - r.left;
       const sy = e.clientY - r.top;
       const fid = renderer.mode === 'front' ? renderer.frontAtScreen(sx, sy) : 0;
-      if (fid) {
+      const i = renderer.cellAt(sx, sy);
+      if (econ.buildType) {
+        econ.click(i);
+      } else if (fid) {
         ui.selectFront(fid);
       } else {
-        const i = renderer.cellAt(sx, sy);
         renderer.selected = i;
         panel.showCell(i);
+        if (renderer.mode === 'economy') econ.selectCell(i);
       }
       renderer.requestRender();
     }
@@ -192,7 +310,7 @@ async function main() {
       case '0': renderer.focusStart(); renderer.requestRender(); break;
       case '+': case '=': cam.zoomAt(cam.width / 2, cam.height / 2, 1.25); renderer.requestRender(); break;
       case '-': cam.zoomAt(cam.width / 2, cam.height / 2, 0.8); renderer.requestRender(); break;
-      case 'Escape': ui.closeFront(); break;
+      case 'Escape': if (econ.buildType) econ.setBuildMode(null); else ui.closeFront(); break;
       default: return;
     }
     e.preventDefault();

@@ -14,7 +14,7 @@ export function components(sim, n, mark) {
   const base = (sim._compSeq || 0) + 1;
   const nb = sim.nb;
   const owner = sim.owner;
-  const [r0, r1, c0, c1] = sim.boxRange();
+  const [r0, r1, c0, c1] = sim.nationRange ? sim.nationRange(n) : sim.boxRange();
   for (let r = r0; r <= r1; r++) {
     for (let i = r * sim.cols + c0, e = r * sim.cols + c1; i <= e; i++) {
       if (owner[i] !== n || mark[i] >= base) continue;

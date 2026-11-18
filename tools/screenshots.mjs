@@ -99,7 +99,67 @@ await page.evaluate(() => { window.__durchbruch.renderer.focusStart(); window.__
 await shot(page, '09-karte-nach-feldzug');
 await context.close();
 
-// ---------------------------------------------------------------- 4. Video: Angriff in Echtzeit (4×)
+// ---------------------------------------------------------------- 4. Phase 3: Wirtschaft
+({ context, page } = await open());
+await page.keyboard.press('2');
+await shot(page, '11-wirtschaft-uebersicht');
+// Region wählen (Ruhrgebiet) -> Infrastruktur mit Ausbau
+const screenOf = (name, d = 0) => page.evaluate(([n, dd]) => {
+  const { renderer: r, sim } = window.__durchbruch;
+  const site = sim.industrySites.find((s) => s.name === n);
+  const bb = r.grid.cellBounds(site.cell + dd);
+  const [mx, my] = r.map.worldToMap((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2);
+  const [sx, sy] = r.camera.toScreen(mx, my);
+  const rc = r.canvas.getBoundingClientRect();
+  return [rc.left + sx, rc.top + sy];
+}, [name, d]);
+let pt = await page.evaluate(() => {
+  const { renderer: r, sim } = window.__durchbruch;
+  const city = sim.cities.find((c) => c.name === 'Stettin');
+  const bb = r.grid.cellBounds(city.cell + 2);
+  const [mx, my] = r.map.worldToMap((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2);
+  const [sx, sy] = r.camera.toScreen(mx, my);
+  const rc = r.canvas.getBoundingClientRect();
+  return [rc.left + sx, rc.top + sy];
+});
+await page.mouse.click(pt[0], pt[1]);
+await shot(page, '12-wirtschaft-region-ausbau');
+report.upgradeButton = await page.locator('[data-action="upgrade"]').count();
+// Standortwahl: Rüstungsfabrik, Erklärung am Mauszeiger, Klick baut
+await page.click('[data-action="build"][data-type="ruestung"]');
+pt = await screenOf('Sachsen', 2);
+await page.mouse.move(pt[0], pt[1]);
+await page.waitForTimeout(250);
+await shot(page, '13-standortwahl-erklaerung');
+const before = await page.evaluate(() => window.__durchbruch.sim.buildings.filter((b) => !b.done).length);
+await page.mouse.click(pt[0], pt[1]);
+const after = await page.evaluate(() => window.__durchbruch.sim.buildings.filter((b) => !b.done).length);
+report.buildByClick = after - before;
+// Krieg: Wirtschaftsmodus mit beschädigten Strecken in Polen
+await page.evaluate(() => {
+  const D = window.__durchbruch;
+  for (const f of D.sim.fronts.values()) if (f.side[D.sim.player]) D.sim.attack(f.id);
+  for (let i = 0; i < 20; i++) D.doTick();
+  const r = D.renderer;
+  const [x0, y0] = r.map.worldToMap(4_550_000, 2_900_000);
+  const [x1, y1] = r.map.worldToMap(5_400_000, 3_550_000);
+  r.camera.fit(x0, y0, x1, y1);
+  r.render(1);
+});
+await shot(page, '14-wirtschaft-krieg-bahnschaeden');
+// Speichern -> 5 Tage weiter -> Laden (Seite lädt neu) -> Tag stimmt
+const savedDay = await page.evaluate(() => window.__durchbruch.sim.day);
+await page.click('[data-save="save"]');
+await page.evaluate(() => { for (let i = 0; i < 5; i++) window.__durchbruch.doTick(); });
+await page.click('[data-save="load"]');
+await page.waitForSelector('body[data-ready="true"]', { timeout: 60000 });
+await page.waitForTimeout(300);
+report.saveLoad = { savedDay, loadedDay: await page.evaluate(() => window.__durchbruch.sim.day) };
+await page.keyboard.press('1');
+await shot(page, '15-nach-dem-laden-front');
+await context.close();
+
+// ---------------------------------------------------------------- 5. Video: Angriff in Echtzeit (4×)
 ({ context, page } = await open({ recordVideo: { dir: OUT, size: { width: 1280, height: 800 } }, viewport: { width: 1280, height: 800 } }));
 await page.evaluate(() => {
   const { renderer: r } = window.__durchbruch;

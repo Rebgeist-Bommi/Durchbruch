@@ -95,7 +95,7 @@ function detectThreats(sim, n, fronts) {
   const q = sim._aiQ || (sim._aiQ = new Int32Array(N));
   const nb = sim.nb;
   const owner = sim.owner;
-  const [r0, r1, c0, c1] = sim.boxRange();
+  const [r0, r1, c0, c1] = sim.nationRange(n);
   const cells = [];
   for (let r = r0; r <= r1; r++) {
     for (let i = r * sim.cols + c0, e = r * sim.cols + c1; i <= e; i++) if (owner[i] === n) { cells.push(i); dist[i] = -1; }

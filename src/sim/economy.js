@@ -9,6 +9,7 @@ export function initEconomy(sim, infra) {
   const E = sim.bal.economy;
   sim.econ = new Map();
   for (const [code, cfg] of Object.entries(E.nations)) {
+    if (code.startsWith('_')) continue;
     const n = sim.idx(code);
     sim.econ.set(n, {
       pop: cfg.pop, mobLevel: cfg.mobLevel, money: cfg.money, resources: cfg.resources,
@@ -48,7 +49,7 @@ export function initEconomy(sim, infra) {
     const target = cfg.gdp1938 * E.incomePerGdpPerDay;
     e.productivity = raw > 0 ? target / raw : 1;
   }
-  sim.econLastBuild = new Map();
+  computeFlows(sim, false); // Anzeige am Tag 0
 }
 
 export function soldiersTarget(sim, e) {
@@ -87,10 +88,13 @@ export function divisionStrength(sim, d) {
   return 0.5 * men + 0.5 * Math.min(men, eq);
 }
 
-export function runEconomy(sim) {
+/**
+ * Tageswerte berechnen (Arbeitskräfte, Einnahmen, Unterhalt, Förderung, Rüstung).
+ * Mit `apply = false` nur Anzeige (z. B. am Tag 0), ohne Bestände zu verändern.
+ */
+export function computeFlows(sim, apply = true) {
   const E = sim.bal.economy;
   const B = E.buildings;
-  // Tageswerte zurücksetzen, Arbeitskräfte
   for (const [n, e] of sim.econ) {
     e.incomeToday = 0;
     e.upkeepToday = 0;
@@ -104,25 +108,22 @@ export function runEconomy(sim) {
     // Rekrutierung: Richtung Zielstärke (Anteil Kampftruppen), begrenzt je Tag; Demobilisierung sofort
     const target = e.soldiersTarget * E.mobilization.combatShare;
     const step = e.pop * 1e6 * E.mobilization.recruitPerDayOfPop;
-    e.recruited = e.recruited < target ? Math.min(target, e.recruited + step) : target;
+    const recruited = e.recruited < target ? Math.min(target, e.recruited + step) : target;
+    if (apply) e.recruited = recruited;
     const menInDivs = sim.divisions.reduce((s, d) => (d.nation === n ? s + d.men : s), 0);
-    e.pool = Math.max(0, e.recruited - menInDivs);
-    // Steuern der Arbeiter
+    e.pool = Math.max(0, recruited - menInDivs);
     if (sim.nations.get(n)?.status !== 'kapituliert') e.incomeToday += (e.workers / 1e6) * E.taxPerMillionWorkers * e.productivity;
   }
-  // Gebäude: Einnahmen, Ausrüstung (Rohstoffbedarf), Unterhalt, Bau
   const armament = new Map();
   for (const b of sim.buildings) {
     const n = sim.owner[b.cell];
     const e = sim.econ.get(n);
-    if (!e) continue;
-    if (!b.done) continue;
+    if (!e || !b.done) continue;
     e.upkeepToday += B[b.type].upkeep;
     const f = buildingFactor(sim, b) * e.laborFactor * e.productivity;
     if (b.type === 'fabrik') e.incomeToday += B.fabrik.money * f;
     else if (b.type === 'ruestung') armament.set(n, (armament.get(n) || 0) + B.ruestung.equipment * f);
   }
-  // Rohstoffgebiete: Förderung nach Besitz des Feldes
   for (const r of sim.resourceRegions) {
     const per = (r.output * E.resourcePerOutput) / r.cells.length;
     for (const c of r.cells) {
@@ -132,17 +133,23 @@ export function runEconomy(sim) {
     }
   }
   for (const [n, e] of sim.econ) {
-    e.resources += e.resProducedToday;
     const want = armament.get(n) || 0;
     const need = want * E.resourcesPerEquipment;
-    const ratio = need > 0 ? Math.min(1, e.resources / need) : 0;
-    const eq = want * ratio;
-    e.resources -= need * ratio;
+    const stock = e.resources + e.resProducedToday;
+    const ratio = need > 0 ? Math.min(1, stock / need) : 0;
     e.resUsedToday = need * ratio;
-    e.equipment += eq;
-    e.tankEquipment += eq * e.tankShare;
-    e.equipToday = eq;
+    e.equipToday = want * ratio;
     e.upkeepToday += sim.divisions.reduce((s, d) => (d.nation === n ? s + E.divisionUpkeep : s), 0);
+  }
+}
+
+export function runEconomy(sim) {
+  const B = sim.bal.economy.buildings;
+  computeFlows(sim, true);
+  for (const e of sim.econ.values()) {
+    e.resources += e.resProducedToday - e.resUsedToday;
+    e.equipment += e.equipToday;
+    e.tankEquipment += e.equipToday * e.tankShare;
     e.money += e.incomeToday - e.upkeepToday;
   }
   // Baustellen: Kosten verteilt über die Bauzeit, ohne Geld kein Fortschritt
@@ -240,7 +247,7 @@ export function siteSuitability(sim, n, cell, type, fields = null) {
   if (sim.owner[cell] !== n || !sim.grid.territory[cell]) return { score: 0, ok: false, reasons: [['–', 'Nicht eigenes Gebiet']] };
   const clamp = (v) => Math.max(0, Math.min(1, v));
   const rail = clamp(1 - F.rail[cell] / 6) * (0.6 + 0.1 * levelOfCell(sim, cell));
-  const laborV = clamp(F.labor[cell]);
+  const laborV = clamp(F.labor[cell] / 0.6);
   const res = clamp(1 - F.res[cell] / 25);
   const front = F.front[cell] === 65535 ? 1 : clamp((F.front[cell] - 3) / 20);
   const score = (W.rail * rail + W.labor * laborV + W.res * res + W.front * front) / (W.rail + W.labor + W.res + W.front);
@@ -442,7 +449,9 @@ function aiEconomy(sim, n, e) {
   // Divisionen aufstellen
   const per = E.equipmentPerDivision;
   let raised = 0;
-  while (raised < (atWar ? A.divisionsPerWeekWar : A.divisionsPerWeekPeace)
+  const net = e.incomeToday - e.upkeepToday;
+  const affordable = atWar || net > E.divisionUpkeep * 3;
+  while (affordable && raised < (atWar ? A.divisionsPerWeekWar : A.divisionsPerWeekPeace)
     && e.pool >= sim.bal.divisions.menPerDivision && e.equipment >= per * A.minEquipShare) {
     raiseDivision(sim, n, Math.min(e.tankShare, e.tankEquipment / Math.max(1, e.equipment)));
     raised++;

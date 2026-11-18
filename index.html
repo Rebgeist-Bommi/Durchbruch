@@ -57,6 +57,8 @@
           <dt>Befestigung</dt><dd id="f-fort"></dd>
           <dt>Nachschub</dt><dd id="f-supply"></dd>
           <dt>Ertrag</dt><dd id="f-yield"></dd>
+          <dt>Bahn</dt><dd id="f-rail"></dd>
+          <dt>Industrie</dt><dd id="f-industry"></dd>
         </dl>
       </section>
       <section class="mode-section" data-for="front">
@@ -65,11 +67,13 @@
         <button type="button" class="btn btn-main" id="all-attack">Alle Fronten: Angriff</button>
       </section>
       <section class="mode-section" data-for="economy">
-        <h2>Bahnnetz</h2>
+        <div id="econ"></div>
+        <h2>Legende</h2>
         <ul class="legend">
-          <li><span class="sw rail"></span>Hauptstrecken Europa</li>
-          <li><span class="sw rail-de"></span>Strecken im Reich</li>
-          <li><span class="sw reich"></span>Deutsches Reich</li>
+          <li><span class="sw rail-lvl"></span>Bahn, Breite = Ausbaustufe 1–5</li>
+          <li><span class="sw rail-dmg"></span>beschädigt / <span class="sw rail-des"></span> zerstört</li>
+          <li><span class="sw res-k"></span>Kohle <span class="sw res-e"></span>Erz <span class="sw res-o"></span>Öl</li>
+          <li><span class="sw ind"></span>Industrie (Zahlen: Fabrik·Rüstung·Forschung)</li>
         </ul>
       </section>
       <section class="mode-section" data-for="intel">
@@ -92,9 +96,23 @@
       <span id="s-coord">–</span>
       <span id="s-zoom">–</span>
       <span class="keys">Mausrad: Zoom · Ziehen: Verschieben · Klick: Feld/Front · Leertaste: Pause · 1/2/3: Modus · G: Felder · 0: Ansicht</span>
+      <span class="savebar" role="group" aria-label="Spielstand">
+        <button type="button" data-save="save" title="Spielstand im Browser speichern">Speichern</button>
+        <button type="button" data-save="load" title="Gespeicherten Spielstand laden">Laden</button>
+        <button type="button" data-save="auto" title="Automatischen Speicherstand (alle 7 Tage) laden">Autosave</button>
+        <button type="button" data-save="export" title="Spielstand als Datei herunterladen">Export</button>
+        <button type="button" data-save="import" title="Spielstand aus Datei laden">Import</button>
+        <input type="file" id="import-file" accept=".durchbruch,.json,.gz" hidden>
+      </span>
+      <span id="debugbar" hidden>
+        <select id="debug-nation" aria-label="Nation für Kriegserklärung"></select>
+        <button type="button" id="debug-war">Krieg erklären (Debug)</button>
+      </span>
       <span class="credits" title="Grenzen: CShapes 2.0 (Weidmann, Schvitz, Girardin; GPL ≥ 2) · Natural Earth (gemeinfrei) · Höhenmodell: ETOPO1 (NOAA) über Fatiando a Terra, CC BY 4.0">Quellen: CShapes 2.0 · Natural Earth · ETOPO1/Fatiando (CC BY 4.0)</span>
     </footer>
   </div>
+  <div id="buildtip" hidden></div>
+  <div id="toast" hidden></div>
   <div id="gameover" hidden>
     <div class="card" role="dialog" aria-modal="true" aria-labelledby="go-title">
       <h2 id="go-title">Feldzug beendet</h2>

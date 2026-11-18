@@ -9,7 +9,8 @@ gebaut.
 |---|---|---|
 | 1 | Karte und Grundgerüst | fertig |
 | 2 | Echtzeit und Kampf (Deutschland gegen Polen spielbar) | fertig |
-| 3–6 | folgen | offen |
+| 3 | Wirtschaft, Infrastruktur, KI-Nationen, Speichern | fertig |
+| 4–6 | folgen | offen |
 
 ## Technik
 - Reines HTML/CSS/JavaScript (ES-Module), kein Framework. Build mit Vite (`base: './'`).
@@ -34,7 +35,13 @@ src/sim/                   Simulation ohne DOM (läuft im Browser und in Node gl
   pockets.js               Kessel, Belagerung von Groß-/Hauptstädten, Kapitulation
   ai.js                    einfache KI (Polen): Verteilung, Befestigung, Rückzug bei Kesselgefahr
   autoplay.js              "Alle Fronten: Angriff" (Schaltfläche und Testlauf)
-  sectors.js, rng.js, calendar.js, constants.js
+  economy.js               Wirtschaft: Mobilisierung, Geld, Rohstoffe, Ausrüstung, Gebäude, Bau,
+                           Standorteignung, Auffüllung/Aufstellung von Divisionen, KI-Wirtschaft
+  infra.js                 Bahn: Zustand je Feld, Ausbaustufe je Region, Knoten, Brücken,
+                           Instandsetzung, Nachschub über intakte Bahnknoten
+  save.js                  Speichern/Laden (vollständiger Zustand, dünn besetzt gegenüber Start)
+  history.js               Momentaufnahme je Tag (geänderte Felder, Ereignisindex) für den Zeitraffer
+  sectors.js, rng.js (mit speicherbarem Zustand), calendar.js, constants.js
 src/data/projection.js     EPSG:3035 vorwärts/rückwärts (ellipsoidisch)
 src/data/grid.js           Feldraster: Besitzer, Terrain, Nachbarn
 src/data/loader.js         Laden und Dekodieren von public/data/*
@@ -44,12 +51,15 @@ src/map/renderer.js        Kartenzeichnung in Ebenen: statisch (Länder, Relief,
                            feldweise mit Schraffur, Frontbalken mit Abschnittsstatus, Belagerungen)
 src/map/styles.js          Farben und Schriften je Kartenmodus
 src/ui/                    panel.js (Feldinfo, Nation), game.js (Lage, Frontfenster, Kampfanzeige,
-                           Meldungen, Abschluss), flags.js
-src/styles/                base.css + front.css / economy.css / intel.css (Layout je Modus), game.css
+                           Meldungen, Abschluss), economy.js (Kennzahlen, Wirtschaftsleiste,
+                           Standortwahl), flags.js
+src/styles/                base.css + front.css / economy.css / intel.css (Layout je Modus), game.css, econ.css
 src/assets/flags/          Nationalflaggen 1939 als SVG (vereinfacht)
 public/data/               erzeugte Spieldaten (nicht von Hand ändern)
 tools/                     Datenpipeline, Tests, Screenshot- und Layoutprüfung
-tools/data/                handgepflegte Eingaben (Städte, Näherungspolygone)
+tools/data/                handgepflegte Eingaben (Städte, Näherungspolygone, Industriezentren,
+                           Rohstoffgebiete)
+SOURCES.md                 historische Werte mit Quelle (belegt / ungeprüft)
 tests/                     JavaScript-Tests (node:test), u. a. Testlauf Polenfeldzug
 screenshots/               Abnahme-Screenshots und Video der letzten Phase
 ```
@@ -65,6 +75,7 @@ npm run build && npm run preview # Produktionsbuild lokal (Port 4173)
 npm run screenshots              # Playwright-Screenshots + Video eines Angriffs (Preview muss laufen)
 node tools/check_layout.mjs      # Überlappungsprüfung der Kopfleiste in 6 Fenstergrößen × 3 Modi
 node tools/sim_run.mjs [seed]    # Feldzug ohne Spieler im Terminal (Tagesprotokoll, Tickzeiten)
+# Im Browser: ?seed=123 (anderer Zufall), ?debug=1 (Schalter für Kriegserklärungen)
 ```
 
 ## Arbeitsregeln
@@ -75,7 +86,9 @@ node tools/sim_run.mjs [seed]    # Feldzug ohne Spieler im Terminal (Tagesprotok
 - Simulation bleibt frei von DOM und Darstellung; Zufall nur über `sim.rng` (Seed), damit Läufe
   reproduzierbar sind. Ein Tick muss unter 16 ms bleiben (Test in `tests/sim.test.js`).
 - Alle Datenschritte reproduzierbar als Skripte in `/tools`. Keine Handbearbeitung erzeugter Dateien.
-- Jede Datenquelle mit Lizenz in `LICENSES.md`.
+- Jede Datenquelle mit Lizenz in `LICENSES.md`, historische Werte mit Quelle in `SOURCES.md`.
+- Alles, was den weiteren Verlauf beeinflusst, muss in `save.js` gespeichert werden (Test:
+  Laden + 30 Tage = ununterbrochener Lauf).
 
 ## Datenmodell (Phase 1)
 - Projektion EPSG:3035, Ausschnitt x 2.500.000–6.600.000, y 1.350.000–4.550.000.
@@ -105,3 +118,25 @@ node tools/sim_run.mjs [seed]    # Feldzug ohne Spieler im Terminal (Tagesprotok
   abgetrennte Teile wie Ostpreußen ausgenommen). Belagerung für Hauptstädte und Städte bis Rang 2.
 - Kapitulation: Hauptstadt verloren und Gebietsverlust ≥ `capitulation.lostShare`.
 - Ertrag eroberter Felder: `sim.yieldOf(cell)` (für die Wirtschaft in späteren Phasen).
+
+## Datenmodell (Phase 3)
+- `public/data/infra.json` (aus `tools/build_infra.py`): Bahnfelder, Bahnknoten, Brücken,
+  Industriezentren, Rohstoffgebiete.
+- Wirtschaft je Nation (`sim.econ`): Bevölkerung, Mobilisierungsstufe (1–5), Geld, Rohstoffe,
+  Ausrüstung (davon Panzer), Panzeranteil der Rüstung, Rekrutierte/Ersatz. Einnahmen werden über
+  `productivity` an das BIP 1938 angeglichen (`incomePerGdpPerDay`).
+- Arbeitskräfte: Erwerbspersonen = Bevölkerung × `laborShare`; Soldaten-Ziel = Bevölkerung ×
+  Mobilisierungsrate; Produktionsfaktor = Arbeiter / Arbeiter bei Friedensstärke.
+- Gebäude `{type, cell, nation, site, health, progress, done}`; Wirkung = Zustand × Standort ×
+  Ertrag (Eroberung) × Bahnstufe × Arbeitskräfte. Produktion gehört dem Besitzer des Feldes.
+- Divisionen haben zusätzlich `equip` (0–100); Kampfwert = 0,5 × Mannschaft + 0,5 × min(Mannschaft,
+  Ausrüstung). Verluste kosten Ausrüstung anteilig; Auffüllung täglich aus Ersatz und Bestand.
+- Bahn: `railState` je Feld (0 keine, 1 intakt, 2 beschädigt, 3 zerstört), `railLevel` je Sektor
+  (1–5), Knoten und Brücken mit eigenem Zustand (für Sabotage/Luftangriffe in Phase 4).
+  Eroberte Strecken: minimaler Schaden → beschädigt, totale Verwüstung → zerstört, Brücken gesprengt.
+  Instandsetzung schreitet von intakten eigenen Strecken aus voran.
+- Nachschub: Abstand zum nächsten intakten Bahnknoten, der über intakte eigene Strecken mit dem
+  Kernnetz verbunden ist; voll bis `supply.fullCells`, dann abnehmend bis `rangeCells`.
+- Speichern: `serialize(sim)` / `deserialize(sim, data)`; im Browser localStorage (manuell +
+  Autosave alle 7 Tage), Export/Import als gzip-Datei (`.durchbruch`). Laden = Seite neu laden mit
+  hinterlegtem Stand (sessionStorage).

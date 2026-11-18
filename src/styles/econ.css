@@ -1,0 +1,77 @@
+/* Phase 3: Wirtschaftsleiste, Standortwahl, Speicherleiste */
+#econ section { margin-bottom: 14px; }
+#econ h2 { margin-bottom: 6px; }
+.seg { display: flex; gap: 2px; margin: 4px 0; }
+.seg button {
+  flex: 1; min-width: 0; padding: 5px 2px; cursor: pointer; font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(0, 0, 0, 0.3);
+}
+.seg button[aria-checked="true"] { background: var(--accent); color: #1d2125; border-color: var(--accent); font-weight: 600; }
+.ec-sub { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
+.ec-label { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.75; margin-top: 10px; }
+.ec-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 13.5px; margin: 0; }
+.ec-grid dt { opacity: 0.7; }
+.ec-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 6px; }
+.lvl { padding: 1px 7px; font-size: 12px; border: 1px solid rgba(255, 255, 255, 0.3); }
+.lvl-4, .lvl-5 { background: rgba(224, 168, 58, 0.25); }
+.btn.on { background: var(--accent); color: #1d2125; border-color: var(--accent); }
+.btn.main { background: var(--accent); color: #1d2125; border-color: var(--accent); font-weight: 600; flex: 1; }
+.build-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.build-buttons .btn { display: flex; flex-direction: column; align-items: center; padding: 6px 2px; line-height: 1.15; }
+.build-buttons .btn span { font-size: 11px; opacity: 0.8; }
+.queue { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; font-size: 12.5px; }
+.queue li { display: grid; grid-template-columns: 1fr 60px; gap: 6px; align-items: center; }
+.queue span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pbar { height: 6px; background: rgba(0, 0, 0, 0.4); position: relative; }
+.pbar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.legend .rail-lvl { height: 3px; background: linear-gradient(90deg, #6f777e 0 25%, #c9cfd4 25% 60%, #fff 60%); }
+.legend .rail-dmg { background: #ff8a3a; width: 10px; }
+.legend .rail-des { background: #d0281e; width: 10px; }
+.legend .res-k { background: #18181a; width: 12px; }
+.legend .res-e { background: #964028; width: 12px; }
+.legend .res-o { background: #482e6e; width: 12px; }
+.legend .ind { background: #e9ecef; width: 14px; outline: 2px solid #E0A83A; }
+body.building #map-canvas { cursor: crosshair; }
+
+#buildtip {
+  position: fixed; z-index: 30; max-width: 330px; pointer-events: none;
+  background: #23272b; color: #e6e9ec; border: 1px solid #E0A83A; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  padding: 8px 10px; font-family: "Saira Condensed", "Arial Narrow", sans-serif; font-size: 14px;
+}
+#buildtip[hidden] { display: none; }
+#buildtip .tt-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+#buildtip .score { font-weight: 600; }
+#buildtip .good { color: #6fd27a; }
+#buildtip .mid { color: #e3c13a; }
+#buildtip .bad { color: #ff6b57; }
+#buildtip ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+#buildtip li i { display: inline-block; width: 14px; font-style: normal; font-weight: 700; }
+#buildtip .r-good i { color: #6fd27a; }
+#buildtip .r-mid i { color: #e3c13a; }
+#buildtip .r-bad i { color: #ff6b57; }
+#buildtip .tt-foot { margin-top: 5px; opacity: 0.8; font-size: 13px; }
+
+#toast {
+  position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 40;
+  background: rgba(20, 22, 18, 0.95); color: #f1ece0; border: 1px solid var(--accent, #C8A156);
+  padding: 8px 14px; font-size: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+#toast[hidden] { display: none; }
+
+.savebar { display: flex; gap: 3px; flex-shrink: 0; margin-left: auto; }
+.savebar button, #debugbar button, #debugbar select {
+  font-size: 12px; padding: 1px 7px; cursor: pointer; background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.22); color: inherit;
+}
+#debugbar { display: flex; gap: 3px; flex-shrink: 0; }
+#debugbar[hidden] { display: none; }
+#debugbar select option { color: #111; }
+#statusbar .keys { margin-left: 12px; }
+@media (max-width: 1400px) { #statusbar .credits { margin-left: 0; } }
+@media (max-width: 1180px) { #statusbar .credits { display: none; } }
+
+/* Wirtschaftsmodus: Wirtschaftsbereiche vor der Feldinfo, damit alles mit 1–2 Klicks erreichbar ist */
+body.mode-economy #panel { display: flex; flex-direction: column; }
+body.mode-economy #panel .nation { order: 1; }
+body.mode-economy #panel .mode-section[data-for="economy"] { order: 2; }
+body.mode-economy #panel #field { order: 3; }

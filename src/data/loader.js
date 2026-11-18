@@ -45,12 +45,13 @@ export async function loadAll(base) {
     if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
     return r;
   };
-  const [mapJson, gridMeta, gridBuf, reliefBuf] = await Promise.all([
+  const [mapJson, gridMeta, gridBuf, reliefBuf, infra] = await Promise.all([
     get('map.json').then((r) => r.json()),
     get('grid.json').then((r) => r.json()),
     get('grid.bin').then((r) => r.arrayBuffer()),
     get('relief.bin').then((r) => r.arrayBuffer()),
+    get('infra.json').then((r) => r.json()),
   ]);
   const map = decodeMap(mapJson);
-  return { map, gridMeta, gridBuf, relief: parseRelief(reliefBuf, map.originX, map.originY, map.unit) };
+  return { map, gridMeta, gridBuf, infra, relief: parseRelief(reliefBuf, map.originX, map.originY, map.unit) };
 }

@@ -40,6 +40,8 @@ export class MapRenderer {
     this.layerVersion = 0;
     this.sim = null;
     this.selectedFront = 0;
+    this.selectedSector = -1;
+    this.buildOverlay = null;
     this.time = 0;
     const g = this.grid;
     this.cellU = g.cellSize / this.map.unit;
@@ -138,7 +140,7 @@ export class MapRenderer {
     const st = STYLES[this.mode];
     const W = this.canvas.width;
     const H = this.canvas.height;
-    const key = `${this.mode}|${cam.cx.toFixed(3)}|${cam.cy.toFixed(3)}|${cam.scale.toFixed(6)}|${W}|${H}|${this.layerVersion}`;
+    const key = `${this.mode}|${cam.cx.toFixed(3)}|${cam.cy.toFixed(3)}|${cam.scale.toFixed(6)}|${W}|${H}|${this.layerVersion}|${this.sim?.railLevelVersion || 0}`;
     if (key !== this.cacheKey) {
       this.renderStatic(st);
       this.cacheKey = key;
@@ -158,8 +160,14 @@ export class MapRenderer {
     if (this.showGrid) this.drawGrid(st, u);
     if (st.front) this.drawStaticFronts(st, u);
     if (this.sim) this.drawWarFronts(st, u, t);
+    if (this.sim && st.rails) this.drawEconomyOverlay(st, u);
     if (this.selected >= 0) this.drawSelection(st, u);
 
+    // Industriesymbole unter den Beschriftungen, damit Stadtnamen lesbar bleiben
+    if (this.sim && st.rails) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this.drawIndustry(st);
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(this.layers.labels, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -192,23 +200,27 @@ export class MapRenderer {
       ctx.fill(this.territoryPaths.get(t.key));
     }
     this.drawRelief(st, u);
+    if (st.rails && this.sim) {
+      // Rohstoffgebiete (Kohle, Erz, Öl) im Wirtschaftsmodus
+      ctx.save();
+      ctx.clip(this.landPath);
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = 0.75;
+      this.drawCells(ctx, this.resourceCanvas());
+      ctx.restore();
+    }
 
     ctx = this.layers.over.getContext('2d');
     this.ctx = ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
     ctx.setTransform(...cam.matrix(dpr));
-    if (st.rails) {
+    if (st.rails && this.sim) this.drawRailLevels(st, u);
+    else if (st.rails) {
       ctx.lineJoin = 'round';
       ctx.strokeStyle = st.rails.color;
       ctx.lineWidth = st.rails.width * u;
       ctx.stroke(this.railPath);
-      ctx.save();
-      ctx.clip(this.ownerPaths.get('DEU'));
-      ctx.strokeStyle = st.rails.highlight;
-      ctx.lineWidth = st.rails.highlightWidth * u;
-      ctx.stroke(this.railPath);
-      ctx.restore();
     }
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
@@ -867,6 +879,251 @@ export class MapRenderer {
       }
     }
     return best;
+  }
+
+  // ---------------------------------------------------------------- Phase 3: Wirtschaft
+  /** Bahnlinien je Ausbaustufe (Stufe der Region am Streckenstück). */
+  drawRailLevels(st, u) {
+    const sim = this.sim;
+    const ver = sim.railLevelVersion || 0;
+    if (!this.railLevelPaths || this.railLevelPathsVer !== ver) {
+      const paths = [1, 2, 3, 4, 5].map(() => new Path2D());
+      const { cols, rows } = this.grid;
+      for (const flat of this.map.rails) {
+        for (let i = 0; i + 3 < flat.length; i += 2) {
+          const mx = (flat[i] + flat[i + 2]) / 2;
+          const my = (flat[i + 1] + flat[i + 3]) / 2;
+          const c = Math.floor((mx - this.gx0) / this.cellU);
+          const r = Math.floor((this.gy1 - my) / this.cellU);
+          const cell = r >= 0 && r < rows && c >= 0 && c < cols ? r * cols + c : -1;
+          const sec = cell >= 0 ? sim.sectors.sectorOf[cell] : -1;
+          const lvl = sec >= 0 ? sim.railLevel[sec] : 1;
+          const p = paths[lvl - 1];
+          p.moveTo(flat[i], flat[i + 1]);
+          p.lineTo(flat[i + 2], flat[i + 3]);
+        }
+      }
+      this.railLevelPaths = paths;
+      this.railLevelPathsVer = ver;
+    }
+    const ctx = this.ctx;
+    const R = st.railLevels;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    for (let l = 0; l < 5; l++) {
+      ctx.strokeStyle = R.casing;
+      ctx.lineWidth = (R.width[l] + 1.4) * u;
+      ctx.stroke(this.railLevelPaths[l]);
+    }
+    for (let l = 0; l < 5; l++) {
+      ctx.strokeStyle = R.color[l];
+      ctx.lineWidth = R.width[l] * u;
+      ctx.stroke(this.railLevelPaths[l]);
+    }
+  }
+
+  resourceCanvas() {
+    if (this._resCanvas) return this._resCanvas;
+    const { cols, rows } = this.grid;
+    const c = document.createElement('canvas');
+    c.width = cols;
+    c.height = rows;
+    const x = c.getContext('2d');
+    const img = x.createImageData(cols, rows);
+    const color = { Kohle: [24, 24, 26], Erz: [150, 64, 40], Öl: [72, 46, 110] };
+    for (const r of this.sim.resourceRegions) {
+      const [cr, cg, cb] = color[r.kind];
+      for (const cell of r.cells) {
+        const o = cell * 4;
+        img.data[o] = cr;
+        img.data[o + 1] = cg;
+        img.data[o + 2] = cb;
+        img.data[o + 3] = 200;
+      }
+    }
+    x.putImageData(img, 0, 0);
+    this._resCanvas = c;
+    return c;
+  }
+
+  /** Eignungskarte beim Bauen: Funktion Feld -> {score, ok} oder null. */
+  setBuildOverlay(fn) {
+    this.buildOverlay = null;
+    if (fn) {
+      const { cols, rows } = this.grid;
+      const c = document.createElement('canvas');
+      c.width = cols;
+      c.height = rows;
+      const x = c.getContext('2d');
+      const img = x.createImageData(cols, rows);
+      const n = this.sim.player;
+      for (let i = 0; i < this.grid.size; i++) {
+        if (this.sim.owner[i] !== n) continue;
+        const s = fn(i);
+        if (!s.ok) continue;
+        const col = s.score >= 0.66 ? [63, 174, 74] : s.score >= 0.4 ? [227, 193, 58] : [200, 64, 47];
+        const o = i * 4;
+        img.data[o] = col[0];
+        img.data[o + 1] = col[1];
+        img.data[o + 2] = col[2];
+        img.data[o + 3] = 255;
+      }
+      x.putImageData(img, 0, 0);
+      this.buildOverlay = c;
+    }
+    this.requestRender();
+  }
+
+  sectorCanvas(sector) {
+    if (this._secCanvas && this._secCanvasId === sector) return this._secCanvas;
+    const { cols, rows } = this.grid;
+    const c = document.createElement('canvas');
+    c.width = cols;
+    c.height = rows;
+    const x = c.getContext('2d');
+    const img = x.createImageData(cols, rows);
+    const so = this.sim.sectors.sectorOf;
+    for (let i = 0; i < this.grid.size; i++) {
+      if (so[i] !== sector) continue;
+      const o = i * 4;
+      img.data[o] = 255;
+      img.data[o + 1] = 255;
+      img.data[o + 2] = 255;
+      img.data[o + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    this._secCanvas = c;
+    this._secCanvasId = sector;
+    return c;
+  }
+
+  /** Eignungskarte, gewählte Region, beschädigte Bahn und Knoten (Karteneinheiten). */
+  drawEconomyOverlay(st, u) {
+    const { ctx, sim } = this;
+    if (this.buildOverlay) {
+      ctx.save();
+      ctx.clip(this.landPath);
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = 0.58;
+      this.drawCells(ctx, this.buildOverlay);
+      ctx.restore();
+    }
+    if (this.selectedSector >= 0 && !this.buildOverlay) {
+      ctx.save();
+      ctx.clip(this.landPath);
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = 0.22;
+      this.drawCells(ctx, this.sectorCanvas(this.selectedSector));
+      ctx.restore();
+    }
+    const cu = this.cellU;
+    const cellPx = cu / u;
+    const v = this.camera.view();
+    const { cols } = this.grid;
+    const inView = (cell) => {
+      const x = this.gx0 + (cell % cols + 0.5) * cu;
+      const y = this.gy1 - (Math.floor(cell / cols) + 0.5) * cu;
+      return x > v.x0 - cu && x < v.x1 + cu && y > v.y0 - cu && y < v.y1 + cu ? [x, y] : null;
+    };
+    // beschädigte/zerstörte Bahn
+    const sz = Math.max(2.2 * u, cu * 0.42);
+    const dmg = new Path2D();
+    const des = new Path2D();
+    for (const cell of sim.damagedRail) {
+      const p = inView(cell);
+      if (!p) continue;
+      (sim.railState[cell] === 3 ? des : dmg).rect(p[0] - sz / 2, p[1] - sz / 2, sz, sz);
+    }
+    ctx.fillStyle = st.railDamage.damaged;
+    ctx.fill(dmg);
+    ctx.fillStyle = st.railDamage.destroyed;
+    ctx.fill(des);
+    // Bahnknoten und Brücken erst bei näherer Ansicht
+    if (cellPx >= 7) {
+      const ns = Math.min(cu * 0.55, 6 * u);
+      for (const node of sim.nodes) {
+        const p = inView(node.cell);
+        if (!p) continue;
+        ctx.fillStyle = node.state === 1 ? st.railNode.ok : node.state === 2 ? st.railDamage.damaged : st.railDamage.destroyed;
+        ctx.strokeStyle = st.railLevels.casing;
+        ctx.lineWidth = 1.2 * u;
+        ctx.fillRect(p[0] - ns / 2, p[1] - ns / 2, ns, ns);
+        ctx.strokeRect(p[0] - ns / 2, p[1] - ns / 2, ns, ns);
+      }
+      for (const b of sim.bridges) {
+        const p = inView(b.cell);
+        if (!p) continue;
+        ctx.beginPath();
+        ctx.moveTo(p[0] - ns * 0.7, p[1] - ns * 0.25);
+        ctx.lineTo(p[0] + ns * 0.7, p[1] - ns * 0.25);
+        ctx.moveTo(p[0] - ns * 0.7, p[1] + ns * 0.25);
+        ctx.lineTo(p[0] + ns * 0.7, p[1] + ns * 0.25);
+        ctx.strokeStyle = b.state === 1 ? st.railNode.ok : st.railDamage.destroyed;
+        ctx.lineWidth = 1.6 * u;
+        ctx.stroke();
+      }
+    }
+  }
+
+  /** Industriesymbole (Bildschirmraum): Größe nach Gebäudezahl, Ring bei Rüstung. */
+  drawIndustry(st) {
+    const { ctx, camera: cam, sim } = this;
+    const groups = new Map();
+    for (const b of sim.buildings) {
+      if (!groups.has(b.cell)) groups.set(b.cell, { f: 0, r: 0, w: 0, open: 0, health: 0, n: 0 });
+      const g = groups.get(b.cell);
+      if (!b.done) { g.open++; continue; }
+      if (b.type === 'fabrik') g.f++;
+      else if (b.type === 'ruestung') g.r++;
+      else g.w++;
+      g.health += b.health;
+      g.n++;
+    }
+    const zoomed = cam.scale > 0.075;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const [cell, g] of groups) {
+      const b = this.grid.cellBounds(cell);
+      const [mx, my] = this.map.worldToMap((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
+      const [cx0, cy0] = cam.toScreen(mx, my);
+      const sx = cx0 - 9;
+      const sy = cy0 + 8;
+      if (sx < -30 || sy < -30 || sx > cam.width + 30 || sy > cam.height + 30) continue;
+      const total = g.f + g.r + g.w;
+      const r = Math.max(5, Math.min(13, 4 + Math.sqrt(total) * 2.2));
+      const damaged = g.n && g.health / g.n < 0.6;
+      ctx.beginPath();
+      ctx.moveTo(sx - r, sy + r * 0.7);
+      ctx.lineTo(sx - r, sy - r * 0.2);
+      ctx.lineTo(sx - r * 0.33, sy - r * 0.7);
+      ctx.lineTo(sx - r * 0.33, sy - r * 0.2);
+      ctx.lineTo(sx + r * 0.33, sy - r * 0.7);
+      ctx.lineTo(sx + r * 0.33, sy - r * 0.2);
+      ctx.lineTo(sx + r, sy - r * 0.7);
+      ctx.lineTo(sx + r, sy + r * 0.7);
+      ctx.closePath();
+      ctx.fillStyle = damaged ? st.industry.damaged : st.industry.fill;
+      ctx.fill();
+      ctx.lineWidth = g.r ? 2.4 : 1.2;
+      ctx.strokeStyle = g.r ? st.industry.armament : st.industry.stroke;
+      ctx.stroke();
+      if (g.open) {
+        ctx.setLineDash([3, 2]);
+        ctx.strokeStyle = st.industry.armament;
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(sx - r - 4, sy - r - 4, 2 * r + 8, 2 * r + 8);
+        ctx.setLineDash([]);
+      }
+      if (zoomed && total) {
+        ctx.font = '600 10.5px "Saira Condensed", sans-serif';
+        const label = `${g.f}·${g.r}${g.w ? `·${g.w}` : ''}`;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(20,23,26,0.9)';
+        ctx.strokeText(label, sx, sy + r + 8);
+        ctx.fillStyle = '#f1f3f5';
+        ctx.fillText(label, sx, sy + r + 8);
+      }
+    }
   }
 
   /** Feld unter Bildschirmposition (CSS-Pixel relativ zum Canvas). */

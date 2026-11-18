@@ -160,7 +160,7 @@
         "newAir": 0.03,
         "groups": [
           {
-            "count": 9,
+            "count": 6,
             "tank": 0.0,
             "air": 0.03
           }
@@ -328,7 +328,7 @@
     "resourcePerOutput": 1.0,
     "resourcesPerEquipment": 8.0,
     "equipmentPerDivision": 100,
-    "divisionUpkeep": 0.4,
+    "divisionUpkeep": 0.25,
     "replenishPerDay": 0.03,
     "minDivisionMenShare": 0.25,
     "siteMin": 0.6,
@@ -423,6 +423,7 @@
       "equipReserveDivisions": 4
     },
     "nations": {
+      "_todo": "pop: DEU belegt (SOURCES.md), übrige # TODO historisch prüfen; gdp1938: # TODO historisch prüfen (Harrison 1998, nicht online geprüft); alle Bestände und mobLevel sind Spielwerte",
       "DEU": {
         "pop": 86.8,
         "gdp1938": 375,

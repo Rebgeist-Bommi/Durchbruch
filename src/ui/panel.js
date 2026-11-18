@@ -57,6 +57,20 @@ export class Panel {
     } else {
       $('f-yield').textContent = land ? '100 %' : '–';
     }
+    if (land) {
+      $('f-rail').textContent = this.railInfo ? this.railInfo(i) : '–';
+      const list = sim.buildingsAt.get(i) || [];
+      const site = sim.industrySites.find((x) => x.cell === i);
+      const cnt = (t) => list.filter((b) => b.type === t && b.done).length;
+      const open = list.filter((b) => !b.done).length;
+      const health = list.length ? Math.round((list.reduce((s2, b) => s2 + b.health, 0) / list.length) * 100) : 100;
+      $('f-industry').textContent = list.length
+        ? `${site ? `${site.name}: ` : ''}${cnt('fabrik')} Fabrik, ${cnt('ruestung')} Rüstung, ${cnt('forschung')} Forschung${open ? `, ${open} im Bau` : ''}${health < 100 ? ` · Zustand ${health} %` : ''}`
+        : '–';
+    } else {
+      $('f-rail').textContent = '–';
+      $('f-industry').textContent = '–';
+    }
     const si = sim ? sim.siegeAt[i] : -1;
     if (si >= 0) {
       const s = sim.sieges[si];
