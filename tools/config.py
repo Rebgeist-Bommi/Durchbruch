@@ -8,7 +8,7 @@ OUT = ROOT / "public" / "data"    # vom Spiel geladene Dateien (im Repo)
 DATA = TOOLS / "data"             # handgepflegte Eingaben (Städte, Näherungspolygone)
 
 CRS = "EPSG:3035"
-STATE_DATE = "1939-08-31"
+STATE_DATE = "1939-08-31"  # Grenzverläufe (CShapes); Besitzer zum Spielstart 01.03.1939 siehe territories.py
 # Kartenausschnitt in EPSG:3035 (Meter)
 X_MIN, X_MAX = 2_500_000, 6_600_000
 Y_MIN, Y_MAX = 1_350_000, 4_550_000

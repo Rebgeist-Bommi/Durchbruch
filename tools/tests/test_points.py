@@ -15,11 +15,11 @@ TO_PROJ = Transformer.from_crs("EPSG:4326", "EPSG:3035", always_xy=True)
 
 # (Name, Breite N, Länge O, erwarteter Besitzer)
 SAMPLES = [
-    ("Prag", 50.0755, 14.4378, "DEU"),
+    ("Prag", 50.0755, 14.4378, "CSR"),
     ("Wien", 48.2082, 16.3738, "DEU"),
-    ("Pressburg", 48.1486, 17.1077, "SVK"),
-    ("Chust", 48.17, 23.30, "HUN"),
-    ("Memel", 55.71, 21.13, "DEU"),
+    ("Pressburg", 48.1486, 17.1077, "CSR"),
+    ("Chust", 48.17, 23.30, "CSR"),
+    ("Memel", 55.71, 21.13, "LTU"),
     ("Danzig", 54.3520, 18.6466, "DAN"),
     ("Karwin", 49.85, 18.54, "POL"),
     ("Warschau", 52.2297, 21.0122, "POL"),
@@ -29,9 +29,9 @@ SAMPLES = [
 EXTRA = [
     ("Berlin", 52.52, 13.405, "DEU"),
     ("Gdingen", 54.518, 18.531, "POL"),
-    ("Tirana", 41.328, 19.818, "ITA"),
+    ("Tirana", 41.328, 19.818, "ALB"),
     ("Kowno", 54.899, 23.904, "LTU"),
-    ("Mährisch-Ostrau", 49.835, 18.282, "DEU"),
+    ("Mährisch-Ostrau", 49.835, 18.282, "CSR"),
     ("Elbing", 54.156, 19.404, "DEU"),
 ]
 

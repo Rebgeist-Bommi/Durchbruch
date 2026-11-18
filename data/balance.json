@@ -2,8 +2,8 @@
   "_hinweis": "# TODO historisch prüfen – ALLE Zahlen in dieser Datei sind Platzhalter für das Spielgleichgewicht. Sie sind weder recherchiert noch als historische Angaben zu verstehen.",
   "seed": 1939,
   "time": {
-    "_todo": "Vorgabe aus Phase 2, keine historische Angabe",
-    "startDate": "1939-08-31",
+    "_todo": "Spielstart 01.03.1939 (Vorgabe Überarbeitung); 1× = 4,5 s je Tag (Phase 2)",
+    "startDate": "1939-03-01",
     "msPerDayAt1x": 4500,
     "speeds": [
       0,
@@ -15,23 +15,108 @@
   "scenario": {
     "_todo": "# TODO historisch prüfen",
     "playerNation": "DEU",
-    "wars": [
-      [
-        "DEU",
-        "POL"
-      ]
-    ],
+    "wars": [],
     "annexations": [
       {
-        "day": 1,
+        "day": 13,
+        "territory": "SVK",
+        "to": "SVK",
+        "text": "Die Slowakei erklärt ihre Unabhängigkeit.",
+        "onlyIfOwner": "CSR"
+      },
+      {
+        "day": 14,
+        "territory": "PROT",
+        "to": "DEU",
+        "text": "Deutsche Truppen besetzen Böhmen und Mähren. Das „Protektorat Böhmen und Mähren“ wird errichtet.",
+        "onlyIfOwner": "CSR",
+        "rename": "Protektorat Böhmen und Mähren"
+      },
+      {
+        "day": 15,
+        "territory": "KARP",
+        "to": "HUN",
+        "text": "Ungarn besetzt die Karpatenukraine.",
+        "onlyIfOwner": "CSR"
+      },
+      {
+        "day": 22,
+        "territory": "MEMEL",
+        "to": "DEU",
+        "text": "Litauen tritt das Memelland an das Deutsche Reich ab.",
+        "onlyIfOwner": "LTU"
+      },
+      {
+        "day": 37,
+        "territory": "ALB",
+        "to": "ITA",
+        "text": "Italien besetzt Albanien.",
+        "onlyIfOwner": "ALB"
+      },
+      {
+        "onWar": [
+          "DEU",
+          "POL"
+        ],
         "territory": "DAN",
         "to": "DEU",
-        "text": "Danzig wird dem Deutschen Reich angegliedert."
+        "text": "Danzig wird dem Deutschen Reich angegliedert.",
+        "onlyIfOwner": "DAN"
       }
-    ]
+    ],
+    "_hinweis": "Start ohne Krieg. Ereignisse mit Datum siehe SOURCES.md (Phase Überarbeitung); Tag 0 = 01.03.1939.",
+    "treaties": [
+      {
+        "day": 30,
+        "kind": "alliance",
+        "pair": [
+          "GBR",
+          "POL"
+        ],
+        "text": "Großbritannien garantiert die Unabhängigkeit Polens.",
+        "unlessWar": [
+          "DEU",
+          "POL"
+        ]
+      },
+      {
+        "day": 30,
+        "kind": "alliance",
+        "pair": [
+          "FRA",
+          "POL"
+        ],
+        "text": "Frankreich schließt sich der Garantie für Polen an.",
+        "unlessWar": [
+          "DEU",
+          "POL"
+        ]
+      },
+      {
+        "day": 82,
+        "kind": "alliance",
+        "pair": [
+          "DEU",
+          "ITA"
+        ],
+        "text": "Deutschland und Italien schließen den „Stahlpakt“.",
+        "minRelation": 30
+      },
+      {
+        "day": 175,
+        "kind": "pact",
+        "pair": [
+          "DEU",
+          "SOV"
+        ],
+        "text": "Deutsch-sowjetischer Nichtangriffspakt in Moskau unterzeichnet.",
+        "minRelation": -20
+      }
+    ],
+    "testWarDay": 184
   },
   "divisions": {
-    "_todo": "# TODO historisch prüfen – Divisionszahlen aller Nationen sind Platzhalter (Größenordnung 1939), Panzer- und Luftanteile Spielwerte",
+    "_todo": "# TODO historisch prüfen – Divisionszahlen aller Nationen sind Platzhalter (Größenordnung 1939), Panzer- und Luftanteile Spielwerte; kleinere Staaten ebenfalls Platzhalter",
     "menPerDivision": 15000,
     "destroyedBelow": 0.25,
     "nations": {
@@ -165,6 +250,186 @@
             "air": 0.03
           }
         ]
+      },
+      "CSR": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.05,
+        "groups": [
+          {
+            "count": 30,
+            "tank": 0.06,
+            "air": 0.05
+          }
+        ]
+      },
+      "BEL": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 18,
+            "tank": 0.02,
+            "air": 0.03
+          }
+        ]
+      },
+      "CHE": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 9,
+            "tank": 0.0,
+            "air": 0.03
+          }
+        ]
+      },
+      "DNK": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 2,
+            "tank": 0.02,
+            "air": 0.03
+          }
+        ]
+      },
+      "LTU": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 4,
+            "tank": 0.02,
+            "air": 0.03
+          }
+        ]
+      },
+      "LVA": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 4,
+            "tank": 0.02,
+            "air": 0.03
+          }
+        ]
+      },
+      "EST": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 3,
+            "tank": 0.02,
+            "air": 0.03
+          }
+        ]
+      },
+      "HUN": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.04,
+        "groups": [
+          {
+            "count": 14,
+            "tank": 0.03,
+            "air": 0.04
+          }
+        ]
+      },
+      "ROU": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 20,
+            "tank": 0.02,
+            "air": 0.03
+          }
+        ]
+      },
+      "YUG": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 20,
+            "tank": 0.02,
+            "air": 0.03
+          }
+        ]
+      },
+      "SVK": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 3,
+            "tank": 0.02,
+            "air": 0.03
+          }
+        ]
+      },
+      "ALB": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.0,
+        "groups": [
+          {
+            "count": 2,
+            "tank": 0.0,
+            "air": 0.0
+          }
+        ]
+      },
+      "NOR": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 4,
+            "tank": 0.02,
+            "air": 0.03
+          }
+        ]
+      },
+      "SWE": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.06,
+        "groups": [
+          {
+            "count": 8,
+            "tank": 0.03,
+            "air": 0.06
+          }
+        ]
+      },
+      "LUX": {
+        "label": "Kp.",
+        "reserveShare": 1.0,
+        "newAir": 0.0,
+        "groups": [
+          {
+            "count": 1,
+            "tank": 0.0,
+            "air": 0.0
+          }
+        ]
       }
     }
   },
@@ -172,9 +437,6 @@
     "_todo": "# TODO historisch prüfen",
     "prep": {
       "DEU": 0.6
-    },
-    "fortification": {
-      "POL": 0.25
     },
     "borderFortification": [
       {
@@ -194,6 +456,18 @@
         "against": "ITA",
         "value": 0.5,
         "name": "Alpenbefestigungen"
+      },
+      {
+        "nation": "POL",
+        "against": "DEU",
+        "value": 0.25,
+        "name": "polnische Grenzstellungen"
+      },
+      {
+        "nation": "CSR",
+        "against": "DEU",
+        "value": 0.8,
+        "name": "tschechoslowakische Grenzbefestigungen"
       }
     ],
     "_borderFortification": "Bauwerke historisch (Westwall, Maginot-Linie); Befestigungswerte sind Spielwerte"
@@ -981,28 +1255,11 @@
     },
     "alliances": [
       [
-        "DEU",
-        "ITA"
-      ],
-      [
         "GBR",
         "FRA"
-      ],
-      [
-        "GBR",
-        "POL"
-      ],
-      [
-        "FRA",
-        "POL"
       ]
     ],
-    "pacts": [
-      [
-        "DEU",
-        "SOV"
-      ]
-    ],
+    "pacts": [],
     "allyDelayDays": 2,
     "offerCooldownDays": 30,
     "acceptAlliance": 50,
@@ -1024,7 +1281,34 @@
     },
     "aiPrepMin": 0.5,
     "aiDefensiveDelayDays": 14,
-    "aiStopFactor": 0.6
+    "aiStopFactor": 0.6,
+    "majors": [
+      "DEU",
+      "GBR",
+      "FRA",
+      "SOV",
+      "ITA"
+    ],
+    "anschluss": {
+      "_todo": "Spielwerte",
+      "need": 60,
+      "relationWeight": 0.5,
+      "powerWeight": 15,
+      "majorAllyPenalty": 45,
+      "borderBonus": 10,
+      "declineRelation": -10,
+      "acceptRelationMajors": -15,
+      "acceptRelationOthers": -5,
+      "acceptMorale": 3,
+      "keepDivisionsShare": 0.5
+    },
+    "rohstoffe": {
+      "_todo": "Spielwerte",
+      "cost": 60,
+      "perDay": 3,
+      "days": 180,
+      "minRelation": -10
+    }
   },
   "events": {
     "_todo": "Auslöser, Fristen und Wirkungen sind Spielwerte; Ereignisse sind nur historische Anlässe, ihr Eintreten hängt von der Spiellage ab.",
@@ -1167,15 +1451,16 @@
             ]
           ]
         }
-      }
+      },
+      "_fromDay": "Tage nach dem ersten deutschen Angriff auf Polen"
     },
     "winterWar": {
-      "fromDay": 85,
+      "fromDay": 270,
       "chance": 0.15,
       "maxRelation": 0
     },
     "italy": {
-      "fromDay": 30,
+      "fromDay": 214,
       "minRelation": 40,
       "franceLost": 0.12,
       "franceMorale": 40,
@@ -1195,7 +1480,7 @@
       "enforceMorale": -2
     },
     "food": {
-      "fromDay": 45,
+      "fromDay": 230,
       "maxMorale": 55,
       "repeatDays": 120,
       "foodArmament": -0.25,
@@ -1207,5 +1492,193 @@
       "rationArmament": -0.1,
       "rationDays": 30
     }
+  },
+  "goals": {
+    "_todo": "Spielwerte; Ziele sind spielmechanische Vereinfachungen, keine historischen Angaben",
+    "list": [
+      {
+        "id": "aufruestung",
+        "label": "Wiederaufrüstung",
+        "days": 35,
+        "text": "Rüstungsproduktion +10 %",
+        "effects": [
+          {
+            "kind": "armament",
+            "value": 0.1
+          }
+        ]
+      },
+      {
+        "id": "vierjahresplan",
+        "label": "Vierjahresplan",
+        "days": 35,
+        "text": "Einnahmen +8 %",
+        "effects": [
+          {
+            "kind": "income",
+            "value": 0.08
+          }
+        ]
+      },
+      {
+        "id": "propaganda",
+        "label": "Volksaufklärung",
+        "days": 28,
+        "text": "Moral-Gleichgewicht +5",
+        "effects": [
+          {
+            "kind": "moraleBase",
+            "value": 5
+          }
+        ]
+      },
+      {
+        "id": "achse",
+        "label": "Achse Berlin–Rom",
+        "days": 28,
+        "text": "Beziehung zu Italien +25",
+        "effects": [
+          {
+            "kind": "relation",
+            "with": "ITA",
+            "value": 25
+          }
+        ]
+      },
+      {
+        "id": "panzerwaffe",
+        "label": "Panzerwaffe",
+        "days": 42,
+        "requires": [
+          "aufruestung"
+        ],
+        "text": "Panzerwirkung +10 %",
+        "effects": [
+          {
+            "kind": "tank",
+            "value": 0.1
+          }
+        ]
+      },
+      {
+        "id": "luftwaffe",
+        "label": "Luftwaffe",
+        "days": 42,
+        "requires": [
+          "aufruestung"
+        ],
+        "text": "Luftwirkung +10 %",
+        "effects": [
+          {
+            "kind": "air",
+            "value": 0.1
+          }
+        ]
+      },
+      {
+        "id": "forschung",
+        "label": "Forschungsoffensive",
+        "days": 42,
+        "requires": [
+          "vierjahresplan"
+        ],
+        "text": "Forschung +15 %",
+        "effects": [
+          {
+            "kind": "research",
+            "value": 0.15
+          }
+        ]
+      },
+      {
+        "id": "westwall",
+        "label": "Westwall ausbauen",
+        "days": 42,
+        "requires": [
+          "vierjahresplan"
+        ],
+        "text": "Befestigung an der Grenze zu Frankreich +0,3",
+        "effects": [
+          {
+            "kind": "borderFort",
+            "against": "FRA",
+            "value": 0.3
+          }
+        ]
+      },
+      {
+        "id": "moskau",
+        "label": "Fühler nach Moskau",
+        "days": 28,
+        "requires": [
+          "achse"
+        ],
+        "text": "Beziehung zur Sowjetunion +25",
+        "effects": [
+          {
+            "kind": "relation",
+            "with": "SOV",
+            "value": 25
+          }
+        ]
+      },
+      {
+        "id": "danzig",
+        "label": "Forderung: Danzig",
+        "days": 35,
+        "requires": [
+          "propaganda"
+        ],
+        "text": "Danzig schließt sich an; Beziehung zu Polen −25, zu Großbritannien −10",
+        "effects": [
+          {
+            "kind": "annex",
+            "territory": "DAN",
+            "to": "DEU"
+          },
+          {
+            "kind": "relation",
+            "with": "POL",
+            "value": -25
+          },
+          {
+            "kind": "relation",
+            "with": "GBR",
+            "value": -10
+          }
+        ]
+      },
+      {
+        "id": "mobilmachung",
+        "label": "Mobilmachung",
+        "days": 35,
+        "requires": [
+          "panzerwaffe"
+        ],
+        "text": "Mobilisierung eine Stufe höher",
+        "effects": [
+          {
+            "kind": "mobilize"
+          }
+        ]
+      },
+      {
+        "id": "fallweiss",
+        "label": "Fall Weiß planen",
+        "days": 49,
+        "requires": [
+          "panzerwaffe",
+          "luftwaffe"
+        ],
+        "text": "Fronten gegen Polen starten voll vorbereitet",
+        "effects": [
+          {
+            "kind": "warPrep",
+            "against": "POL",
+            "value": 1
+          }
+        ]
+      }
+    ]
   }
 }

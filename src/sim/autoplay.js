@@ -1,3 +1,4 @@
+import { declareWar as declareWarDip } from './diplomacy.js';
 // Automatische Führung für Testläufe und die Schaltfläche "Alle Fronten: Angriff".
 export function allFrontsAttack(sim, n = sim.player) {
   const fronts = [...sim.fronts.values()].filter((f) => f.alive && f.side[n]).sort((x, y) => x.id - y.id);
@@ -32,6 +33,11 @@ export function autoplayAllAttack(sim) {
 export function autoplayCampaign(sim) {
   const n = sim.player;
   const pol = sim.codeIndex.get('POL');
+  // Szenario ab 01.03.1939: Kriegserklärung an Polen am historischen Datum (Testlauf)
+  if (!sim.isWar(n, pol) && sim.nations.get(pol)?.status === 'aktiv' && sim.day >= (sim.bal.scenario.testWarDay ?? 0) && !sim.dip.flags.testWar) {
+    sim.dip.flags.testWar = true;
+    declareWarDip(sim, n, pol);
+  }
   const fronts = [...sim.fronts.values()].filter((f) => f.alive && f.side[n]).sort((x, y) => x.id - y.id);
   const east = fronts.filter((f) => sim.enemyOn(f, n) === pol);
   const west = fronts.filter((f) => sim.enemyOn(f, n) !== pol);

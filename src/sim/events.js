@@ -210,7 +210,7 @@ export function checkDecisions(sim) {
   // Teilungsangebot: Pakt besteht, Deutschland hat Polen angegriffen
   const w = warInfo(sim, p, pol);
   if (!F.partitionOffered && pol && sov && hasPact(sim, p, sov) && w?.attacked && active(sim, pol) && active(sim, sov)
-    && !sim.isWar(sov, pol) && (sim.day >= E.partition.fromDay || lostShare(sim, pol) >= E.partition.polandLost)) {
+    && !sim.isWar(sov, pol) && (sim.day - w.day >= E.partition.fromDay || lostShare(sim, pol) >= E.partition.polandLost)) {
     F.partitionOffered = true;
     propose(sim, 'partition');
     return true;

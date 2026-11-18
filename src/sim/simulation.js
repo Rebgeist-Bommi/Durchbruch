@@ -16,9 +16,10 @@ import { initIntel, runIntel, isRevealed } from './intel.js';
 import { runAirStrikes } from './airstrike.js';
 import { initGenerals, runGenerals } from './generals.js';
 import { initMorale, runMorale, moraleCity } from './morale.js';
-import { initDiplomacy, runDiplomacy } from './diplomacy.js';
+import { initDiplomacy, runDiplomacy, scenarioTreaty, declareWar as dipDeclareWar } from './diplomacy.js';
 import { checkDecisions, decide, runWorldEvents } from './events.js';
 import { initNews, runNews } from './news.js';
+import { initGoals, runGoals } from './goals.js';
 
 import { NMAX, KM_PER_CELL } from './constants.js';
 
@@ -50,6 +51,7 @@ export class Simulation {
     const copy = new grid.constructor(grid.meta, bytes);
     const sim = new Simulation({ grid: copy, map, balance, infra, people, seed: 1, warm: true });
     sim.autoDecide = () => 0;
+    dipDeclareWar(sim, sim.player, sim.idx('POL'));
     for (const f of sim.fronts.values()) if (f.side[sim.player]) sim.attack(f.id);
     for (let k = 0; k < 3; k++) sim.tick();
   }
@@ -142,6 +144,7 @@ export class Simulation {
     initHistory(this);
     initMorale(this);
     initDiplomacy(this);
+    initGoals(this);
     initNews(this);
     this.methodCount = new Map(); // eroberte Felder je Nation und Vorgehen
     this.computeStartState();
@@ -155,7 +158,7 @@ export class Simulation {
     for (const n of this.nations.keys()) if (n !== this.player) warmupAi(this, n);
     if (!warm && !Simulation.warmedUp) Simulation.warmup({ grid, map, balance, infra, people });
     if (this.wars.length) this.log('info', `Aufmarsch abgeschlossen. Kriegszustand mit ${this.nationName(this.idx('POL'))}.`);
-    else this.log('info', 'Frieden. Die Wirtschaft läuft an.');
+    else this.log('info', `${this.dateText()}: Europa ist noch im Frieden.`);
   }
 
   // ---------------------------------------------------------------- Hilfen
@@ -536,21 +539,11 @@ export class Simulation {
     this.day += 1;
     for (const e of this.econ.values()) e.spentToday = 0;
 
-    const added = new Map();
-    for (const a of this.bal.scenario.annexations || []) {
-      if (a.day !== this.day) continue;
-      const to = this.idx(a.to);
-      const tid = this.grid.territories.findIndex((t) => t.key === a.territory) + 1;
-      if (!added.has(to)) added.set(to, []);
-      for (let i = 0; i < this.N; i++) {
-        if (this.grid.territory[i] === tid && this.owner[i] !== to) {
-          this.setOwner(i, to, 0, true);
-          added.get(to).push(i);
-        }
-      }
-      this.log('annex', a.text);
-    }
-    if (added.size) updateFronts(this);
+    // Historische Gebietsänderungen und Verträge mit Datum (Szenario ab 01.03.1939)
+    let annexed = false;
+    for (const a of this.bal.scenario.annexations || []) if (a.day === this.day) annexed = this.annex(a, true) || annexed;
+    if (annexed) updateFronts(this);
+    for (const t of this.bal.scenario.treaties || []) if (t.day === this.day) scenarioTreaty(this, t);
 
     // Ankunft verlegter Divisionen
     for (const d of this.divisions) {
@@ -583,7 +576,7 @@ export class Simulation {
     run('wirtschaft', () => runEconomy(this));
     run('forschung', () => { runResearch(this); runScientists(this); });
     run('geheimdienst', () => { runIntel(this); runAirStrikes(this); });
-    run('diplomatie', () => { runDiplomacy(this); runWorldEvents(this); runMorale(this); });
+    run('diplomatie', () => { runDiplomacy(this); runWorldEvents(this); runMorale(this); runGoals(this); });
     this.cleanupDivisions();
     this.checkOutcome();
     runNews(this);
@@ -611,6 +604,46 @@ export class Simulation {
     if (!caps.length) return;
     this.outcome = { result: 'sieg', day: this.day, allCapitulated: caps.length === ever.length };
     this.log('end', `Sieg: Kein Kriegsgegner steht mehr im Feld.`);
+  }
+
+  /**
+   * Gebiet friedlich übertragen (Szenario, Anschluss-Angebot). a = {territory | nation, to, text,
+   * onlyIfOwner, rename}. Gibt true zurück, wenn sich Besitz geändert hat. Eine Nation ohne Felder
+   * wird aufgelöst (Divisionen entfallen, Kriege enden).
+   */
+  annex(a, deferFronts = false) {
+    const to = this.idx(a.to);
+    const tid = a.territory ? this.grid.territories.findIndex((t) => t.key === a.territory) + 1 : 0;
+    const nat = a.nation ? this.idx(a.nation) : 0;
+    const only = a.onlyIfOwner ? this.idx(a.onlyIfOwner) : 0;
+    const from = new Set();
+    for (let i = 0; i < this.N; i++) {
+      const o = this.owner[i];
+      if (!o || o === to) continue;
+      if (tid ? this.grid.territory[i] !== tid : o !== nat) continue;
+      if (only && o !== only) continue;
+      if (this.isWar(o, to)) continue; // umkämpftes Gebiet wird nicht übertragen
+      from.add(o);
+      this.setOwner(i, to, 0, true);
+      this.conqDay[i] = -1; // friedlich: kein Ertragsverlust
+    }
+    if (!from.size) return false;
+    this.dip.annexed.push({ territory: a.territory || null, nation: a.nation || null, to: a.to, day: this.day, rename: a.rename || null });
+    // neue Nation (z. B. Slowakei): Hauptstadt aus den übertragenen Städten
+    if (!this.capital.has(to) || this.owner[this.capital.get(to)] !== to) {
+      const cap = this.cities.find((c) => c.capital && this.owner[c.cell] === to && from.has(c.nation));
+      if (cap) this.capital.set(to, cap.cell);
+    }
+    for (const f of from) {
+      if (this.ownedCount[f] > 0) continue;
+      this.divisions = this.divisions.filter((d) => d.nation !== f);
+      const st = this.nations.get(f);
+      if (st) st.status = 'aufgelöst';
+      for (const e of this.enemiesOf(f)) this.endWar(f, e);
+    }
+    if (a.text) this.log('annex', a.text);
+    if (!deferFronts) updateFronts(this);
+    return true;
   }
 
   setOwner(cell, n, method, quiet = false) {

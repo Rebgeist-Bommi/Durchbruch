@@ -16,7 +16,7 @@ test('Kampagne ohne Spieler (Normal): Angriff auf Polen → Kriegserklärung GB/
   const POL = sim.idx('POL');
   const GBR = sim.idx('GBR');
   const FRA = sim.idx('FRA');
-  const attack = sim.events.find((e) => e.type === 'war' && e.text.includes('greift Polen an'));
+  const attack = sim.events.find((e) => e.type === 'war' && (e.text.includes('greift Polen an') || e.text.includes('erklärt Polen den Krieg')));
   const gb = sim.events.find((e) => e.type === 'war' && e.text.startsWith('Das Vereinigte Königreich erklärt'));
   const fr = sim.events.find((e) => e.type === 'war' && e.text.startsWith('Frankreich erklärt'));
   const pol = sim.nations.get(POL);
@@ -27,7 +27,9 @@ test('Kampagne ohne Spieler (Normal): Angriff auf Polen → Kriegserklärung GB/
   assert.ok(gb.day - attack.day <= sim.bal.diplomacy.allyDelayDays + 1 && gb.day >= attack.day, `GB nach ${gb.day - attack.day} Tagen`);
   assert.ok(sim.isWar(GBR, DEU) && sim.isWar(FRA, DEU));
   assert.equal(pol.status, 'kapituliert');
-  assert.ok(pol.capitulationDay >= 20 && pol.capitulationDay <= 60);
+  const warDays = pol.capitulationDay - pol.warSince;
+  console.log(`  Kriegsdauer ${warDays} Tage (Kriegsbeginn ${sim.dateText(pol.warSince)})`);
+  assert.ok(warDays >= 20 && warDays <= 60);
   // Teilungsangebot angenommen → Einmarsch der Sowjetunion, Aufteilung entlang der Linie
   assert.ok(sim.events.some((e) => e.text.includes('Rote Armee')), 'sowjetischer Einmarsch');
   assert.ok(sim.events.some((e) => e.text.includes('aufgeteilt')), 'Aufteilung');
@@ -37,10 +39,10 @@ test('Kampagne ohne Spieler (Normal): Angriff auf Polen → Kriegserklärung GB/
   assert.ok(sovCells > 500, `Sowjetunion besitzt ${sovCells} ehemals polnische Felder`);
 });
 
-test('Testlauf ohne Angriff: GB und FR erklären NICHT den Krieg (90 Tage)', () => {
-  const sim = newSim({ seed: SEED });
+test('Testlauf ohne Angriff: GB und FR erklären NICHT den Krieg (bis Ende 1939)', () => {
+  const sim = newSim({ seed: SEED, atWar: false });
   sim.autoDecide = () => 0;
-  for (let d = 0; d < 90; d++) sim.tick();
+  for (let d = 0; d < 300; d++) sim.tick();
   const DEU = sim.player;
   assert.equal(sim.isWar(sim.idx('GBR'), DEU), false);
   assert.equal(sim.isWar(sim.idx('FRA'), DEU), false);
@@ -50,10 +52,11 @@ test('Testlauf ohne Angriff: GB und FR erklären NICHT den Krieg (90 Tage)', () 
 });
 
 test('Pop-up: Spiel hält an und läuft erst nach der Entscheidung weiter', () => {
-  const sim = newSim({ seed: SEED });
+  const sim = newSim({ seed: SEED, atWar: false });
+  sim.autoDecide = null;
   sim.autoplay = autoplayCampaign;
   let guard = 0;
-  while (!sim.pending && guard++ < 60) sim.tick();
+  while (!sim.pending && guard++ < 260) sim.tick();
   assert.ok(sim.pending, 'Entscheidung steht an');
   assert.equal(sim.pending.kind, 'partition');
   assert.ok(sim.pending.options.length >= 2 && sim.pending.options.length <= 3);
@@ -77,14 +80,14 @@ test('Entscheidungen haben spürbare Folgen (Teilung abgelehnt: kein Einmarsch, 
 });
 
 test('Speichern/Laden mit allen Werten aus Phase 5: 30 Tage identisch (auch mit offener Entscheidung)', () => {
-  const a = newSim({ seed: 77 });
+  const a = newSim({ seed: 77, atWar: false });
   a.setDifficulty('schwer');
   a.autoplay = autoplayCampaign;
   a.autoDecide = () => 0;
-  for (let d = 0; d < 20; d++) a.tick();
+  for (let d = 0; d < 200; d++) a.tick();
   propaganda(a);
   const text = JSON.stringify(serialize(a));
-  const b = newSim({ seed: 77 });
+  const b = newSim({ seed: 77, atWar: false });
   deserialize(b, JSON.parse(text));
   b.autoplay = autoplayCampaign;
   b.autoDecide = () => 0;
@@ -101,23 +104,25 @@ test('Speichern/Laden mit allen Werten aus Phase 5: 30 Tage identisch (auch mit 
   assert.deepEqual(a.news, b.news);
   assert.deepEqual(JSON.stringify([...a.econ]), JSON.stringify([...b.econ]));
   // offene Entscheidung wird mitgespeichert
-  const c = newSim({ seed: 5 });
+  const c = newSim({ seed: 5, atWar: false });
+  c.autoDecide = null;
   c.autoplay = autoplayCampaign;
-  while (!c.pending && c.day < 60) c.tick();
-  const d = newSim({ seed: 5 });
+  while (!c.pending && c.day < 260) c.tick();
+  const d = newSim({ seed: 5, atWar: false });
   deserialize(d, JSON.parse(JSON.stringify(serialize(c))));
+  d.autoDecide = null;
   assert.equal(d.pending.kind, c.pending.kind);
   assert.equal(d.tick(), false);
 });
 
-test('Leistung Phase 5: Tickdauer über 120 Tage mit Westmächten und Sowjetunion', () => {
-  const sim = runCampaign({ seed: SEED, maxDays: 120, until: () => false, decide: (x, d) => (d.kind === 'frenchPeace' ? 1 : 0) });
+test('Leistung: Tickdauer über 320 Tage (Frieden, Polenfeldzug, Westmächte, Sowjetunion)', () => {
+  const sim = runCampaign({ seed: SEED, maxDays: 320, until: () => false, decide: (x, d) => (d.kind === 'frenchPeace' ? 1 : 0) });
   const ms = sim.tickMs.slice(1);
   const sorted = [...ms].sort((x, y) => x - y);
   const mean = ms.reduce((s, v) => s + v, 0) / ms.length;
   const p95 = sorted[Math.floor(sorted.length * 0.95)];
   console.log(`  Tick: Mittel ${mean.toFixed(2)} ms, 95 % ${p95.toFixed(2)} ms, Max ${sorted.at(-1).toFixed(2)} ms (${ms.length} Ticks, Kriege am Ende: ${sim.wars.map(([a, b]) => `${sim.code(a)}–${sim.code(b)}`).join(', ')})`);
-  assert.ok(sim.day === 120 && sim.wars.length >= 2);
+  assert.ok(sim.day === 320 && sim.wars.length >= 2);
   assert.ok(mean < 16 && p95 < 16, `Mittel ${mean} / 95 % ${p95}`);
 });
 
@@ -148,22 +153,26 @@ test('Moral: Propaganda nutzt sich ab, niedrige Moral schwächt, hohe Moral vers
 });
 
 test('Moral: Städte und Kessel heben, Verluste senken', () => {
-  const sim = runCampaign({ seed: SEED, until: (s) => s.day >= 12 });
+  const sim = runCampaign({ seed: SEED, until: (s) => s.day >= 196 });
   const p = sim.player;
   const pol = sim.idx('POL');
   assert.ok(sim.nations.get(pol).morale < sim.bal.morale.start.POL, `Polen ${sim.nations.get(pol).morale}`);
 });
 
 test('Diplomatie: Pakt- und Bündnisangebote nach Beziehung, Vertragsbruch kostet Beziehungen', () => {
-  const sim = newSim({ seed: 2 });
+  const sim = newSim({ seed: 2, atWar: false });
   const p = sim.player;
   const NLD = sim.idx('NLD');
   const FIN = sim.idx('FIN');
   const SOV = sim.idx('SOV');
   const ITA = sim.idx('ITA');
-  assert.equal(statusOf(sim, p, ITA), 'buendnis', 'Stahlpakt');
-  assert.ok(hasPact(sim, p, SOV), 'Nichtangriffspakt');
-  assert.ok(isAllied(sim, sim.idx('GBR'), sim.idx('POL')) && isAllied(sim, sim.idx('FRA'), sim.idx('POL')), 'Garantie als Bündnis');
+  assert.ok(isAllied(sim, sim.idx('GBR'), sim.idx('FRA')) && !isAllied(sim, p, ITA) && !hasPact(sim, p, SOV), 'Stand 01.03.1939');
+  for (let d = 0; d < 180; d++) sim.tick();
+  assert.equal(statusOf(sim, p, ITA), 'buendnis', 'Stahlpakt (22.05.1939)');
+  assert.ok(hasPact(sim, p, SOV), 'Nichtangriffspakt (23.08.1939)');
+  assert.ok(isAllied(sim, sim.idx('GBR'), sim.idx('POL')) && isAllied(sim, sim.idx('FRA'), sim.idx('POL')), 'Garantie für Polen (31.03.1939)');
+  assert.equal(sim.owner[sim.capital.get(sim.idx('DEU'))], p);
+  assert.equal(sim.nations.get(sim.idx('CSR'))?.status ?? 'aufgelöst', 'aufgelöst', 'Tschecho-Slowakei aufgelöst');
   const r1 = offer(sim, NLD, 'buendnis');
   assert.equal(r1.ok, false, r1.text);
   const r2 = offer(sim, FIN, 'pakt');
@@ -228,7 +237,7 @@ test('Zeitung: Schlagzeilen zu Kriegserklärung, Städten und Kapitulation', () 
 });
 
 test('Winterkrieg: Entscheidung der sowjetischen KI im Spätherbst (ohne Krieg mit dem Reich)', () => {
-  const sim = runCampaign({ seed: SEED, maxDays: 130, until: () => false, decide: (s, d) => (d.kind === 'frenchPeace' ? 1 : 0) });
+  const sim = runCampaign({ seed: SEED, maxDays: 300, until: () => false, decide: (s, d) => (d.kind === 'frenchPeace' ? 1 : 0) });
   const ww = sim.events.find((e) => e.text.includes('Winterkrieg'));
   console.log(`  Winterkrieg: ${ww ? ww.date : 'nicht ausgelöst'}; historisch 30. November 1939`);
   assert.ok(ww && ww.day >= sim.bal.events.winterWar.fromDay);

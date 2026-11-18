@@ -13,7 +13,9 @@ test('Testlauf ohne Spieler: Polen kapituliert (alle Fronten auf Angriff)', () =
   const pol = sim.nations.get(sim.idx('POL'));
   console.log(`  Kapitulation Polens an Tag ${pol.capitulationDay} (${sim.dateText(pol.capitulationDay)}); historisch: 6. Oktober 1939 = Tag 36`);
   assert.equal(pol.status, 'kapituliert');
-  assert.ok(pol.capitulationDay >= 20 && pol.capitulationDay <= 60, `Dauer ${pol.capitulationDay} Tage`);
+  const warDays = pol.capitulationDay - pol.warSince;
+  console.log(`  Kriegsdauer bis zur Kapitulation: ${warDays} Tage`);
+  assert.ok(warDays >= 20 && warDays <= 60, `Dauer ${warDays} Tage`);
   const warsaw = sim.sieges.find((s) => s.city.name === 'Warschau');
   assert.ok(warsaw.fallen, 'Warschau muss gefallen sein');
   assert.ok(sim.events.some((e) => e.type === 'capitulation'));

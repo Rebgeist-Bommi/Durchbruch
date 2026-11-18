@@ -1,5 +1,6 @@
 // Forschung (Phase 4): Forschungsanstalten mit Schwerpunkt und Budget, Ergebnisse in fester
 // Reihenfolge je Schwerpunkt mit steigenden Kosten. Effekte sind abstrakte Prozentboni.
+import { effectSum } from './events.js';
 
 export const FOCI = ['heer', 'luft', 'industrie', 'sonder'];
 
@@ -69,7 +70,8 @@ export function ownsResource(sim, n, kind) {
 export function dailyPoints(sim, b) {
   const max = sim.bal.research.maxBudget;
   const budget = Math.max(0, Math.min(max, b.budget || 0));
-  return budget * (1 + scientistBonus(sim, b)) * b.health;
+  const goal = sim.dip ? effectSum(sim, sim.owner[b.cell], 'research') : 0; // nationales Ziel
+  return budget * (1 + scientistBonus(sim, b)) * b.health * (1 + goal);
 }
 
 export function runResearch(sim) {

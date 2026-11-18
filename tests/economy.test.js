@@ -53,7 +53,7 @@ test('Polenfeldzug läuft weiterhin bis zur Kapitulation', () => {
   const pol = sim.nations.get(sim.idx('POL'));
   console.log(`  Kapitulation an Tag ${pol.capitulationDay} (Phase 2: Tag 35, historisch Tag 36)`);
   assert.equal(pol.status, 'kapituliert');
-  assert.ok(pol.capitulationDay <= 60);
+  assert.ok(pol.capitulationDay - pol.warSince <= 60);
   // Bahn: eroberte Strecken wurden beschädigt und teilweise wieder instand gesetzt
   let repaired = 0;
   let open = 0;

@@ -5,6 +5,7 @@ import { Grid } from '../src/data/grid.js';
 import { decodeMap } from '../src/data/loader.js';
 import { Simulation } from '../src/sim/simulation.js';
 import { autoplayCampaign } from '../src/sim/autoplay.js';
+import { declareWar } from '../src/sim/diplomacy.js';
 
 export function loadInputs() {
   const dir = new URL('../public/data/', import.meta.url);
@@ -20,18 +21,28 @@ export function loadInputs() {
   return { meta, bin, map, balance, infra, people };
 }
 
-export function newSim({ seed, peace = false } = {}) {
+/**
+ * Neue Simulation. Start 01.03.1939 im Frieden; mit atWar (Standard für Einzeltests) erklärt das
+ * Reich Polen sofort den Krieg (Aufmarsch aus der Reserve, Vorbereitung wie früher 0,6).
+ */
+export function newSim({ seed, peace = false, atWar = !peace } = {}) {
   const { meta, bin, map, balance, infra, people } = loadInputs();
   const grid = new Grid(meta, new Uint8Array(bin));
-  return new Simulation({ grid, map, balance, infra, people, seed: seed ?? balance.seed, peace });
+  const sim = new Simulation({ grid, map, balance, infra, people, seed: seed ?? balance.seed, peace });
+  sim.autoDecide = () => 0; // Einzeltests: Entscheidungen automatisch (Pop-up-Tests setzen null)
+  if (atWar) {
+    declareWar(sim, sim.player, sim.idx('POL'));
+    for (const f of sim.fronts.values()) if (f.alive && f.side[sim.player]) { f.side[sim.player].order = 'prepare'; f.side[sim.player].prep = 0.6; }
+  }
+  return sim;
 }
 
 /**
  * Kampagne ohne Spieler (Schwierigkeit Normal): Angriff auf Polen, Westen halten, Entscheidungen
  * automatisch mit der ersten Option. Ende bei Kapitulation Polens (oder `until`) bzw. maxDays.
  */
-export function runCampaign({ seed, maxDays = 200, onDay, difficulty = 'normal', autoplay = autoplayCampaign, until = null, decide = () => 0 } = {}) {
-  const sim = newSim({ seed });
+export function runCampaign({ seed, maxDays = 420, onDay, difficulty = 'normal', autoplay = autoplayCampaign, until = null, decide = () => 0 } = {}) {
+  const sim = newSim({ seed, atWar: false });
   sim.setDifficulty(difficulty);
   if (autoplay) sim.autoplay = autoplay;
   sim.autoDecide = decide;
@@ -58,7 +69,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const war = s.sieges.find((x) => x.city.name === 'Warschau');
       const fr = [...s.fronts.values()].filter((f) => f.alive).length;
       const lost = 1 - [...s.owner].filter((o) => o === POL(s)).length / st.startCells;
-      console.log(`Tag ${String(s.day).padStart(3)} ${s.dateText().padEnd(20)} Polen verloren ${(lost * 100).toFixed(0).padStart(3)}% | Div DEU ${gd} POL ${pd} | Fronten ${fr} | Warschau ${war.fallen ? 'gefallen' : war.besieged ? `belagert ${war.defense.toFixed(0)}` : 'frei'} | Tick ${s.tickMs.at(-1).toFixed(1)} ms`);
+      console.log(`Tag ${String(s.day).padStart(3)} ${s.dateText().padEnd(20)} Polen verloren ${(lost * 100).toFixed(0).padStart(3)}% | Div DEU ${gd} POL ${pd} | Fronten ${fr} | Warschau ${!war ? '–' : war.fallen ? 'gefallen' : war.besieged ? `belagert ${war.defense.toFixed(0)}` : 'frei'} | Tick ${s.tickMs.at(-1).toFixed(1)} ms`);
       for (const e of s.events.filter((x) => x.day === s.day)) console.log(`        · ${e.text}`);
     },
   });

@@ -18,7 +18,7 @@ def test_map_contents():
     keys = {t["key"] for t in m["territories"]}
     assert {"DEU", "PROT", "SVK", "KARP", "OLSA", "MEMEL", "DAN", "ALB", "POL", "FRA"} <= keys
     alb = next(t for t in m["territories"] if t["key"] == "ALB")
-    assert alb["owner"] == "ITA"
+    assert alb["owner"] == "ALB"  # Stand 01.03.1939 (italienische Besetzung am 07.04. ist ein Ereignis)
     assert len(m["borders"]["land"]) > 20 and len(m["borders"]["coast"]) > 50
     assert len(m["rails"]) > 50
     caps = [c for c in m["cities"] if c["capital"]]

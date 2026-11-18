@@ -30,8 +30,8 @@
   {
    "id": 1,
    "key": "ALB",
-   "name": "Albanien (italienisch besetzt)",
-   "owner": "ITA"
+   "name": "Albanien",
+   "owner": "ALB"
   },
   {
    "id": 2,
@@ -156,8 +156,8 @@
   {
    "id": 22,
    "key": "KARP",
-   "name": "Karpatenukraine (ungarisch)",
-   "owner": "HUN"
+   "name": "Karpatenukraine",
+   "owner": "CSR"
   },
   {
    "id": 23,
@@ -193,7 +193,7 @@
    "id": 28,
    "key": "MEMEL",
    "name": "Memelland",
-   "owner": "DEU"
+   "owner": "LTU"
   },
   {
    "id": 29,
@@ -228,8 +228,8 @@
   {
    "id": 34,
    "key": "PROT",
-   "name": "Protektorat Böhmen und Mähren",
-   "owner": "DEU"
+   "name": "Böhmen und Mähren",
+   "owner": "CSR"
   },
   {
    "id": 35,
@@ -265,7 +265,7 @@
    "id": 40,
    "key": "SVK",
    "name": "Slowakei",
-   "owner": "SVK"
+   "owner": "CSR"
   },
   {
    "id": 41,
@@ -297,6 +297,8 @@
   "POL": "Polen",
   "DAN": "Freie Stadt Danzig",
   "SVK": "Slowakei",
+  "CSR": "Tschecho-Slowakei",
+  "ALB": "Albanien",
   "HUN": "Ungarn",
   "ITA": "Italien",
   "FRA": "Frankreich",
