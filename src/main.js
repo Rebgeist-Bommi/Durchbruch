@@ -260,6 +260,7 @@ async function main() {
       try { seen = localStorage.getItem('durchbruch-tutorial') === 'done'; } catch { /* ohne Speicher */ }
       if (tut) setTimeout(() => tutorial.start(), 400);
       else if (!seen && !sandbox) setTimeout(() => tutorial.startGuided(), 400);
+      else if (!sandbox) setTimeout(() => tutorial.offer('gefuehrt'), 900); // wer schon gespielt hat: einmal anbieten
       toast(`${sandbox ? 'Sandbox' : 'Kampagne'} · ${balance.difficulty.levels[level].label}${sandbox ? ' · unbegrenzte Mittel' : ''}`);
     },
     onLoad: (kind) => {
@@ -305,11 +306,21 @@ async function main() {
     if (pauseForDecision()) return;
     const advanced = sim.tick();
     if (!advanced) { pauseForDecision(); return; }
-    renderer.onTick();
-    // Oberfläche nach dem nächsten Bild aktualisieren, damit der Tageswechsel nicht ruckelt
+    // Tageswechsel auf mehrere Bilder verteilt: Simulation jetzt, Kartenaufbereitung im nächsten
+    // Bild (bis dahin zeigt die Karte den Vortag im Endzustand), Seitenleisten danach.
     const ui2 = () => { ui.onTick(); refreshPanels(); paper.badge(); refreshUi2(); };
-    if (clock.speed > 0) setTimeout(ui2, 0); else ui2();
-    if (sim.day % 7 === 0) setTimeout(() => store('durchbruch-auto'), 50);
+    if (clock.speed > 0) {
+      renderer.tickPending = true;
+      setTimeout(() => {
+        renderer.onTick();
+        renderer.tickPending = false;
+        setTimeout(ui2, 0);
+      }, 0);
+    } else { renderer.onTick(); ui2(); }
+    if (sim.day % 7 === 0) {
+      const save = () => store('durchbruch-auto');
+      if (window.requestIdleCallback) requestIdleCallback(save, { timeout: 2000 }); else setTimeout(save, 300);
+    }
     if (sim.isOver()) { setSpeed(0); return; }
     pauseForDecision(); // Entscheidung erscheint sofort zum Tagesende
   }
@@ -320,9 +331,17 @@ async function main() {
     clock.last = now;
     if (clock.speed > 0) {
       clock.acc += dt * clock.speed;
-      if (clock.acc >= msPerDay) {
+      if (clock.acc >= msPerDay && !clock.ticking) {
         clock.acc = Math.min(clock.acc - msPerDay, msPerDay * 0.5);
-        doTick();
+        // Tick außerhalb des Bildes rechnen; bis dahin zeigt die Karte den Vortag im Endzustand
+        clock.ticking = true;
+        renderer.tickPending = true;
+        setTimeout(() => {
+          clock.ticking = false;
+          const day = sim.day;
+          doTick();
+          if (sim.day === day) renderer.tickPending = false; // kein neuer Tag (Entscheidung, Spielende)
+        }, 0);
       }
     }
     const t = clock.acc / msPerDay;
@@ -404,6 +423,13 @@ async function main() {
     canvas.classList.add('drawing');
     renderer.requestRender();
   };
+  ui.onSetFocus = (fid) => {
+    renderer.focusDraft = { fid };
+    setMode('front');
+    canvas.classList.add('drawing');
+    toast('Schwerpunkt: auf das Ziel des Stoßes klicken. Esc bricht ab.');
+    renderer.requestRender();
+  };
   function finishLine() {
     const d = renderer.lineDraft;
     renderer.lineDraft = null;
@@ -416,6 +442,17 @@ async function main() {
   // Ziehen: Maus gedrückt halten, jeder Mauspunkt (ab ca. 0,4 Feldern Abstand) wird Teil der Linie
   const linePoint = (e) => { const r = canvas.getBoundingClientRect(); return renderer.cellCoordAt(e.clientX - r.left, e.clientY - r.top); };
   canvas.addEventListener('pointerdown', (e) => {
+    if (renderer.focusDraft && e.button === 0) {
+      // Schwerpunkt: ein Klick setzt das Ziel des Stoßpfeils
+      e.stopImmediatePropagation();
+      const d = renderer.focusDraft;
+      renderer.focusDraft = null;
+      canvas.classList.remove('drawing');
+      if (sim.fronts.get(d.fid)?.alive) { sim.setFocus(d.fid, linePoint(e)); toast('Schwerpunkt gesetzt.'); }
+      ui.refresh();
+      renderer.requestRender();
+      return;
+    }
     if (!renderer.lineDraft || e.button !== 0) return;
     e.stopImmediatePropagation();
     canvas.setPointerCapture(e.pointerId);
@@ -546,7 +583,7 @@ async function main() {
       case '+': case '=': cam.zoomSmooth(cam.width / 2, cam.height / 2, 1.25); renderer.requestRender(); break;
       case '-': cam.zoomSmooth(cam.width / 2, cam.height / 2, 0.8); renderer.requestRender(); break;
       case 'Escape':
-        if (renderer.lineDraft) { renderer.lineDraft = null; canvas.classList.remove('drawing'); ui.refresh(); renderer.requestRender(); }
+        if (renderer.lineDraft || renderer.focusDraft) { renderer.lineDraft = null; renderer.focusDraft = null; canvas.classList.remove('drawing'); ui.refresh(); renderer.requestRender(); }
         else if (popover.open) popover.hide();
         else if (goals.open) goals.close();
         else if (tutorial.open) tutorial.end();

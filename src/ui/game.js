@@ -191,7 +191,7 @@ export class GameUI {
         <dl class="fw-grid">
           <dt>Eigene</dt><dd><b>${own.count}</b> Div.${transit ? ` (+${transit} unterwegs)` : ''} · Stärke ${own.count ? pct(own.str / own.count) : '–'}</dd>
           <dt></dt><dd>Panzer ${pct(own.tank)} · Luft ${pct(own.air)}${side.tied ? ` · Belagerung bindet ${side.tied.toFixed(1)}` : ''}</dd>
-          <dt>Gegner</dt><dd>${f.planned ? `Armee gesamt ca. <b>${Math.max(1, Math.round(sim.divisions.filter((d) => d.nation === e).length / 5) * 5)}</b> Div. <span class="muted">(noch nicht an der Grenze)</span>` : `ca. <b>${enemyEst}</b> Div. <span class="muted">(geschätzt)</span>`}</dd>
+          <dt>Gegner</dt><dd>${f.planned ? (sim.divisionsOn(f.id, e).length ? `an der Grenze ca. <b>${enemyEst}</b> Div. · gesamt ca. ${Math.max(1, Math.round(sim.divisions.filter((d) => d.nation === e).length / 5) * 5)}` : `Armee gesamt ca. <b>${Math.max(1, Math.round(sim.divisions.filter((d) => d.nation === e).length / 5) * 5)}</b> Div. <span class="muted">(noch nicht an der Grenze)</span>`) : `ca. <b>${enemyEst}</b> Div. <span class="muted">(geschätzt)</span>`}</dd>
         </dl>
       </section>
 
@@ -204,6 +204,14 @@ export class GameUI {
         <label class="radio"><input type="radio" name="objective" value="all" ${side.objective ? '' : 'checked'}> Ganzes Land <span class="muted">– die Truppen rücken immer weiter vor</span></label>
         <label class="radio"><input type="radio" name="objective" value="line" ${side.objective ? 'checked' : ''}> Bis zur Haltelinie <span class="muted">– danach halten und eingraben</span></label>
         <div class="row"><button type="button" class="btn small" data-action="draw-line">${side.objective ? 'Linie neu zeichnen' : 'Linie auf der Karte zeichnen'}</button></div>
+      </section>
+
+      <section>
+        <h3>Einsatz und Schwerpunkt</h3>
+        <div class="seg" role="radiogroup" aria-label="Einsatzstärke">${sim.bal.orders.commitLevels.map((v) => `<button type="button" role="radio" aria-checked="${Math.abs((side.commit ?? 1) - v) < 1e-6}" data-action="commit" data-v="${v}">${Math.round(v * 100)} %</button>`).join('')}</div>
+        <p class="fw-sub">Anteil der Divisionen, die angreifen – der Rest hält die Linie. Weniger Einsatz: langsamer, aber geringere Verluste.</p>
+        <div class="row"><button type="button" class="btn small" data-action="set-focus">${side.focus ? 'Schwerpunkt verlegen' : 'Schwerpunkt auf der Karte setzen'}</button>${side.focus ? '<button type="button" class="btn small" data-action="clear-focus">aufheben</button>' : ''}</div>
+        <p class="fw-sub">${side.focus ? 'Der Stoßpfeil zeigt den Schwerpunkt: Abschnitte in seiner Nähe erhalten den Großteil der Angriffskraft.' : 'Ohne Schwerpunkt greift die Front auf ganzer Breite an.'}</p>
       </section>
 
       <section>
@@ -337,6 +345,9 @@ export class GameUI {
         break;
       }
       case 'draw-line': if (this.onDrawLine) this.onDrawLine(id); return;
+      case 'commit': this.cmd(() => sim.setCommit(id, Number(b.dataset.v))); break;
+      case 'set-focus': if (this.onSetFocus) this.onSetFocus(id); return;
+      case 'clear-focus': this.cmd(() => sim.setFocus(id, null)); break;
       case 'from-reserve5': this.cmd(() => sim.transfer(0, id, 5)); break;
       case 'stop': this.cmd(() => sim.stopAttack(id)); break;
       case 'from-reserve': this.cmd(() => sim.transfer(0, id, 1)); break;

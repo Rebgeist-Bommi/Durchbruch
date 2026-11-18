@@ -14,7 +14,7 @@ function emptySide() {
     lossesToday: 0, lossesTotal: 0, prisonersToday: 0, prisonersTotal: 0,
     airToday: 0, airTotal: 0, tied: 0, kmToday: 0, kmTotal: 0,
     // vorab angelegt (gleiche Objektform von Anfang an, vermeidet Deoptimierung)
-    general: null, airShare: 0, strikeTarget: null, strikeToday: 0, strikeHits: 0, tactic: 'standard', objective: null,
+    general: null, airShare: 0, strikeTarget: null, strikeToday: 0, strikeHits: 0, tactic: 'standard', objective: null, commit: 1, focus: null,
   };
 }
 
@@ -28,6 +28,8 @@ function inheritSide(p) {
     s.attackPrep = p.attackPrep;
     s.tactic = p.tactic || 'standard';
     s.objective = p.objective || null;
+    s.commit = p.commit ?? 1;
+    s.focus = p.focus || null;
   }
   return s;
 }
@@ -163,7 +165,7 @@ export function updateFronts(sim) {
       id: sim.nextFrontId++, a: comp.a, b: comp.b, name: '', born: sim.day, alive: true,
       encircled: { [comp.a]: false, [comp.b]: false }, sections: [], edgeList: null, cx: 0, cy: 0,
       side: { [comp.a]: inheritSide(parent?.side[comp.a]), [comp.b]: inheritSide(parent?.side[comp.b]) },
-      retreatLogged: false, warned: false, planned: comp.planned,
+      retreatLogged: false, warned: false, planned: comp.planned, reacted: false, reactLogged: false,
     };
     sim.fronts.set(f.id, f);
     comp.id = f.id;

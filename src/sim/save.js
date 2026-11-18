@@ -41,7 +41,7 @@ function unsparse(target, list, base) {
 export function serialize(sim) {
   const fronts = [...sim.fronts.values()].map((f) => ({
     id: f.id, a: f.a, b: f.b, name: f.name, born: f.born, alive: f.alive, encircled: f.encircled,
-    cx: f.cx, cy: f.cy, side: f.side, retreatLogged: !!f.retreatLogged, warned: !!f.warned, planned: !!f.planned,
+    cx: f.cx, cy: f.cy, side: f.side, retreatLogged: !!f.retreatLogged, warned: !!f.warned, planned: !!f.planned, reacted: !!f.reacted, reactLogged: !!f.reactLogged,
   }));
   const pockets = {};
   for (const [n, cells] of sim._pocketCells || []) pockets[n] = cells;

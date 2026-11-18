@@ -195,6 +195,7 @@ export function creditsHtml(c, esc) {
     <h3>Fotos</h3><ul>${c.photos.map(photo).join('')}</ul>
     <h3>Zeitungen</h3><ul>${c.papers.map(paper).join('')}</ul>
     ${c.music.length ? `<h3>Musik</h3><ul>${c.music.map(music).join('')}</ul>` : ''}
+    ${(c.portraits || []).length ? `<h3>Porträts der Generäle</h3><ul>${c.portraits.map((p) => `<li>${esc(p.label)}: ${link(p.page, p.title.replace(/^File:/, ''))}<br><small>${esc(shortAuthor(p.artist))} · ${esc(p.license)} · bearbeitet: ${esc(p.changes)}</small></li>`).join('')}</ul>` : ''}
     <p class="muted">Bundesarchiv-Fotos: CC BY-SA 3.0 DE (creativecommons.org/licenses/by-sa/3.0/de/); bearbeitete Fassungen unter derselben Lizenz. Fotos der US-Regierung: gemeinfrei. Vollständige Liste: MEDIA_SOURCES.md.</p>
   </div>`;
 }

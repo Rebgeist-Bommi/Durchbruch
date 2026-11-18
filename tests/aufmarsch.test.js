@@ -27,7 +27,7 @@ test('Aufmarsch im Frieden: Grenzfront gegen Frankreich, Truppen sammeln, Vorber
   let changed = 0;
   for (let i = 0; i < sim.N; i++) if (sim.owner[i] !== owner0[i] && (owner0[i] === fra || sim.owner[i] === fra)) changed++;
   assert.equal(changed, 0, 'keine Gebietsänderung mit Frankreich');
-  assert.equal(sim.divisionsOn(f.id, fra).length, 0, 'KI zieht ohne Krieg nicht an die Grenze');
+  assert.ok(sim.divisionsOn(f.id, fra).length > 0, 'Frankreich reagiert auf den Aufmarsch');
 });
 
 test('Aufmarsch → Kriegserklärung: Front behält Kennung, Divisionen und Vorbereitung', () => {
@@ -95,4 +95,17 @@ test('Taktik und Haltelinie: Blitzkrieg schneller als Materialschlacht, Linie st
   assert.ok(lined.cells <= free, `Linie ${lined.cells} ≤ frei ${free}`);
   const f = [...lined.sim.fronts.values()].find((x) => x.alive && x.side[lined.sim.player]?.objective);
   if (f) assert.ok(objectiveMask(lined.sim, f, lined.sim.player, lined.sim.enemyOn(f, lined.sim.player)));
+});
+
+test('KI reagiert auf den Aufmarsch: Frankreich verstärkt die Grenze, Beziehung sinkt', () => {
+  const sim = newSim({ atWar: false });
+  const fra = sim.idx('FRA');
+  const rel0 = sim.relations[Math.min(sim.player, fra) + '-' + Math.max(sim.player, fra)] ?? 0;
+  const ids = planDeployment(sim, sim.player, fra);
+  for (let d = 0; d < 15; d++) sim.tick();
+  const there = ids.reduce((s, id) => s + (sim.fronts.get(id)?.alive ? sim.divisionsOn(id, fra).length + sim.inTransitTo(id, fra).length : 0), 0);
+  assert.ok(there >= 5, `${there} französische Divisionen an der Grenze`);
+  assert.ok(sim.events.some((e) => /verstärkt die Grenze/.test(e.text)));
+  assert.equal(sim.wars.length, 0);
+  void rel0;
 });

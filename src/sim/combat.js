@@ -66,7 +66,8 @@ function attackFront(sim, f, n, o) {
   const side = f.side[n];
   const A = sim.sideStrength(f.id, n);
   const D = sim.sideStrength(f.id, o);
-  const strEff = Math.max(0, A.str - side.tied);
+  // Einsatzstärke (Überarbeitung 2): nur dieser Anteil greift an, der Rest hält die Linie
+  const strEff = Math.max(0, A.str * (side.commit ?? 1) - side.tied);
   if (strEff <= 0.05) return;
   noteAttack(sim, n, o); // Phase 5: erster Angriff löst Bündnispflichten aus
   ensureSupply(sim, n); // Nachschub des Angreifers (einmal je Tag)
@@ -98,9 +99,19 @@ function attackFront(sim, f, n, o) {
   const supplyBonus = gA.supply || 0;
   const encMul = f.encircled[o] ? C.encircledDefense : 1;
 
+  // Schwerpunkt: Abschnitte nahe dem Zielpunkt erhalten mehr Angriffskraft
+  const focusW = (sec) => {
+    if (!side.focus) return 1;
+    const dx = sim.sectors.cx[sec.sector] - side.focus[0];
+    const dy = sim.sectors.cy[sec.sector] - side.focus[1];
+    const s2 = O.focusSigmaCells * O.focusSigmaCells;
+    return 1 + O.focusBoost * Math.exp(-(dx * dx + dy * dy) / (2 * s2));
+  };
+  let totalFW = 0;
+  for (const sec of f.sections) totalFW += targetsOf(sec).length * focusW(sec);
   const info = f.sections.map((sec) => {
     const nT = targetsOf(sec).length;
-    const a = (strEff * nT) / totalT;
+    const a = (strEff * nT * focusW(sec)) / (totalFW || 1);
     const d = (D.str * (sec.stats.defWeight[o] ?? nT)) / (totalW || 1);
     const floor = C.defenseFloorPerCell * nT;
     const R = (a * prepMul * airMul * attMul) / ((d + floor) * encMul * defMul);
@@ -318,7 +329,7 @@ export function updateOrdersOverTime(sim) {
     if (!f.alive) continue;
     for (const n of [f.a, f.b]) {
       // Aufmarsch: nur der Planende bereitet vor; die Gegenseite reagiert erst im Krieg
-      if (f.planned && !sim.plansAgainst(n, sim.enemyOn(f, n))) continue;
+      if (f.planned && !sim.plansAgainst(n, sim.enemyOn(f, n)) && !sim.divisionsOn(f.id, n).length) continue;
       const s = f.side[n];
       const g = traitOf(sim, f, n);
       if (s.order === 'prepare') s.prep = Math.min(1, s.prep + (1 + (g.prepSpeed || 0)) / O.prepDays);

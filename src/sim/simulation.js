@@ -477,6 +477,17 @@ export class Simulation {
     this.frontSide(frontId, n).tactic = tactic;
   }
 
+  /** Einsatzstärke eines Angriffs (Anteil der Divisionen, 0,25–1). */
+  setCommit(frontId, v, n = this.player) {
+    if (!this.bal.orders.commitLevels.includes(v)) throw new Error(`Einsatz ${v}`);
+    this.frontSide(frontId, n).commit = v;
+  }
+
+  /** Schwerpunkt (Feldkoordinaten) setzen oder mit null aufheben. */
+  setFocus(frontId, pt, n = this.player) {
+    this.frontSide(frontId, n).focus = pt ? [Math.round(pt[0] * 10) / 10, Math.round(pt[1] * 10) / 10] : null;
+  }
+
   /** Haltelinie setzen (Feldkoordinaten) oder mit null aufheben (ganzes Land). */
   setObjective(frontId, line, n = this.player) {
     this.frontSide(frontId, n).objective = line && line.length >= 2 ? { line: line.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) } : null;

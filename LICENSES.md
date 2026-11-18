@@ -11,6 +11,7 @@
 | Schriften IM Fell English SC, Spectral, UnifrakturMaguntia, Saira Stencil One, Saira Condensed, Special Elite (npm `@fontsource/*`) | Oberfläche und Kartenbeschriftung | https://fontsource.org | SIL Open Font License 1.1 |
 | Vite | Build-Werkzeug | https://vitejs.dev | MIT |
 | Wikimedia Commons (Bundesarchiv, NARA/US Army Signal Corps, USAAF, RIA Novosti, US Air Force Band, US Marine Band) | Fotos und Musik im Hauptmenü | https://commons.wikimedia.org | je Datei: CC BY-SA 3.0 DE, CC BY-SA 3.0 oder gemeinfrei – Einzelnachweise in `MEDIA_SOURCES.md` |
+| Wikimedia Commons (Bundesarchiv, polnische Archivfotos) | Porträts der Generäle in den Truppen-Medaillons (nur Gesichtsausschnitt) | https://commons.wikimedia.org | je Datei: CC BY-SA 3.0 DE, CC BY-SA 3.0, CC BY-SA 4.0 oder gemeinfrei – Einzelnachweise in `MEDIA_SOURCES.md` |
 | Library of Congress, Chronicling America (Evening Star) | Zeitungs-Titelseiten im Hauptmenü | https://www.loc.gov/collections/chronicling-america/ | laut Bibliothek gemeinfrei bzw. ohne bekannte Rechte (siehe `MEDIA_SOURCES.md`) |
 | Deutsches Zeitungsportal / ULB Sachsen-Anhalt (Hallische Nachrichten) | Zeitungs-Titelseiten im Hauptmenü | https://www.deutsche-digitale-bibliothek.de/newspaper | Public Domain Mark 1.0 |
 

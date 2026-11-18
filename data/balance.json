@@ -479,7 +479,15 @@
     "prepDecayPerDay": 0.04,
     "fortDays": 18,
     "fortBonus": 1.6,
-    "fortHoldOnly": true
+    "fortHoldOnly": true,
+    "commitLevels": [
+      0.25,
+      0.5,
+      0.75,
+      1
+    ],
+    "focusBoost": 4,
+    "focusSigmaCells": 12
   },
   "combat": {
     "_todo": "Spielwerte, durch Testläufe abgestimmt",
@@ -579,7 +587,10 @@
     "retreatDepthCells": 3,
     "maxTransfersPerDay": 4,
     "rebalanceThreshold": 1.5,
-    "dangerWeight": 3
+    "dangerWeight": 3,
+    "planReactDays": 4,
+    "planReactShare": 0.8,
+    "planMaxPerDay": 3
   },
   "sectors": {
     "_todo": "Abschnittslänge ca. 100 km (Vorgabe Phase 2)",
@@ -1308,7 +1319,8 @@
       "perDay": 3,
       "days": 180,
       "minRelation": -10
-    }
+    },
+    "planRelation": -8
   },
   "events": {
     "_todo": "Auslöser, Fristen und Wirkungen sind Spielwerte; Ereignisse sind nur historische Anlässe, ihr Eintreten hängt von der Spiellage ab.",

@@ -197,5 +197,55 @@
    "changes": "verkleinert auf 1200 px Breite, getönt"
   }
  ],
- "music": []
+ "music": [],
+ "portraits": [
+  {
+   "id": "guderian",
+   "file": "media/portraits/guderian.webp",
+   "label": "Heinz Guderian",
+   "title": "File:Bundesarchiv Bild 101I-139-1112-17, Heinz Guderian.jpg",
+   "page": "https://commons.wikimedia.org/wiki/File%3ABundesarchiv_Bild_101I-139-1112-17%2C_Heinz_Guderian.jpg",
+   "artist": ".mw-parser-output .commons-creator-table{background-color:#f0f0ff;box-sizing:border-box;font-size:95%;text-align:start;color:inherit}.mw-parser-output .commons-creator-table>tbody>tr{vertical-align:top}.mw-parser-output .commons-creator-table>tbody>tr>th{background-color:var(--background-color-neutral,#e0e0ee);font-weight:bold;text-align:start;color:inherit}.mw-parser-output .mw-collapsible-toggle-expanded.mw-collapsible-arrowtoggle,.mw-parser-output .mw-collapsible-toggle-expanded .mw-collapsible-arrowtoggle{padding-left:20px!important;background-image:url(\"https://upload.wikimedia.org/wikipedia/commons/1/10/MediaWiki_Vector_skin_action_arrow.png\");background-repeat:no-repeat;background-position:left center}.mw-parser-output .mw-collapsible-toggle-collapsed.mw-collapsible-arrowtoggle,.mw-parser-output .mw-collapsible-toggle-collapsed .mw-collapsible-arrowtoggle{padding-left:20px!important;background-repeat:no-repeat}.mw-parser-output .commons-creator-table[dir=\"ltr\"] .mw-collapsible-toggle-collapsed.mw-collapsible-arrowtoggle,.mw-parser-output .commons-creator-table[dir=\"ltr\"] .mw-collapsible-toggle-collapsed .mw-collapsible-arrowtoggle{background-image:url(\"https://upload.wikimedia.org/wikipedia/commons/4/41/MediaWiki_Vector_skin_right_arrow.png\");background-position:left center}.mw-parser-output .commons-creator-table[dir=\"rtl\"] .mw-collapsible-toggle-collapsed.mw-collapsible-arrowtoggle,.mw-parser-output .commons-creator-table[dir=\"rtl\"] .mw-collapsible-toggle-collapsed .mw-collapsible-arrowtoggle{background-image:url(\"https://upload.wikimedia.org/wikipedia/commons/1/1e/MediaWiki_Vector_skin_left_arrow.png\");background-position:right center}@media(max-width:719px){.mw-parser-output .commons-creator-table,.mw-parser-output .commons-creator-table>tbody{box-sizing:border-box;display:block;width:100%}.mw-parser-output .commons-creator-table>tbody{border-right:1px solid var(--border-color-base,#aaa);border-bottom:1px solid var(--border-color-base,#aaa)}.mw-parser-output .commons-creator-table>tbody>tr{border-top:1px solid var(--border-color-base,#aaa);display:flex;flex-wrap:wrap}.mw-parser-output .commons-creator-table>tbody>tr>th{border-left:1px solid var(--border-color-base,#aaa);padding:2px;flex:1 1 100%}.mw-parser-output .commons-creator-table>tbody>tr>td{border-left:1px solid var(--border-color-base,#aaa);padding:2px;flex:1 1}}@media(min-width:720px){.mw-parser-output .commons-creator-table{border:1px solid var(--border-color-base,#aaa);border-collapse:collapse;border-spacing:0;padding:5px}.mw-parser-output .commons-creator-table>tbody>tr>th,.mw-parser-output .commons-creator-table>tbody>tr>td{border:1px solid var(--border-color-base,#aaa);padding:2px}.mw-parser-output .commons-creator-table>tbody>tr>.halfwidth{max-width:10em}.mw-parser-output .commons-creator-table>tbody>tr>.fullwidth{max-width:20em}}@media screen{html.skin-theme-clientpref-night .mw-parser-output .commons-creator-table{background-color:#0c0b19}}@media screen and (prefers-color-scheme:dark){html.skin-theme-clientpref-os .mw-parser-output .commons-creator-table{background-color:#0c0b19}} Ludwig Knobloch (1911–1943) Description German photographer",
+   "date": "July 1941",
+   "license": "CC BY-SA 3.0 de",
+   "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/de/deed.en",
+   "changes": "Ausschnitt Gesicht, 128 × 128, Sepia, WebP"
+  },
+  {
+   "id": "manstein",
+   "file": "media/portraits/manstein.webp",
+   "label": "Erich von Manstein",
+   "title": "File:Bundesarchiv Bild 183-H01758, Erich v.Manstein.jpg",
+   "page": "https://commons.wikimedia.org/wiki/File%3ABundesarchiv_Bild_183-H01758%2C_Erich_v.Manstein.jpg",
+   "artist": "Muhammad.Noraeii",
+   "date": "14 December 2022",
+   "license": "CC BY-SA 4.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+   "changes": "Ausschnitt Gesicht, 128 × 128, Sepia, WebP"
+  },
+  {
+   "id": "model",
+   "file": "media/portraits/model.webp",
+   "label": "Walter Model",
+   "title": "File:Walter Model October 1944(2).jpg",
+   "page": "https://commons.wikimedia.org/wiki/File%3AWalter_Model_October_1944%282%29.jpg",
+   "artist": "Jäger",
+   "date": "October 1944",
+   "license": "CC BY-SA 3.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+   "changes": "Ausschnitt Gesicht, 128 × 128, Sepia, WebP"
+  },
+  {
+   "id": "kutrzeba",
+   "file": "media/portraits/kutrzeba.webp",
+   "label": "Tadeusz Kutrzeba",
+   "title": "File:Tadeusz Kutrzeba.jpg",
+   "page": "https://commons.wikimedia.org/wiki/File%3ATadeusz_Kutrzeba.jpg",
+   "artist": "Anonymous Unknown author",
+   "date": "between 1920 and 1939",
+   "license": "Public domain",
+   "licenseUrl": "",
+   "changes": "Ausschnitt Gesicht, 128 × 128, Sepia, WebP"
+  }
+ ]
 }

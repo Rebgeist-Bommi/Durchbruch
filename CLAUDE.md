@@ -242,8 +242,8 @@ node tools/sim_run.mjs [seed]    # Kampagne ohne Spieler (Normal, Angriff auf Po
 - Szenario: `scenario.annexations` (mit `day` oder `onWar`) und `scenario.treaties` (Tag, Paar,
   Bedingungen). Friedliche Übertragung über `sim.annex()` (kein Ertragsverlust, Nation ohne Felder
   wird aufgelöst); Liste in `sim.dip.annexed`, die Karte übernimmt Besitzer/Namen (`applyAnnexations`).
-- Kriegserklärung des Spielers: Aufmarsch der Reserve direkt an die neuen Fronten (`deployReserve`,
-  Anteil `reserveShare` bleibt zurück); Generäle werden sofort besetzt.
+- Kriegserklärung des Spielers: Reserve marschiert mit Verlegungsdauer an die neuen Fronten
+  (`deployReserve`, seit Überarbeitung 2 als Verlegung; Anteil `reserveShare` bleibt zurück); Generäle sofort.
 - Kleine Staaten haben Platzhalter-Armeen und sind angreifbar; Anschluss-Angebot (`offerAnschluss`,
   Bewertung aus Kräfteverhältnis, Beziehung, Schutzmächten) und Rohstoffabkommen (`offerRohstoffe`).
 - Nationale Ziele: `balance.json goals.list`; ein Ziel gleichzeitig; Wirkungen armament, income,
@@ -273,4 +273,12 @@ node tools/sim_run.mjs [seed]    # Kampagne ohne Spieler (Normal, Angriff auf Po
   (Eichenlaub, Porträt-Silhouette, Stärkering, Band mit Zahl) beidseits des Drahts, wandernde
   Verlegungen mit Resttagen, Reserve an der Hauptstadt. Rechtsklick auf Front = verlegen.
 - Tutorial: Kapitelübersicht (Taste H), geführter Einstieg beim ersten Spiel (wartet auf Aktionen),
-  Erstbesuch-Angebote je Ansicht (`localStorage durchbruch-seen-*`).
+  Erstbesuch-Angebote je Ansicht (`localStorage durchbruch-seen-*`), für Wiederkehrer einmal angeboten.
+- Einsatzstärke `side.commit` (0,25–1, `orders.commitLevels`) und Schwerpunkt `side.focus`
+  (Feldkoordinaten; Abschnittsgewicht 1 + focusBoost · Gauß(focusSigmaCells)), Stoßpfeil in der Karte.
+- KI-Reaktion auf Aufmarsch (`ai.js reactToPlans`): nach `ai.planReactDays` Verlegung an die
+  Grenzfronten (bis `planReactShare` der gegnerischen Divisionen), Beziehung `diplomacy.planRelation`.
+- Porträts historischer Generäle (`tools/build_portraits.py`, Abschnitt `portraits` in
+  `tools/data/media.json`): nur Gesichtsausschnitt, Lizenz geprüft, im Medaillon statt Silhouette.
+- Tageswechsel: Simulation und Kartenaufbereitung laufen außerhalb des Bildes (`renderer.tickPending`
+  zeigt bis dahin den Vortag im Endzustand), Autosave im Leerlauf; Bahnstufe nur in Ansicht 2 im Cache-Schlüssel.

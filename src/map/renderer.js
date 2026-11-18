@@ -145,7 +145,7 @@ export class MapRenderer {
     const st = STYLES[this.mode];
     const W = this.canvas.width;
     const H = this.canvas.height;
-    const key = `${this.mode}|${cam.cx.toFixed(3)}|${cam.cy.toFixed(3)}|${cam.scale.toFixed(6)}|${W}|${H}|${this.layerVersion}|${this.sim?.railLevelVersion || 0}`;
+    const key = `${this.mode}|${cam.cx.toFixed(3)}|${cam.cy.toFixed(3)}|${cam.scale.toFixed(6)}|${W}|${H}|${this.layerVersion}|${st.rails ? this.sim?.railLevelVersion || 0 : 0}`;
     if (key !== this.cacheKey) {
       this.renderStatic(st);
       this.cacheKey = key;
@@ -157,6 +157,9 @@ export class MapRenderer {
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.drawImage(this.layers.under, 0, 0);
+    // Tick gerechnet, Kartenaufbereitung folgt im nächsten Bild: bis dahin Vortag im Endzustand
+    const tDay = this.tickPending ? 0 : t; // Marschmarken: neuer Tag hat begonnen
+    if (this.tickPending) t = 1;
     if (this.sim) this.drawOccupation(st, t);
     if (this.mode === 'front') this.drawSupply();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -178,7 +181,7 @@ export class MapRenderer {
     ctx.drawImage(this.layers.labels, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (this.sim) this.drawSieges(st);
-    if (this.sim && this.mode === 'front') { this.drawObjectives(); this.drawUnits(st, t); }
+    if (this.sim && this.mode === 'front') { this.drawObjectives(); this.drawFocusArrows(); this.drawUnits(st, tDay); }
     if (st.spotlight) this.drawSpotlight();
     if (this.sim && st.spotlight) this.drawIntel(st);
 
@@ -1186,6 +1189,89 @@ export class MapRenderer {
     return [(mx - this.gx0) / this.cellU, (this.gy1 - my) / this.cellU];
   }
 
+  /**
+   * Stoßpfeile (Schwerpunkt) eigener Fronten im Stil eines Operationsplans: verjüngter, gebogener
+   * Pfeil vom nächsten Punkt des Drahts zum Ziel; rot im Angriff, messing sonst; leichtes Pulsieren.
+   */
+  drawFocusArrows() {
+    const sim = this.sim;
+    const p = sim.player;
+    const { ctx, camera: cam } = this;
+    const cu = this.cellU;
+    const scr = (cx, cy) => cam.toScreen(this.gx0 + cx * cu, this.gy1 - cy * cu);
+    const pulse = this.lowDetail ? 0 : (Math.sin(performance.now() / 300) + 1) / 2;
+    ctx.save();
+    for (const f of sim.fronts.values()) {
+      const side = f.alive && f.side[p];
+      if (!side || !side.focus) continue;
+      const [tx, ty] = scr(side.focus[0], side.focus[1]);
+      // Startpunkt: nächster Drahtpunkt dieser Front
+      let sx = 0;
+      let sy = 0;
+      let bd = Infinity;
+      for (const ch of this.curChains || []) {
+        if (ch.fid !== f.id) continue;
+        for (let i = 0; i < ch.p.length; i += 8) {
+          const [x, y] = cam.toScreen(ch.p[i], ch.p[i + 1]);
+          const d = (x - tx) ** 2 + (y - ty) ** 2;
+          if (d < bd) { bd = d; sx = x; sy = y; }
+        }
+      }
+      if (bd === Infinity) continue;
+      const L = Math.hypot(tx - sx, ty - sy);
+      if (L < 12) continue;
+      const ux = (tx - sx) / L;
+      const uy = (ty - sy) / L;
+      // Start etwas hinter dem Draht (eigene Seite), Bogen leicht seitlich
+      const ax = sx - ux * 26;
+      const ay = sy - uy * 26;
+      const mx = (ax + tx) / 2 - uy * L * 0.12;
+      const my = (ay + ty) / 2 + ux * L * 0.12;
+      const q = (u) => [(1 - u) ** 2 * ax + 2 * (1 - u) * u * mx + u * u * tx, (1 - u) ** 2 * ay + 2 * (1 - u) * u * my + u * u * ty];
+      const N = 28;
+      const head = Math.min(26, L * 0.35);
+      const left = [];
+      const right = [];
+      for (let i = 0; i <= N; i++) {
+        const u = (i / N) * (1 - head / (L + 26));
+        const [x, y] = q(u);
+        const [x2, y2] = q(Math.min(1, u + 0.01));
+        const dl = Math.hypot(x2 - x, y2 - y) || 1;
+        const nx = -(y2 - y) / dl;
+        const ny = (x2 - x) / dl;
+        const w = 4 + 7 * u; // verjüngt am Start, breit vor der Spitze
+        left.push([x + nx * w, y + ny * w]);
+        right.push([x - nx * w, y - ny * w]);
+      }
+      const [bx, by] = q(1 - head / (L + 26));
+      const dl = Math.hypot(tx - bx, ty - by) || 1;
+      const hx = (tx - bx) / dl;
+      const hy = (ty - by) / dl;
+      ctx.beginPath();
+      ctx.moveTo(...left[0]);
+      for (const pt of left) ctx.lineTo(...pt);
+      ctx.lineTo(bx - hy * 19, by + hx * 19);
+      ctx.lineTo(tx, ty);
+      ctx.lineTo(bx + hy * 19, by - hx * 19);
+      for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(...right[i]);
+      ctx.closePath();
+      const attack = side.order === 'attack';
+      const g = ctx.createLinearGradient(ax, ay, tx, ty);
+      if (attack) { g.addColorStop(0, 'rgba(150,32,18,0.35)'); g.addColorStop(1, `rgba(${200 + 40 * pulse},${55 + 20 * pulse},30,0.9)`); }
+      else { g.addColorStop(0, 'rgba(160,120,50,0.3)'); g.addColorStop(1, 'rgba(226,184,96,0.88)'); }
+      ctx.shadowColor = 'rgba(0,0,0,0.45)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetY = 2;
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = attack ? 'rgba(60,12,6,0.85)' : 'rgba(70,48,14,0.85)';
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   /** Haltelinien eigener Fronten (gestrichelt, ausgewählte Front kräftig) und Entwurf. */
   drawObjectives() {
     const sim = this.sim;
@@ -1254,16 +1340,31 @@ export class MapRenderer {
     return img.complete && img.naturalWidth ? img : null;
   }
 
+  /** Porträt eines Generals (public/media/portraits/<id>.webp), fehlt es: null. */
+  portraitImage(id) {
+    this._faces = this._faces || new Map();
+    let img = this._faces.get(id);
+    if (!img) {
+      img = new Image();
+      img.onload = () => { this._counters?.clear(); this.requestRender(); };
+      img.onerror = () => { img.missing = true; };
+      img.src = `media/portraits/${id}.webp`;
+      this._faces.set(id, img);
+    }
+    return !img.missing && img.complete && img.naturalWidth ? img : null;
+  }
+
   /**
    * Spielstein einer Division-Gruppe als Medaillon (vorgerendert, je Zustand zwischengespeichert):
    * Eichenlaubkranz (eigen: Messing, Gegner: Stahl), Porträt-Silhouette im Rund (Soldat mit
    * Stahlhelm, bei Panzerverbänden ein Panzer), Stärkering, Flagge oben, Befehlsstein rechts und
    * ein Band mit der Divisionszahl. Eigene Zeichnung, keine Hoheitszeichen. `kind`: 'front' | 'small'.
    */
-  counter({ code, text, tank = 0, str = 1, order = '', kind = 'front', enemy = false }) {
+  counter({ code, text, tank = 0, str = 1, order = '', kind = 'front', enemy = false, portrait = null }) {
     const dpr = this.dpr;
     const armor = tank > 0.25;
-    const key = `${code}|${text}|${armor ? 1 : 0}|${Math.round(str * 10)}|${order}|${kind}|${enemy}|${dpr}|${this.flagImage(code) ? 1 : 0}`;
+    const face = portrait ? this.portraitImage(portrait) : null;
+    const key = `${code}|${text}|${armor ? 1 : 0}|${Math.round(str * 10)}|${order}|${kind}|${enemy}|${dpr}|${this.flagImage(code) ? 1 : 0}|${face ? portrait : ''}`;
     this._counters = this._counters || new Map();
     let c = this._counters.get(key);
     if (c) return c;
@@ -1360,7 +1461,15 @@ export class MapRenderer {
     x.beginPath(); x.arc(cx, cy, R - 0.5, 0, Math.PI * 2); x.clip();
     x.fillStyle = 'rgba(38,27,16,0.92)';
     const u = R / 15;
-    if (armor) {
+    if (face) {
+      // Porträt des Generals (Gesichtsausschnitt, sepia), leicht vignettiert
+      x.drawImage(face, cx - R, cy - R, 2 * R, 2 * R);
+      const vg = x.createRadialGradient(cx, cy, R * 0.55, cx, cy, R);
+      vg.addColorStop(0, 'rgba(40,25,10,0)');
+      vg.addColorStop(1, 'rgba(40,25,10,0.55)');
+      x.fillStyle = vg;
+      x.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+    } else if (armor) {
       // Panzer von der Seite: Laufwerk, Wanne, Turm, Rohr
       x.beginPath();
       x.moveTo(cx - 11 * u, cy + 6 * u); x.lineTo(cx + 11 * u, cy + 6 * u); x.lineTo(cx + 9 * u, cy + 10 * u); x.lineTo(cx - 9 * u, cy + 10 * u); x.closePath(); x.fill();
@@ -1506,14 +1615,16 @@ export class MapRenderer {
       const known = !f.planned || sim.frontRevealed(f.id, p);
       // im Frieden steht der Gegner noch nicht an der Grenze: geschätzte Gesamtarmee zeigen
       const total = sim.divisions.filter((d) => d.nation === e).length;
-      const est = f.planned ? (known ? total : Math.max(1, Math.round(total / 5) * 5)) : sim.estimate(f.id, e);
+      const atBorder = sim.divisionsOn(f.id, e).length;
+      const est = f.planned ? (atBorder ? sim.estimate(f.id, e) : known ? total : Math.max(1, Math.round(total / 5) * 5)) : sim.estimate(f.id, e);
       const es = strengthOf(f.id, e);
       // Verbindungsstrich zum Draht
       ctx.strokeStyle = 'rgba(30,22,12,0.55)';
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + ox * 0.55, sy + oy * 0.55); ctx.moveTo(sx, sy); ctx.lineTo(sx - ox * 0.55, sy - oy * 0.55); ctx.stroke();
-      const cOwn = this.counter({ code: myCode, text: String(own), tank: os.tank, str: own ? os.str : 0, order: side.order });
-      const cEn = this.counter({ code: sim.code(e), text: `~${est}`, tank: es.tank, str: est > 0 ? es.str : 0, order: f.side[e].order, enemy: true });
+      const gen = (n) => { const id = f.side[n]?.general; const g = id && sim.generals.find((x) => x.id === id); return g && g.historical ? g.id : null; };
+      const cOwn = this.counter({ code: myCode, text: String(own), tank: os.tank, str: own ? os.str : 0, order: side.order, portrait: gen(p) });
+      const cEn = this.counter({ code: sim.code(e), text: `~${est}`, tank: es.tank, str: est > 0 ? es.str : 0, order: f.side[e].order, enemy: true, portrait: f.planned ? null : gen(e) });
       if (f.id === this.selectedFront) {
         ctx.save();
         ctx.shadowColor = '#f0c96a';

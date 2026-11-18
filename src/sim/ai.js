@@ -5,10 +5,40 @@ import { phantomStrength } from './intel.js';
 import { warInfo } from './diplomacy.js';
 
 export function runAi(sim) {
+  for (const n of sim.nations.keys()) if (n !== sim.player && sim.nations.get(n).status === 'aktiv') reactToPlans(sim, n);
   for (const n of sim.nations.keys()) {
     if (n === sim.player) continue;
     if (sim.nations.get(n).status !== 'aktiv' || !sim.enemiesOf(n).length) continue;
     aiNation(sim, n);
+  }
+}
+
+/**
+ * Überarbeitung 2: Reaktion auf einen gegnerischen Aufmarsch. Nach `planReactDays` Tagen verlegt die
+ * bedrohte Nation Divisionen aus ihrer Reserve an die Grenzfronten (bis `planReactShare` der dort
+ * versammelten gegnerischen Divisionen, höchstens `planMaxPerDay` je Tag) und befestigt sie.
+ */
+export function reactToPlans(sim, n) {
+  const A = sim.bal.ai;
+  for (const [a, b, day] of sim.dip?.plans || []) {
+    if (b !== n || sim.day - (day ?? 0) < A.planReactDays) continue;
+    const fronts = [...sim.fronts.values()].filter((f) => f.alive && f.planned && f.side[n] && sim.enemyOn(f, n) === a).sort((x, y) => x.id - y.id);
+    let budget = A.planMaxPerDay;
+    for (const f of fronts) {
+      const threat = sim.divisionsOn(f.id, a).length + sim.inTransitTo(f.id, a).length;
+      const want = Math.ceil(threat * A.planReactShare);
+      let have = sim.divisionsOn(f.id, n).length + sim.inTransitTo(f.id, n).length;
+      while (have < want && budget > 0 && sim.reserveOf(n).length) {
+        if (!sim.transfer(0, f.id, 1, n)) break;
+        have++;
+        budget--;
+        f.reacted = true;
+      }
+      if (f.reacted && !f.reactLogged && a === sim.player) {
+        f.reactLogged = true;
+        sim.log('warn', `${sim.nameNom(n)} verstärkt die Grenze bei ${f.name.replace(/^Grenze bei /, '')}.`, Math.round(f.cy) * sim.cols + Math.round(f.cx));
+      }
+    }
   }
 }
 

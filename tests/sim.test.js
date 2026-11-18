@@ -91,6 +91,8 @@ test('Belagerung: Warschau fällt nicht wie ein normales Feld', () => {
   assert.ok(s && s.defense > 0);
   // alle Nachbarn deutsch machen -> Belagerung beginnt, Stadt bleibt polnisch
   for (const j of sim.nb.subarray(s.cell * 4, s.cell * 4 + 4)) if (j >= 0) sim.setOwner(j, sim.player, 1, true);
+  // Aufmarsch abgeschlossen (die Reserve marschiert seit Überarbeitung 2 mit Verlegungsdauer)
+  for (const d of sim.divisions) if (d.transit) { d.front = d.transit.to; d.transit = null; }
   for (const f of sim.fronts.values()) if (f.side[sim.player]) sim.attack(f.id);
   sim.tick();
   assert.equal(sim.owner[s.cell], sim.idx('POL'));

@@ -151,7 +151,10 @@ export function declareWar(sim, a, b, { obligation = false, text = null } = {}) 
  */
 export function planDeployment(sim, a, b, { send = true } = {}) {
   if (a === b || sim.isWar(a, b) || !active(sim, a) || !active(sim, b)) return [];
-  if (!sim.plansAgainst(a, b)) sim.dip.plans.push([a, b]);
+  if (!sim.plansAgainst(a, b)) {
+    sim.dip.plans.push([a, b, sim.day]);
+    changeRelation(sim, a, b, sim.bal.diplomacy.planRelation); // der Nachbar bemerkt den Aufmarsch
+  }
   updateFronts(sim);
   runGenerals(sim);
   const fronts = [...sim.fronts.values()].filter((f) => f.alive && f.planned && f.side[a] && sim.enemyOn(f, a) === b);
@@ -196,10 +199,12 @@ export function deployReserve(sim, n, enemy) {
   const have = (f) => sim.divisionsOn(f.id, n).length + sim.inTransitTo(f.id, n).length;
   while (reserve > 0) {
     const best = fronts.reduce((x, f) => (f.length / (have(f) + 1) > x.length / (have(x) + 1) ? f : x), fronts[0]);
-    // Aufmarsch: die Truppen stehen bei Kriegsbeginn bereits an der Grenze
+    // Überarbeitung 2: Die Reserve marschiert mit Verlegungsdauer (Bahn, Entfernung) an die Front.
+    // Wer früher einen Aufmarsch befiehlt, hat die Truppen bei Kriegsbeginn schon an der Grenze.
     const d = sim.reserveOf(n).sort((x, y) => y.tank - x.tank || x.id - y.id)[0];
     if (!d) break;
-    d.front = best.id;
+    const days = sim.travelDays(0, best.id, n);
+    d.transit = { from: 0, to: best.id, arrive: sim.day + days, days };
     reserve--;
     moved++;
   }
