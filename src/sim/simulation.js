@@ -7,6 +7,9 @@ import { resolveCombat, updateOrdersOverTime } from './combat.js';
 import { resolvePockets, resolveSieges, checkCapitulation, markExclaves } from './pockets.js';
 import { runAi, warmupAi } from './ai.js';
 import { formatDate } from './calendar.js';
+import { initInfra, computeRailSupply, railSupply, repairRail, advanceUpgrades, damageOnCapture, levelFactor, levelOfCell } from './infra.js';
+import { initEconomy, runEconomy, divisionStrength, captureBuildings, transferStocks } from './economy.js';
+import { initHistory, recordDay } from './history.js';
 
 import { NMAX, KM_PER_CELL } from './constants.js';
 
@@ -18,18 +21,19 @@ export class Simulation {
    * JavaScript-Engine die Tick-Funktionen schon vor dem ersten echten Spieltag optimiert.
    * Das echte Spiel bleibt unberührt (eigenes Raster, eigener Zufall).
    */
-  static warmup({ grid, map, balance }) {
+  static warmup({ grid, map, balance, infra }) {
     Simulation.warmedUp = true;
     const bytes = new Uint8Array(grid.size * 2);
     bytes.set(grid.territory, 0);
     bytes.set(grid.terrain, grid.size);
     const copy = new grid.constructor(grid.meta, bytes);
-    const sim = new Simulation({ grid: copy, map, balance, seed: 1, warm: true });
+    const sim = new Simulation({ grid: copy, map, balance, infra, seed: 1, warm: true });
     for (const f of sim.fronts.values()) if (f.side[sim.player]) sim.attack(f.id);
     for (let k = 0; k < 3; k++) sim.tick();
   }
 
-  constructor({ grid, map, balance, seed, warm = false }) {
+  constructor({ grid, map, balance, infra, seed, warm = false, peace = false }) {
+    if (!infra) throw new Error('Simulation braucht infra.json (Phase 3)');
     this.grid = grid;
     this.map = map;
     this.bal = balance;
@@ -44,6 +48,8 @@ export class Simulation {
     this.player = this.idx(balance.scenario.playerNation);
 
     this.owner = grid.owner; // gemeinsam mit Grid: Feldinfo zeigt immer den aktuellen Besitzer
+    this.startOwner = Uint8Array.from(this.owner); // Besitz am 31.08.1939 (Basis für Speicherstände)
+    this.homeOwner = this.startOwner; // Kerngebiet für den Nachschub
     // Nachbartabelle (N, O, S, W; -1 = Rand oder Meer): vermeidet Speicheranlagen im Tick
     this.nb = new Int32Array(this.N * 4).fill(-1);
     for (let i = 0; i < this.N; i++) {
@@ -69,12 +75,16 @@ export class Simulation {
     this.inWar = new Uint8Array(NMAX);
     this.box = { r0: this.rows, r1: -1, c0: this.cols, c1: -1 };
     this.wars = [];
-    for (const [a, b] of balance.scenario.wars) this.declareWar(this.idx(a), this.idx(b), false);
+    if (!peace) for (const [a, b] of balance.scenario.wars) this.declareWar(this.idx(a), this.idx(b), false);
 
     this.sectors = buildSectors(grid, balance.sectors.spacingCells);
+    initInfra(this, infra);
+    this.startRail = Uint8Array.from(this.railState);
     this.initCities();
+    // Nationen mit eigener Wirtschaft (Spieler + KI) und alle Kriegsparteien
     this.nations = new Map();
-    for (const n of this.warNations()) {
+    const all = new Set([...Object.keys(balance.economy.nations).map((c) => this.idx(c)), ...this.warNations()]);
+    for (const n of [...all].sort((x, y) => x - y)) {
       this.nations.set(n, {
         status: 'aktiv', capitulationDay: -1, startCells: 0,
         lossesTotal: 0, prisonersTaken: 0, menLostAsPrisoners: 0, airTotal: 0,
@@ -85,6 +95,9 @@ export class Simulation {
     this.sectionStats = new Map(); // `${frontKey}` je Sektor und Seite
     this.divisions = [];
     this.createDivisions();
+    initEconomy(this, infra);
+    initHistory(this);
+    this.methodCount = new Map(); // eroberte Felder je Nation und Vorgehen
     this.computeStartState();
     updateFronts(this);
     this.initialDeployment();
@@ -93,8 +106,9 @@ export class Simulation {
     resolvePockets(this);
     updateFronts(this);
     for (const n of this.nations.keys()) if (n !== this.player) warmupAi(this, n);
-    if (!warm && !Simulation.warmedUp) Simulation.warmup({ grid, map, balance });
-    this.log('info', `Aufmarsch abgeschlossen. Kriegszustand mit ${this.nationName(this.idx('POL'))}.`);
+    if (!warm && !Simulation.warmedUp) Simulation.warmup({ grid, map, balance, infra });
+    if (this.wars.length) this.log('info', `Aufmarsch abgeschlossen. Kriegszustand mit ${this.nationName(this.idx('POL'))}.`);
+    else this.log('info', 'Frieden. Die Wirtschaft läuft an.');
   }
 
   // ---------------------------------------------------------------- Hilfen
@@ -180,12 +194,16 @@ export class Simulation {
     }
     this.capital = new Map();
     for (const c of this.cities) if (c.capital) this.capital.set(c.nation, c.cell);
-    const S = this.bal.siege;
-    const warSet = new Set(this.warNations());
     this.sieges = [];
     this.siegeAt = new Int32Array(this.N).fill(-1);
+    for (const n of this.warNations()) this.addSieges(n);
+  }
+
+  /** Groß- und Hauptstädte einer Nation werden belagerbar (bei Kriegseintritt). */
+  addSieges(nation) {
+    const S = this.bal.siege;
     for (const c of this.cities) {
-      if (!warSet.has(c.nation)) continue;
+      if (c.nation !== nation || this.siegeAt[c.cell] >= 0) continue;
       const isCap = this.capital.get(c.nation) === c.cell;
       if (!isCap && c.rank > S.cityMaxRank) continue;
       const max = isCap ? S.capitalDefense : S.cityDefense;
@@ -204,12 +222,13 @@ export class Simulation {
         for (let i = 0; i < g.count; i++) {
           this.divisions.push({
             id: id++, nation: n, name: `${k}. ${cfg.label}`, men: D.menPerDivision, maxMen: D.menPerDivision,
-            tank: g.tank, air: g.air, front: 0, transit: null,
+            equip: this.bal.economy.equipmentPerDivision, tank: g.tank, air: g.air, front: 0, transit: null,
           });
           k++;
         }
       }
     }
+    this.nextDivisionId = id;
   }
 
   computeStartState() {
@@ -218,44 +237,13 @@ export class Simulation {
     markExclaves(this);
   }
 
-  /**
-   * Nachschub: Abstand (in Feldern, über Land) zum Gebiet bei Kriegsbeginn.
-   * Mit `added` (Map Nation -> neue Felder) wird nur ab den neuen Feldern nachgerechnet.
-   */
-  computeSupply(added = null) {
-    if (!this.supplyDist) this.supplyDist = new Map();
-    const q = this._sq || (this._sq = new Int32Array(this.N));
-    const nb = this.nb;
-    for (const n of this.nations.keys()) {
-      if (added && !added.has(n)) continue;
-      let dist = this.supplyDist.get(n);
-      let head = 0;
-      let tail = 0;
-      if (added && dist) {
-        for (const i of added.get(n)) { dist[i] = 0; q[tail++] = i; }
-      } else {
-        dist = dist || new Uint16Array(this.N);
-        dist.fill(65535);
-        for (let i = 0; i < this.N; i++) if (this.owner[i] === n) { dist[i] = 0; q[tail++] = i; }
-      }
-      while (head < tail) {
-        const i = q[head++];
-        const d = dist[i] + 1;
-        for (let k = i * 4, e = k + 4; k < e; k++) {
-          const j = nb[k];
-          if (j < 0 || dist[j] <= d) continue;
-          dist[j] = d;
-          q[tail++] = j;
-        }
-      }
-      this.supplyDist.set(n, dist);
-    }
+  /** Nachschub (Phase 3): über intakte Bahnknoten, siehe infra.js. */
+  computeSupply() {
+    computeRailSupply(this);
   }
 
   supply(n, cell) {
-    const S = this.bal.supply;
-    const d = this.supplyDist.get(n)?.[cell] ?? 0;
-    return Math.max(S.minFactor, 1 - d / S.rangeCells);
+    return railSupply(this, n, cell);
   }
 
   initialDeployment() {
@@ -320,7 +308,7 @@ export class Simulation {
     let count = 0;
     for (const d of this.divisions) {
       if (d.nation !== n || d.front !== frontId || d.transit) continue;
-      const s = d.men / d.maxMen;
+      const s = divisionStrength(this, d);
       str += s;
       tank += s * d.tank;
       air += s * d.air;
@@ -394,7 +382,11 @@ export class Simulation {
     const [x1, y1] = this.placeOf(toId, n);
     const km = Math.hypot(x1 - x0, y1 - y0) * KM_PER_CELL;
     const T = this.bal.transfer;
-    return Math.max(T.minDays, Math.ceil(km / T.kmPerDay));
+    // Bahnausbau beschleunigt Verlegungen: Mittel der Stufen an Start und Ziel
+    const cellAt = (x, y) => Math.max(0, Math.min(this.rows - 1, Math.round(y))) * this.cols + Math.max(0, Math.min(this.cols - 1, Math.round(x)));
+    const lv = (levelOfCell(this, cellAt(x0, y0)) + levelOfCell(this, cellAt(x1, y1))) / 2;
+    const speed = T.kmPerDay * (T.levelSpeed[Math.round(lv) - 1] || 1);
+    return Math.max(T.minDays, Math.ceil(km / speed));
   }
 
   /** Verlegt bis zu `count` Divisionen. Quelle/Ziel 0 = Reserve. Gibt die Anzahl zurück. */
@@ -424,7 +416,7 @@ export class Simulation {
     const t0 = (globalThis.performance || Date).now();
     this.changed = [];
     this.day += 1;
-    if (this.isOver()) { this.tickMs.push(0); return; }
+    for (const e of this.econ.values()) e.spentToday = 0;
 
     const added = new Map();
     for (const a of this.bal.scenario.annexations || []) {
@@ -440,7 +432,7 @@ export class Simulation {
       }
       this.log('annex', a.text);
     }
-    if (added.size) { this.computeSupply(added); updateFronts(this); }
+    if (added.size) updateFronts(this);
 
     // Ankunft verlegter Divisionen
     for (const d of this.divisions) {
@@ -460,6 +452,7 @@ export class Simulation {
       fn();
       phases[name] = clock.now() - a;
     };
+    run('nachschub', () => computeRailSupply(this));
     run('ki', () => runAi(this));
     run('auto', () => this.autoplay && this.autoplay(this));
     run('belagerung', () => resolveSieges(this));
@@ -468,7 +461,10 @@ export class Simulation {
     run('kapitulation', () => checkCapitulation(this));
     run('fronten', () => updateFronts(this));
     run('befehle', () => updateOrdersOverTime(this));
+    run('infrastruktur', () => { repairRail(this); advanceUpgrades(this); });
+    run('wirtschaft', () => runEconomy(this));
     this.cleanupDivisions();
+    recordDay(this);
     const ms = clock.now() - t0;
     this.tickMs.push(ms);
     this.phaseLog = this.phaseLog || [];
@@ -487,6 +483,13 @@ export class Simulation {
     this.conqMethod[cell] = method;
     this.pocketSince[cell] = -1;
     this.changed.push(cell);
+    if (method) {
+      damageOnCapture(this, cell, method);
+      captureBuildings(this, cell, method);
+      const mc = this.methodCount.get(n) || [0, 0, 0];
+      mc[method]++;
+      this.methodCount.set(n, mc);
+    }
     const ci = this.cityAt[cell];
     if (ci >= 0) {
       const c = this.cities[ci];
@@ -516,8 +519,40 @@ export class Simulation {
     this.divisions = this.divisions.filter((d) => d.men >= d.maxMen * lim);
   }
 
+  /** Feldzug beendet: Es gab Krieg, und keiner läuft mehr. */
   isOver() {
-    return this.wars.length === 0;
+    return this.wars.length === 0 && this.events.some((e) => e.type === 'capitulation');
+  }
+
+  /** Vorwiegendes Vorgehen einer Nation bei Eroberungen (1 minimal, 2 total). */
+  dominantMethod(n) {
+    const mc = this.methodCount.get(n) || [0, 0, 0];
+    return mc[2] > mc[1] ? 2 : 1;
+  }
+
+  sectorName(sector) {
+    return this.nearestCityName(this.sectors.cx[sector], this.sectors.cy[sector], 4);
+  }
+
+  /** Krieg während des Spiels beginnen (Debug-Schalter; Diplomatie folgt in Phase 5). */
+  startWar(aCode, bCode) {
+    const a = this.idx(aCode);
+    const b = this.idx(bCode);
+    if (this.isWar(a, b)) return false;
+    const fresh = [a, b].filter((n) => !this.inWar[n]);
+    this.declareWar(a, b, true);
+    for (const n of [a, b]) {
+      if (!this.nations.has(n)) {
+        this.nations.set(n, { status: 'aktiv', capitulationDay: -1, startCells: 0, lossesTotal: 0, prisonersTaken: 0, menLostAsPrisoners: 0, airTotal: 0 });
+      }
+      const st = this.nations.get(n);
+      if (!st.startCells) st.startCells = this.ownedCount[n];
+      this.addSieges(n);
+    }
+    markExclaves(this, fresh);
+    computeRailSupply(this);
+    updateFronts(this);
+    return true;
   }
 
   /** Prüfsumme des Spielzustands (für Reproduzierbarkeitstests). */

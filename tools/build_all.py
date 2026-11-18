@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
-STEPS = ["fetch_data.py", "territories.py", "build_grid.py", "build_relief.py", "build_vectors.py"]
+STEPS = ["fetch_data.py", "territories.py", "build_grid.py", "build_relief.py", "build_vectors.py", "build_infra.py"]
 
 
 def main() -> None:

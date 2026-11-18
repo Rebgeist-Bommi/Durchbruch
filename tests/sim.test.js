@@ -1,14 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runCampaign, loadInputs } from '../tools/sim_run.mjs';
-import { Grid } from '../src/data/grid.js';
-import { Simulation } from '../src/sim/simulation.js';
+import { runCampaign, loadInputs, newSim } from '../tools/sim_run.mjs';
 
 const SEED = 1939;
 
 function freshSim(seed = SEED) {
-  const { meta, bin, map, balance } = loadInputs();
-  return new Simulation({ grid: new Grid(meta, new Uint8Array(bin)), map, balance, seed });
+  return newSim({ seed });
 }
 
 test('Testlauf ohne Spieler: Polen kapituliert (alle Fronten auf Angriff)', () => {

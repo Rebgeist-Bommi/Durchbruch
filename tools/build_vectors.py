@@ -5,7 +5,7 @@ Inhalt (alle Koordinaten als ganze Zahlen: Welt = origin + wert × unit, EPSG:30
   borders      land (zwischen Nationen), internal (zwischen Gebieten derselben Nation), coast
   fronts       deutsch-polnische und deutsch-französische Grenze; Linien so orientiert,
                dass deutsches Gebiet links der Laufrichtung liegt
-  rails        Bahnnetz Natural Earth 10m, scalerank <= 6
+  rails        Bahnnetz Natural Earth 10m, scalerank <= 7
   cities       Städte mit Rang (1–3) und Hauptstadt-Kennung
 """
 import json
@@ -21,9 +21,8 @@ from shapely.geometry import LineString, Point, box
 from shapely.ops import polylabel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from config import BBOX, CACHE, CRS, DATA, OUT, QUANT_M, SOURCES, X_MIN, Y_MIN  # noqa: E402
+from config import BBOX, CACHE, CRS, DATA, OUT, QUANT_M, RAIL_MAX_SCALERANK, SOURCES, X_MIN, Y_MIN  # noqa: E402
 
-RAIL_MAX_SCALERANK = 6
 RAIL_SIMPLIFY_M = 800
 FRONTS = [
     ("DEU-POL", "Deutsch-polnische Grenze", "DEU", "POL"),

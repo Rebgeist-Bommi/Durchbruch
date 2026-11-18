@@ -1,6 +1,7 @@
 // Kriegsende: Kessel, Belagerung von Groß- und Hauptstädten, Kapitulation.
 import { neighbors4 } from './combat.js';
 import { fmtInt } from './calendar.js';
+import { transferStocks } from './economy.js';
 
 /**
  * Zusammenhangskomponenten (4er-Nachbarschaft) der Felder einer Nation im Suchbereich.
@@ -48,10 +49,11 @@ function coreComponent(sim, n, comps) {
 }
 
 /** Vor Kriegsbeginn abgetrennte Landesteile (z. B. Ostpreußen) sind keine Kessel. */
-export function markExclaves(sim) {
-  sim.exclave = new Map();
+export function markExclaves(sim, only = null) {
+  if (!sim.exclave) sim.exclave = new Map();
   const mark = new Int32Array(sim.N);
   for (const n of sim.nations.keys()) {
+    if (only && !only.includes(n)) continue;
     const comps = components(sim, n, mark);
     const ex = new Uint8Array(sim.N);
     if (comps.length) {
@@ -202,6 +204,10 @@ function surrender(sim, n, enemy, comp, mark, where) {
     for (const d of sim.divisionsOn(f.id, n)) {
       men += d.men;
       count++;
+      // erbeutete Ausrüstung (Anteil nach Vorgehen des Eroberers)
+      const share = sim.bal.economy.conquest[sim.dominantMethod(enemy) === 2 ? 'total' : 'minimal'].stocks;
+      const ce = sim.econ.get(enemy);
+      if (ce) ce.equipment += d.equip * share;
       d.men = 0;
     }
     if (f.side[enemy]) f.side[enemy].prisonersTotal += men;
@@ -226,7 +232,9 @@ export function checkCapitulation(sim) {
     if ((C.requireCapital && !capLost) || lost < C.lostShare) continue;
     // Kapitulation: Restgebiet wird besetzt, verbliebene Truppen gehen in Gefangenschaft
     const occ = enemies[0];
-    for (let i = 0; i < sim.N; i++) if (sim.owner[i] === n) sim.setOwner(i, occ, 1, true);
+    const method = sim.dominantMethod(occ);
+    for (let i = 0; i < sim.N; i++) if (sim.owner[i] === n) sim.setOwner(i, occ, method, true);
+    transferStocks(sim, n, occ, method);
     let men = 0;
     for (const d of sim.divisions) if (d.nation === n) { men += d.men; d.men = 0; }
     sim.nations.get(occ).prisonersTaken += men;

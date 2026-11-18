@@ -1,0 +1,38 @@
+name,kind,lat,lon,radius_cells,output,hinweis
+Ruhr,Kohle,51.50,7.20,3,10,Steinkohle
+Saar,Kohle,49.30,6.95,2,3,Steinkohle
+Aachen,Kohle,50.85,6.20,1,1,Steinkohle
+Oberschlesien (Deutschland),Kohle,50.30,18.75,2,5,Steinkohle
+Waldenburg,Kohle,50.77,16.28,1,1,Steinkohle
+Mitteldeutsches Braunkohlerevier,Kohle,51.25,12.30,2,4,Braunkohle
+Lausitz,Kohle,51.55,14.10,2,3,Braunkohle
+Rheinisches Braunkohlerevier,Kohle,50.90,6.65,1,2,Braunkohle
+Ostrau,Kohle,49.83,18.25,1,2,Steinkohle
+Salzgitter-Erz,Erz,52.10,10.40,1,2,Eisenerz
+Erzberg,Erz,47.52,14.90,1,1,Eisenerz
+Siegerland,Erz,50.85,8.00,1,1,Eisenerz
+Zistersdorf,Öl,48.54,16.76,1,1,Erdöl
+Leuna-Hydrierung,Öl,51.32,12.05,1,1,synthetisches Benzin
+Polnisches Oberschlesien,Kohle,50.25,19.10,2,4,Steinkohle
+Dombrowa,Kohle,50.33,19.20,1,1,Steinkohle
+Boryslaw,Öl,49.29,23.42,1,1,Erdöl
+Nord-Pas-de-Calais,Kohle,50.45,2.80,2,5,Steinkohle
+Lorraine-Kohle,Kohle,49.10,6.80,1,2,Steinkohle
+Briey-Longwy,Erz,49.30,5.95,2,4,Minette-Eisenerz
+Saint-Étienne-Kohle,Kohle,45.45,4.40,1,1,Steinkohle
+Südwales,Kohle,51.65,-3.40,2,4,Steinkohle
+Yorkshire,Kohle,53.55,-1.35,2,5,Steinkohle
+Durham-Northumberland,Kohle,54.80,-1.70,2,4,Steinkohle
+Schottland,Kohle,55.90,-3.80,1,2,Steinkohle
+Cleveland,Erz,54.50,-1.05,1,1,Eisenerz
+Donezbecken,Kohle,48.10,38.00,3,7,Steinkohle
+Kriwoi Rog,Erz,47.90,33.40,2,4,Eisenerz
+Nikopol,Erz,47.57,34.40,1,1,Mangan
+Moskauer Becken,Kohle,54.00,38.30,1,1,Braunkohle
+Limburg,Kohle,50.90,5.95,1,1,Steinkohle
+Sardinien,Kohle,39.20,8.55,1,1,Kohle (Sulcis)
+Elba-Erz,Erz,42.80,10.40,1,1,Eisenerz
+Outokumpu,Erz,62.73,29.02,1,1,Kupfererz
+Lüttich-Kohle,Kohle,50.62,5.55,1,2,Steinkohle
+Kladno,Kohle,50.15,14.10,1,1,Steinkohle
+Ploiesti,Öl,44.94,26.02,2,4,Erdöl

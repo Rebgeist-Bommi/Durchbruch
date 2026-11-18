@@ -22,6 +22,7 @@ ROWS = -(-(Y_MAX - Y_MIN) // CELL)   # 356
 # Vektorvereinfachung (topologieerhaltend) und Quantisierung für die Ausgabe
 SIMPLIFY_M = 600
 QUANT_M = 100   # Koordinaten werden als ganze Hektometer gespeichert
+RAIL_MAX_SCALERANK = 7  # Bahnnetz (Darstellung und Raster für Nachschub)
 
 SOURCES = {
     "cshapes": {
@@ -39,6 +40,10 @@ SOURCES = {
     "ne_railroads": {
         "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_railroads.geojson",
         "file": "ne_10m_railroads.geojson",
+    },
+    "ne_rivers": {
+        "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_rivers_lake_centerlines.geojson",
+        "file": "ne_50m_rivers_lake_centerlines.geojson",
     },
     "topography": {
         "url": "https://github.com/fatiando-data/earth-topography-10arcmin/releases/download/v1/earth-topography-10arcmin.nc",

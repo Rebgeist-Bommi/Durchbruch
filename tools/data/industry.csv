@@ -1,0 +1,57 @@
+name,nation,lat,lon,fabrik,ruestung,forschung,hinweis
+Ruhrgebiet,DEU,51.46,7.01,12,6,0,Kohle und Stahl (Essen/Krupp)
+Oberschlesien,DEU,50.30,18.67,5,2,0,Kohle und Stahl (Gleiwitz/Hindenburg)
+Sachsen,DEU,50.83,12.92,6,2,0,Maschinenbau und Textil (Chemnitz)
+Berlin,DEU,52.52,13.40,6,4,2,Elektro- und Rüstungsindustrie
+Hamburg,DEU,53.55,9.99,4,2,0,Werften
+Pilsen,DEU,49.75,13.38,2,3,0,Škoda-Werke
+Salzgitter,DEU,52.15,10.33,1,2,0,Reichswerke Hermann Göring
+Leuna,DEU,51.32,12.02,2,1,0,Chemie und Hydrierwerk
+Ludwigshafen,DEU,49.48,8.44,3,1,1,IG Farben
+Linz,DEU,48.31,14.29,1,1,0,Reichswerke Linz (im Aufbau)
+Stuttgart,DEU,48.78,9.18,2,1,0,Fahrzeug- und Zulieferindustrie
+München,DEU,48.14,11.58,2,1,1,Flugmotoren und Maschinenbau
+Wien,DEU,48.21,16.37,2,1,0,Maschinenbau
+Kassel,DEU,51.31,9.48,1,1,0,Lokomotiv- und Panzerbau (Henschel)
+Bremen,DEU,53.08,8.80,1,1,0,Werften und Flugzeugbau
+Magdeburg,DEU,52.13,11.63,2,1,0,Maschinenbau
+Göttingen,DEU,51.53,9.94,0,0,1,Forschung
+Stalowa Wola,POL,50.58,22.05,1,2,0,Zentrales Industriegebiet (COP)
+Polnisches Oberschlesien,POL,50.26,19.02,3,1,0,Kohle und Stahl (Kattowitz)
+Warschau,POL,52.23,21.01,3,1,1,Maschinenbau
+Lodz,POL,51.76,19.46,3,0,0,Textil
+Posen,POL,52.41,16.93,1,1,0,Maschinenbau (Cegielski)
+Lothringen,FRA,49.36,6.17,4,1,0,Eisenerz und Stahl
+Le Creusot,FRA,46.80,4.42,1,2,0,Schneider-Werke
+Paris,FRA,48.86,2.35,8,4,2,Fahrzeug- und Flugzeugbau
+Nord,FRA,50.63,3.06,4,1,0,Kohle und Textil (Lille)
+Lyon,FRA,45.76,4.84,2,1,0,Chemie und Textil
+Saint-Étienne,FRA,45.44,4.39,1,1,0,Rüstung
+Toulouse,FRA,43.60,1.44,1,1,0,Flugzeugbau
+Midlands,GBR,52.49,-1.89,7,3,0,Maschinen- und Fahrzeugbau (Birmingham)
+Lancashire,GBR,53.48,-2.24,5,2,0,Textil und Maschinenbau (Manchester)
+Clydeside,GBR,55.86,-4.25,3,2,0,Werften (Glasgow)
+Sheffield,GBR,53.38,-1.47,2,2,0,Stahl
+London,GBR,51.51,-0.13,6,2,2,Elektro- und Flugzeugbau
+Tyneside,GBR,54.97,-1.61,2,2,0,Werften und Rüstung (Vickers-Armstrongs)
+Belfast,GBR,54.60,-5.93,1,1,0,Werften
+Turin,ITA,45.07,7.69,4,2,0,Fiat
+Mailand,ITA,45.46,9.19,4,1,1,Maschinenbau
+Genua,ITA,44.41,8.93,2,2,0,Ansaldo
+Terni,ITA,42.56,12.65,1,1,0,Stahl und Rüstung
+Neapel,ITA,40.85,14.27,1,1,0,Werften
+Leningrad,SOV,59.94,30.32,5,3,1,Maschinen- und Rüstungsbau
+Moskau,SOV,55.76,37.62,6,4,2,Maschinenbau
+Charkow,SOV,49.99,36.23,3,2,0,Traktoren- und Panzerbau
+Donbass,SOV,48.00,37.80,3,1,0,Kohle und Stahl (Stalino)
+Kiew,SOV,50.45,30.52,2,1,0,Maschinenbau
+Dnjepropetrowsk,SOV,48.46,35.05,2,1,0,Stahl
+Gorki,SOV,56.33,44.00,2,2,0,Fahrzeugbau
+Rostow,SOV,47.24,39.71,1,1,0,Landmaschinen
+Rotterdam,NLD,51.92,4.48,2,0,0,Hafen und Werften
+Amsterdam,NLD,52.37,4.90,2,1,1,Industrie
+Eindhoven,NLD,51.44,5.48,1,0,0,Elektroindustrie (Philips)
+Twente,NLD,52.22,6.89,1,0,0,Textil
+Helsinki,FIN,60.17,24.94,1,1,1,Industrie
+Tampere,FIN,61.50,23.76,1,0,0,Textil und Maschinenbau
+Turku,FIN,60.45,22.27,1,0,0,Werften

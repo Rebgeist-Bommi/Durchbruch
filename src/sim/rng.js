@@ -16,6 +16,9 @@ export function createRng(seed) {
     return (t >>> 0) / 4294967296;
   }
   for (let i = 0; i < 16; i++) next();
+  // Zustand lesen/setzen (Speichern und Laden)
+  next.getState = () => [a >>> 0, b >>> 0, c >>> 0, d >>> 0];
+  next.setState = (s) => { [a, b, c, d] = s; };
   return next;
 }
 

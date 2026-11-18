@@ -12,13 +12,18 @@ export function loadInputs() {
   const bin = readFileSync(new URL('grid.bin', dir));
   const map = decodeMap(JSON.parse(readFileSync(new URL('map.json', dir), 'utf8')));
   const balance = JSON.parse(readFileSync(new URL('../data/balance.json', import.meta.url), 'utf8'));
-  return { meta, bin, map, balance };
+  const infra = JSON.parse(readFileSync(new URL('infra.json', dir), 'utf8'));
+  return { meta, bin, map, balance, infra };
+}
+
+export function newSim({ seed, peace = false } = {}) {
+  const { meta, bin, map, balance, infra } = loadInputs();
+  const grid = new Grid(meta, new Uint8Array(bin));
+  return new Simulation({ grid, map, balance, infra, seed: seed ?? balance.seed, peace });
 }
 
 export function runCampaign({ seed, maxDays = 200, onDay } = {}) {
-  const { meta, bin, map, balance } = loadInputs();
-  const grid = new Grid(meta, new Uint8Array(bin));
-  const sim = new Simulation({ grid, map, balance, seed: seed ?? balance.seed });
+  const sim = newSim({ seed });
   sim.autoplay = autoplayAllAttack;
   while (!sim.isOver() && sim.day < maxDays) {
     sim.tick();

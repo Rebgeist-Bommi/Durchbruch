@@ -23,7 +23,10 @@ export function applyLosses(sim, frontId, n, men) {
   const total = divs.reduce((s, d) => s + d.men, 0);
   if (total <= 0) return;
   const k = Math.min(1, men / total);
-  for (const d of divs) d.men -= d.men * k;
+  for (const d of divs) {
+    d.men -= d.men * k;
+    if (d.equip !== undefined) d.equip -= d.equip * k; // Ausrüstung geht mit verloren
+  }
 }
 
 export function resolveCombat(sim) {

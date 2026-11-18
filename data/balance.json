@@ -1,25 +1,37 @@
 {
   "_hinweis": "# TODO historisch prüfen – ALLE Zahlen in dieser Datei sind Platzhalter für das Spielgleichgewicht. Sie sind weder recherchiert noch als historische Angaben zu verstehen.",
   "seed": 1939,
-
   "time": {
     "_todo": "Vorgabe aus Phase 2, keine historische Angabe",
     "startDate": "1939-08-31",
     "msPerDayAt1x": 4500,
-    "speeds": [0, 1, 2, 4]
+    "speeds": [
+      0,
+      1,
+      2,
+      4
+    ]
   },
-
   "scenario": {
     "_todo": "# TODO historisch prüfen",
     "playerNation": "DEU",
-    "wars": [["DEU", "POL"]],
+    "wars": [
+      [
+        "DEU",
+        "POL"
+      ]
+    ],
     "annexations": [
-      { "day": 1, "territory": "DAN", "to": "DEU", "text": "Danzig wird dem Deutschen Reich angegliedert." }
+      {
+        "day": 1,
+        "territory": "DAN",
+        "to": "DEU",
+        "text": "Danzig wird dem Deutschen Reich angegliedert."
+      }
     ]
   },
-
   "divisions": {
-    "_todo": "# TODO historisch prüfen – Anzahl, Panzeranteil und Luftanteil sind Platzhalter",
+    "_todo": "# TODO historisch prüfen – Divisionszahlen aller Nationen sind Platzhalter (Größenordnung 1939), Panzer- und Luftanteile Spielwerte",
     "menPerDivision": 15000,
     "destroyedBelow": 0.25,
     "nations": {
@@ -27,28 +39,144 @@
         "label": "Div.",
         "reserveShare": 0.12,
         "groups": [
-          { "count": 42, "tank": 0.03, "air": 0.15 },
-          { "count": 8, "tank": 0.70, "air": 0.30 },
-          { "count": 6, "tank": 0.35, "air": 0.25 }
-        ]
+          {
+            "count": 42,
+            "tank": 0.03,
+            "air": 0.15
+          },
+          {
+            "count": 8,
+            "tank": 0.7,
+            "air": 0.3
+          },
+          {
+            "count": 6,
+            "tank": 0.35,
+            "air": 0.25
+          }
+        ],
+        "newAir": 0.18
       },
       "POL": {
         "label": "Dyw.",
         "reserveShare": 0.15,
         "groups": [
-          { "count": 30, "tank": 0.02, "air": 0.04 },
-          { "count": 8, "tank": 0.08, "air": 0.04 }
+          {
+            "count": 30,
+            "tank": 0.02,
+            "air": 0.04
+          },
+          {
+            "count": 8,
+            "tank": 0.08,
+            "air": 0.04
+          }
+        ],
+        "newAir": 0.04
+      },
+      "FRA": {
+        "label": "DI",
+        "reserveShare": 1.0,
+        "newAir": 0.1,
+        "groups": [
+          {
+            "count": 70,
+            "tank": 0.04,
+            "air": 0.08
+          },
+          {
+            "count": 8,
+            "tank": 0.45,
+            "air": 0.1
+          }
+        ]
+      },
+      "GBR": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.15,
+        "groups": [
+          {
+            "count": 22,
+            "tank": 0.05,
+            "air": 0.15
+          },
+          {
+            "count": 3,
+            "tank": 0.5,
+            "air": 0.15
+          }
+        ]
+      },
+      "ITA": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.1,
+        "groups": [
+          {
+            "count": 55,
+            "tank": 0.02,
+            "air": 0.1
+          },
+          {
+            "count": 4,
+            "tank": 0.3,
+            "air": 0.1
+          }
+        ]
+      },
+      "SOV": {
+        "label": "SD",
+        "reserveShare": 1.0,
+        "newAir": 0.1,
+        "groups": [
+          {
+            "count": 100,
+            "tank": 0.05,
+            "air": 0.08
+          },
+          {
+            "count": 15,
+            "tank": 0.5,
+            "air": 0.1
+          }
+        ]
+      },
+      "NLD": {
+        "label": "Div.",
+        "reserveShare": 1.0,
+        "newAir": 0.05,
+        "groups": [
+          {
+            "count": 10,
+            "tank": 0.0,
+            "air": 0.04
+          }
+        ]
+      },
+      "FIN": {
+        "label": "D",
+        "reserveShare": 1.0,
+        "newAir": 0.03,
+        "groups": [
+          {
+            "count": 9,
+            "tank": 0.0,
+            "air": 0.03
+          }
         ]
       }
     }
   },
-
   "start": {
     "_todo": "# TODO historisch prüfen",
-    "prep": { "DEU": 0.6 },
-    "fortification": { "POL": 0.25 }
+    "prep": {
+      "DEU": 0.6
+    },
+    "fortification": {
+      "POL": 0.25
+    }
   },
-
   "orders": {
     "_todo": "Spielwerte",
     "prepDays": 7,
@@ -58,7 +186,6 @@
     "fortBonus": 1.6,
     "fortHoldOnly": true
   },
-
   "combat": {
     "_todo": "Spielwerte, durch Testläufe abgestimmt",
     "baseRate": 0.32,
@@ -66,7 +193,13 @@
     "maxChance": 0.93,
     "substeps": 3,
     "exploitFactor": 0.5,
-    "neighborFactor": [0, 1.0, 1.9, 2.8, 3.6],
+    "neighborFactor": [
+      0,
+      1.0,
+      1.9,
+      2.8,
+      3.6
+    ],
     "mountainFactor": 0.3,
     "tankBonus": 1.2,
     "tankMountainFactor": 0.25,
@@ -84,19 +217,28 @@
     "statusBreakthroughKm": 12,
     "statusAdvanceKm": 2
   },
-
   "supply": {
-    "_todo": "Spielwerte",
-    "rangeCells": 75,
-    "minFactor": 0.35
+    "_todo": "Spielwerte (Phase 3: Nachschub über intakte Bahnknoten)",
+    "fullCells": 14,
+    "rangeCells": 50,
+    "minFactor": 0.5,
+    "levelWeight": 0.08
   },
-
   "methods": {
     "_todo": "Spielwerte",
-    "minimal": { "label": "Minimaler Schaden", "speed": 0.75, "yieldStart": 0.7, "recoverDays": 60 },
-    "total": { "label": "Totale Verwüstung", "speed": 1.2, "yieldStart": 0.05, "recoverDays": 540 }
+    "minimal": {
+      "label": "Minimaler Schaden",
+      "speed": 0.75,
+      "yieldStart": 0.7,
+      "recoverDays": 60
+    },
+    "total": {
+      "label": "Totale Verwüstung",
+      "speed": 1.2,
+      "yieldStart": 0.05,
+      "recoverDays": 540
+    }
   },
-
   "siege": {
     "_todo": "# TODO historisch prüfen",
     "capitalDefense": 100,
@@ -107,7 +249,6 @@
     "bindDivisionsCapital": 6,
     "bindDivisionsCity": 3
   },
-
   "pocket": {
     "_todo": "Spielwerte",
     "instantCells": 6,
@@ -115,19 +256,23 @@
     "surrenderDaysPer100Cells": 4,
     "messageMinCells": 10
   },
-
   "capitulation": {
     "_todo": "# TODO historisch prüfen",
     "requireCapital": true,
     "lostShare": 0.55
   },
-
   "transfer": {
-    "_todo": "Spielwerte",
+    "_todo": "Spielwerte; levelSpeed = Faktor je Bahnausbaustufe 1–5",
     "kmPerDay": 160,
-    "minDays": 1
+    "minDays": 1,
+    "levelSpeed": [
+      0.6,
+      0.75,
+      0.9,
+      1.0,
+      1.15
+    ]
   },
-
   "ai": {
     "_todo": "Spielwerte",
     "retreatDepthCells": 3,
@@ -135,9 +280,229 @@
     "rebalanceThreshold": 1.5,
     "dangerWeight": 3
   },
-
   "sectors": {
     "_todo": "Abschnittslänge ca. 100 km (Vorgabe Phase 2)",
     "spacingCells": 11
+  },
+  "_quellen": "Belegte historische Werte siehe SOURCES.md. Alles andere ist Spielwert bzw. # TODO historisch prüfen.",
+  "infrastructure": {
+    "_todo": "Spielwerte; Startstufen # TODO historisch prüfen (Dichte und Qualität des Bahnnetzes 1939)",
+    "startLevel": {
+      "DEU": 4,
+      "GBR": 4,
+      "FRA": 4,
+      "NLD": 4,
+      "BEL": 4,
+      "CHE": 4,
+      "DNK": 4,
+      "ITA": 3,
+      "SWE": 3,
+      "CSR": 3,
+      "AUT": 3,
+      "POL": 2,
+      "SOV": 2,
+      "FIN": 2,
+      "HUN": 3,
+      "ROU": 2,
+      "YUG": 2,
+      "default": 2
+    },
+    "levelFactor": [
+      0.8,
+      0.85,
+      0.9,
+      0.95,
+      1.0
+    ],
+    "upgradeCostPerLevel": 60,
+    "upgradeDaysPerLevel": 30,
+    "repairCrewsPerDay": 100,
+    "repairDaysDamaged": 0.8,
+    "repairDaysDestroyed": 4,
+    "repairCostPerCell": 0.3
+  },
+  "economy": {
+    "_hinweis": "Geld in Mio. RM-Gegenwert je Tag (abstrakt, für alle Nationen gleich). Bevölkerung und BIP siehe SOURCES.md; alle anderen Zahlen sind Spielwerte # TODO historisch prüfen.",
+    "incomePerGdpPerDay": 0.25,
+    "taxPerMillionWorkers": 0.6,
+    "resourcePerOutput": 1.0,
+    "resourcesPerEquipment": 8.0,
+    "equipmentPerDivision": 100,
+    "divisionUpkeep": 0.4,
+    "replenishPerDay": 0.03,
+    "minDivisionMenShare": 0.25,
+    "siteMin": 0.6,
+    "mobilization": {
+      "_todo": "Anteile der Bevölkerung unter Waffen je Stufe: Spielwerte # TODO historisch prüfen",
+      "levels": [
+        {
+          "label": "Friedensstärke",
+          "rate": 0.01
+        },
+        {
+          "label": "Teilmobilisierung",
+          "rate": 0.025
+        },
+        {
+          "label": "Kriegsstärke",
+          "rate": 0.05
+        },
+        {
+          "label": "Hoch",
+          "rate": 0.08
+        },
+        {
+          "label": "Total",
+          "rate": 0.12
+        }
+      ],
+      "laborShare": 0.5,
+      "combatShare": 0.4,
+      "recruitPerDayOfPop": 0.0003
+    },
+    "buildings": {
+      "fabrik": {
+        "label": "Fabrik",
+        "cost": 180,
+        "days": 90,
+        "upkeep": 0.1,
+        "money": 1.2
+      },
+      "ruestung": {
+        "label": "Rüstungsfabrik",
+        "cost": 240,
+        "days": 120,
+        "upkeep": 0.15,
+        "equipment": 0.12
+      },
+      "forschung": {
+        "label": "Forschungsanstalt",
+        "cost": 150,
+        "days": 60,
+        "upkeep": 0.2
+      }
+    },
+    "siteWeights": {
+      "fabrik": {
+        "rail": 3,
+        "labor": 3,
+        "res": 1,
+        "front": 2
+      },
+      "ruestung": {
+        "rail": 3,
+        "labor": 2,
+        "res": 3,
+        "front": 3
+      },
+      "forschung": {
+        "rail": 1,
+        "labor": 3,
+        "res": 0,
+        "front": 3
+      }
+    },
+    "conquest": {
+      "_todo": "Spielwerte",
+      "minimal": {
+        "buildings": 0.8,
+        "stocks": 0.6
+      },
+      "total": {
+        "buildings": 0.15,
+        "stocks": 0.1
+      }
+    },
+    "ai": {
+      "warMobLevel": 3,
+      "divisionsPerWeekPeace": 1,
+      "divisionsPerWeekWar": 2,
+      "minEquipShare": 0.6,
+      "reserveDays": 60,
+      "maxOpenBuilds": 2,
+      "equipReserveDivisions": 4
+    },
+    "nations": {
+      "DEU": {
+        "pop": 86.8,
+        "gdp1938": 375,
+        "mobLevel": 2,
+        "money": 600,
+        "resources": 400,
+        "equipment": 1500,
+        "tankEquipment": 250,
+        "tankShare": 0.15
+      },
+      "POL": {
+        "pop": 35.1,
+        "gdp1938": 76,
+        "mobLevel": 2,
+        "money": 120,
+        "resources": 80,
+        "equipment": 300,
+        "tankEquipment": 15,
+        "tankShare": 0.05
+      },
+      "FRA": {
+        "pop": 41.9,
+        "gdp1938": 186,
+        "mobLevel": 1,
+        "money": 400,
+        "resources": 200,
+        "equipment": 1200,
+        "tankEquipment": 150,
+        "tankShare": 0.12
+      },
+      "GBR": {
+        "pop": 47.5,
+        "gdp1938": 284,
+        "mobLevel": 1,
+        "money": 600,
+        "resources": 300,
+        "equipment": 600,
+        "tankEquipment": 80,
+        "tankShare": 0.12
+      },
+      "ITA": {
+        "pop": 43.4,
+        "gdp1938": 141,
+        "mobLevel": 1,
+        "money": 250,
+        "resources": 60,
+        "equipment": 800,
+        "tankEquipment": 40,
+        "tankShare": 0.06
+      },
+      "SOV": {
+        "pop": 170.6,
+        "gdp1938": 359,
+        "mobLevel": 1,
+        "money": 500,
+        "resources": 300,
+        "equipment": 2000,
+        "tankEquipment": 400,
+        "tankShare": 0.18
+      },
+      "NLD": {
+        "pop": 8.7,
+        "gdp1938": 45,
+        "mobLevel": 1,
+        "money": 120,
+        "resources": 20,
+        "equipment": 120,
+        "tankEquipment": 0,
+        "tankShare": 0.02
+      },
+      "FIN": {
+        "pop": 3.7,
+        "gdp1938": 12,
+        "mobLevel": 1,
+        "money": 30,
+        "resources": 10,
+        "equipment": 80,
+        "tankEquipment": 0,
+        "tankShare": 0.02
+      }
+    }
   }
 }
