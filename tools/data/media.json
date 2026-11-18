@@ -1,0 +1,221 @@
+{
+  "_hinweis": "Medien für das Hauptmenü. Nur gemeinfreies oder frei lizenziertes Material; die Lizenz wird beim Bau von der Seite jeder Datei gelesen und geprüft (tools/build_media.py). focus = Bildmitte des 16:9-Ausschnitts (0–1).",
+  "photos": [
+    {
+      "id": "p01",
+      "title": "File:Bundesarchiv Bild 101I-012-0035-11A, Polen, Panzer I und Infanterie.jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Ostfront 1939, Panzer und Infanterie"
+    },
+    {
+      "id": "p02",
+      "title": "File:Bundesarchiv Bild 183-S54817, Polen, bespanntes Infanteriegeschütz.jpg",
+      "focus": [
+        0.5,
+        0.42
+      ],
+      "motiv": "Artillerie, bespannt"
+    },
+    {
+      "id": "p03",
+      "title": "File:Bundesarchiv Bild 101I-055-1599-31, Frankreichfeldzug, Panzer IV.jpg",
+      "focus": [
+        0.5,
+        0.55
+      ],
+      "motiv": "Westfront 1940, Panzer"
+    },
+    {
+      "id": "p04",
+      "title": "File:Bundesarchiv Bild 101III-Wittmar-005-33A, Russland-Nord, Vormarsch.jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Ostfront 1941, marschierende Kolonne"
+    },
+    {
+      "id": "p05",
+      "title": "File:Bundesarchiv Bild 101I-393-1409-18, Russland, Flugzeug Junkers Ju 87.jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Flugzeug"
+    },
+    {
+      "id": "p06",
+      "title": "File:Bundesarchiv Bild 183-2008-0415-506, Polen, motorisierte deutsche Truppen.jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Ostfront 1939, motorisierte Kolonne"
+    },
+    {
+      "id": "p07",
+      "title": "File:RIAN archive 613694 Red Army men are on offensive near Bryansk.jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Ostfront 1941, Rote Armee"
+    },
+    {
+      "id": "p08",
+      "title": "File:Photograph of Tanks and Infantrymen Moving into Bonneville, France - NARA - 6928099.jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Westfront 1944, Amerikaner und Panzer"
+    },
+    {
+      "id": "p09",
+      "title": "File:SC 190655 - American tanks entering Rome, 4 June, 1944. (49621546413).jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Amerikanische Panzer"
+    },
+    {
+      "id": "p10",
+      "title": "File:Artillerymen of a cannon company of the U.S. Army’s 90th Infantry Division fire an M3 105mm howitzer near Carentan, France on 11 June 1944.jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Artillerie, Westfront 1944"
+    },
+    {
+      "id": "p11",
+      "title": "File:Boeing B-17F Flying Fortresses in flight with contrails.jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Flugzeuge"
+    },
+    {
+      "id": "p12",
+      "title": "File:Into the Jaws of Death 23-0455M edit.jpg",
+      "focus": [
+        0.5,
+        0.45
+      ],
+      "motiv": "Westfront 1944, Landung in der Normandie"
+    },
+    {
+      "id": "p13",
+      "title": "File:Bundesarchiv Bild 146-1981-070-15, Frankreich, Panzer IV.jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Westfront 1940, Panzer"
+    },
+    {
+      "id": "p14",
+      "title": "File:Shermans-loaded-in-LCT.jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Amerikanische Panzer vor der Landung 1944"
+    },
+    {
+      "id": "p15",
+      "title": "File:Bundesarchiv Bild 101I-769-0229-26, Frankreich, Panzersoldat, Panzer 38(t).jpg",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "motiv": "Westfront 1940, Panzer"
+    }
+  ],
+  "papers": [
+    {
+      "id": "n1",
+      "source": "ddb",
+      "item": "63LRFTMC5JJJNGE3AH5PKY6ZN7E5SYEA",
+      "label": "Hallische Nachrichten, 24. August 1939",
+      "cropBottom": 0.045
+    },
+    {
+      "id": "n2",
+      "source": "loc",
+      "lccn": "sn83045462",
+      "date": "1939-08-24",
+      "label": "Evening Star (Washington), 24. August 1939"
+    },
+    {
+      "id": "n3",
+      "source": "ddb",
+      "item": "PPPD7KEWMHCC4GNM47GO4QLKHRO2OXXW",
+      "label": "Hallische Nachrichten, 1. September 1939",
+      "cropBottom": 0.045
+    },
+    {
+      "id": "n4",
+      "source": "loc",
+      "lccn": "sn83045462",
+      "date": "1939-09-01",
+      "label": "Evening Star (Washington), 1. September 1939"
+    },
+    {
+      "id": "n5",
+      "source": "loc",
+      "lccn": "sn83045462",
+      "date": "1939-08-23",
+      "label": "Evening Star (Washington), 23. August 1939"
+    }
+  ],
+  "music": [
+    {
+      "id": "mars",
+      "title": "File:Holst- mars.ogg",
+      "start": 0,
+      "duration": 0,
+      "bitrate": "80k",
+      "label": "Gustav Holst: Mars, der Kriegsbringer (Die Planeten)"
+    },
+    {
+      "id": "trauermarsch",
+      "title": "File:Siegfrieds funeral march and finale.ogg",
+      "start": 0,
+      "duration": 420,
+      "bitrate": "80k",
+      "label": "Richard Wagner: Siegfrieds Trauermarsch (Götterdämmerung)"
+    }
+  ],
+  "rejected": [
+    {
+      "title": "File:Bundesarchiv Bild 146-1976-071-36, Polen, an der Brahe, deutsche Panzer.jpg",
+      "reason": "Lizenz klar (CC BY-SA 3.0 DE), aber am Bildrand liegt eine Gestalt, die ein Toter sein könnte – nach der Vorgabe (keine Toten) verworfen."
+    },
+    {
+      "title": "File:Bundesarchiv Bild 101I-121-0011A-22, Polen, Siegesparade, Guderian, Kriwoschein.jpg",
+      "reason": "Lizenz klar, aber Parade statt Frontmotiv; nicht verwendet."
+    },
+    {
+      "title": "File:RIAN archive 633180 Stream crossing.jpg",
+      "reason": "Sowjetisches Foto mit Vermerk „Public domain“ ohne eindeutige Begründung auf der Dateiseite – unklar, verworfen."
+    },
+    {
+      "title": "Zeitungen aus ZEFYS (Staatsbibliothek zu Berlin), z. B. Berliner Morgenpost, Berliner Börsen-Zeitung, 23.08.–01.09.1939",
+      "reason": "Keine Rechteangabe für die Digitalisate (weder in den METS-Daten noch auf den Titelseiten) – unklar, verworfen."
+    },
+    {
+      "title": "Deutsches Zeitungsportal: 136 weitere Zeitungen vom 23.08.–01.09.1939 (z. B. Hamburger Fremdenblatt, Stuttgarter neues Tagblatt)",
+      "reason": "Rechteangabe „Urheberrecht nicht bewertet“ (CNE) oder „In Copyright“ (InC) – verworfen. Verwendet wurden nur Ausgaben mit Public Domain Mark."
+    },
+    {
+      "title": "Deutsches Zeitungsportal: Mitteldeutsche Nationalzeitung, Saale-Zeitung (Public Domain Mark)",
+      "reason": "Lizenz klar; nicht verwendet, um die Auswahl auf fünf Titelseiten zu begrenzen (Saale-Zeitung vom 1.9. wiederholt die Meldungen der Hallischen Nachrichten)."
+    }
+  ]
+}

@@ -200,7 +200,13 @@ await context.close();
 
 // ---------------------------------------------------------------- 6. Phase 5: Hauptmenü, Entscheidung, Zeitung, Diplomatie, Ende
 ({ context, page } = await open({}, PAGE_URL.replace('?menu=0', '')));
+await page.waitForTimeout(1500);
 await shot(page, '19-hauptmenue');
+report.menuPhotos = await page.evaluate(() => document.querySelectorAll('#menu .m-papers .paper').length);
+await page.click('#menu [data-m="credits"]');
+await page.waitForSelector('#m-credits .credits');
+await shot(page, '19b-mitwirkende');
+await page.click('#menu [data-m="main"]');
 await page.click('#menu [data-m="campaign"]');
 await page.click('#menu [data-m="start-campaign"]');
 report.phase5 = await page.evaluate(() => {

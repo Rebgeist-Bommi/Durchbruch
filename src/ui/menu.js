@@ -1,12 +1,16 @@
 // Hauptmenü (Phase 5): Kampagne, Sandbox, Spiel laden, Einstellungen, Beenden.
 // Einstellungen werden im Browser gespeichert (Spieltempo, Lautstärke für später, Grafikdetail).
 
+import { loadCredits, creditsHtml } from './menuMedia.js';
+
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const KEY = 'durchbruch-settings';
 
+export function saveSettingsNow(s) { saveSettings(s); }
+
 export function loadSettings() {
-  const def = { speed: 1, volume: 70, detail: 'hoch' };
+  const def = { speed: 1, volume: 70, detail: 'hoch', music: true };
   try { return { ...def, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return def; }
 }
 
@@ -26,7 +30,7 @@ export class MainMenu {
    */
   constructor(o) {
     Object.assign(this, o);
-    this.settings = loadSettings();
+    this.settings = this.settings || loadSettings();
     this.level = 'normal';
     this.unlimited = true;
     this.panel = 'main';
@@ -41,10 +45,11 @@ export class MainMenu {
     this.panel = panel;
     this.render();
     $('menu').hidden = false;
-    $('menu').querySelector('button')?.focus();
+    $('menu-body').querySelector('button')?.focus();
+    if (this.onVisible) this.onVisible(true);
   }
 
-  hide() { $('menu').hidden = true; }
+  hide() { $('menu').hidden = true; if (this.onVisible) this.onVisible(false); }
 
   levelsHtml() {
     return Object.entries(this.levels).map(([k, v]) => `<label><input type="radio" name="level" value="${k}" ${k === this.level ? 'checked' : ''}>${esc(v.label)}
@@ -84,9 +89,15 @@ export class MainMenu {
       case 'settings':
         html = `<div class="menu-panel"><h2>Einstellungen</h2>
           <fieldset><legend>Spieltempo beim Fortsetzen</legend><div class="seg">${[1, 2, 4].map((v) => `<button type="button" data-speed="${v}" aria-pressed="${s.speed === v}">${v}×</button>`).join('')}</div></fieldset>
-          <fieldset><legend>Lautstärke</legend><input type="range" id="m-volume" min="0" max="100" value="${s.volume}" aria-label="Lautstärke"><small>${s.volume} % – Musik und Klänge folgen in einem eigenen Auftrag.</small></fieldset>
+          <fieldset><legend>Lautstärke</legend><input type="range" id="m-volume" min="0" max="100" value="${s.volume}" aria-label="Lautstärke"><small>${s.volume} % – Menümusik</small></fieldset>
+          <fieldset><legend>Musik</legend><div class="seg">${[['an', true], ['aus', false]].map(([l, v]) => `<button type="button" data-music="${v}" aria-pressed="${(s.music !== false) === v}">${l === 'an' ? 'An' : 'Aus'}</button>`).join('')}</div></fieldset>
           <fieldset><legend>Grafikdetail</legend><div class="seg">${['hoch', 'niedrig'].map((v) => `<button type="button" data-detail="${v}" aria-pressed="${s.detail === v}">${v === 'hoch' ? 'Hoch' : 'Niedrig'}</button>`).join('')}</div><small>Niedrig: Fronten als schlichte Linie, kein Pulsieren.</small></fieldset>
           <button type="button" class="menu-back" data-m="main">Zurück</button></div>`;
+        break;
+      case 'credits':
+        html = `<div class="menu-panel credits-panel"><h2>Mitwirkende</h2><div id="m-credits"><p class="menu-wait">Nachweise werden geladen …</p></div>
+          <button type="button" class="menu-back" data-m="main">Zurück</button></div>`;
+        loadCredits().then((c) => { const el = $('m-credits'); if (el) el.innerHTML = creditsHtml(c, esc); });
         break;
       case 'bye':
         html = `<div class="menu-panel"><p class="menu-bye">Das Spiel ist beendet. Das Fenster kann jetzt geschlossen werden.</p>
@@ -99,6 +110,7 @@ export class MainMenu {
             <button type="button" data-m="sandbox">Sandbox</button>
             <button type="button" data-m="load-panel">Spiel laden</button>
             <button type="button" data-m="settings">Einstellungen</button>
+            <button type="button" data-m="credits">Mitwirkende</button>
             <button type="button" data-m="quit">Beenden</button>
           </div>
           <p class="menu-foot">Privates Strategiespiel · Spielwerte sind Platzhalter, keine historischen Angaben</p>`;
@@ -109,13 +121,15 @@ export class MainMenu {
   onClick(e) {
     const sp = e.target.closest('[data-speed]');
     if (sp) { this.settings.speed = Number(sp.dataset.speed); saveSettings(this.settings); this.onSettings(this.settings); this.render(); return; }
+    const mu = e.target.closest('[data-music]');
+    if (mu) { this.settings.music = mu.dataset.music === 'true'; saveSettings(this.settings); this.onSettings(this.settings); this.render(); return; }
     const dt = e.target.closest('[data-detail]');
     if (dt) { this.settings.detail = dt.dataset.detail; saveSettings(this.settings); this.onSettings(this.settings); this.render(); return; }
     const b = e.target.closest('[data-m]');
     if (!b) return;
     const m = b.dataset.m;
     switch (m) {
-      case 'main': case 'campaign': case 'sandbox': case 'settings': this.show(m); break;
+      case 'main': case 'campaign': case 'sandbox': case 'settings': case 'credits': this.show(m); break;
       case 'load-panel': this.show('load'); break;
       case 'resume': this.hide(); this.onResume(); break;
       case 'start-campaign': this.onStart(this.level, false); break;
@@ -132,8 +146,9 @@ export class MainMenu {
     if (e.target.id === 'm-volume') {
       this.settings.volume = Number(e.target.value);
       saveSettings(this.settings);
+      this.onSettings(this.settings);
       const sm = e.target.parentElement.querySelector('small');
-      if (sm) sm.textContent = `${this.settings.volume} % – Musik und Klänge folgen in einem eigenen Auftrag.`;
+      if (sm) sm.textContent = `${this.settings.volume} % – Menümusik`;
     }
   }
 }

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Durchbruch</title>
   <meta name="description" content="Durchbruch – Echtzeit-Strategie, Europa ab 31. August 1939" />
+  <link rel="preload" as="image" href="media/photos/p01.webp" type="image/webp" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231A1C14'/%3E%3Cpath d='M3 11 8 4l5 7' fill='none' stroke='%23C8A156' stroke-width='2'/%3E%3C/svg%3E" />
 </head>
 <body class="mode-front">
@@ -155,11 +156,19 @@
     </div>
   </div>
   <div id="menu" hidden>
+    <!-- Zwischenauftrag: Hintergrund aus Originalfotos und Zeitungen (Nachweise: MEDIA_SOURCES.md) -->
+    <div class="m-slides" aria-hidden="true"><figure class="slide on"><img src="media/photos/p01.webp" alt="" decoding="async"></figure><figure class="slide"><img alt="" decoding="async"></figure></div>
+    <div class="m-papers" aria-label="Zeitungen vom 23. August bis 1. September 1939"></div>
     <div class="grain" aria-hidden="true"></div>
+    <div class="m-scratches" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="m-flicker" aria-hidden="true"></div>
+    <div class="m-vignette" aria-hidden="true"></div>
+    <p class="m-caption" aria-live="off"></p>
+    <button type="button" class="m-music" aria-pressed="false" title="Musik an/aus">♪ Musik: aus</button>
     <div class="menu-board" role="dialog" aria-modal="true" aria-labelledby="menu-title">
       <h1 id="menu-title">Durchbruch</h1>
       <p class="menu-sub">Europa · 31. August 1939</p>
-      <div id="menu-body"></div>
+      <div id="menu-body"><p class="menu-wait">Karte wird geladen …</p></div>
     </div>
   </div>
   <script type="module" src="/src/main.js"></script>

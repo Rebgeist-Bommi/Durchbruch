@@ -10,6 +10,9 @@
 | Earth – Topography grid at 10 arc-minute resolution (Fatiando a Terra), `earth-topography-10arcmin.nc`, v1, DOI 10.5281/zenodo.5882203 | Höhenmodell für Terrain (Gebirge) und facettiertes Relief | https://github.com/fatiando-data/earth-topography-10arcmin | CC BY 4.0; Ausgangsdaten ETOPO1 (NOAA, Amante & Eakins 2009, DOI 10.7289/V5C8276M) gemeinfrei |
 | Schriften IM Fell English SC, Spectral, UnifrakturMaguntia, Saira Stencil One, Saira Condensed, Special Elite (npm `@fontsource/*`) | Oberfläche und Kartenbeschriftung | https://fontsource.org | SIL Open Font License 1.1 |
 | Vite | Build-Werkzeug | https://vitejs.dev | MIT |
+| Wikimedia Commons (Bundesarchiv, NARA/US Army Signal Corps, USAAF, RIA Novosti, US Air Force Band, US Marine Band) | Fotos und Musik im Hauptmenü | https://commons.wikimedia.org | je Datei: CC BY-SA 3.0 DE, CC BY-SA 3.0 oder gemeinfrei – Einzelnachweise in `MEDIA_SOURCES.md` |
+| Library of Congress, Chronicling America (Evening Star) | Zeitungs-Titelseiten im Hauptmenü | https://www.loc.gov/collections/chronicling-america/ | laut Bibliothek gemeinfrei bzw. ohne bekannte Rechte (siehe `MEDIA_SOURCES.md`) |
+| Deutsches Zeitungsportal / ULB Sachsen-Anhalt (Hallische Nachrichten) | Zeitungs-Titelseiten im Hauptmenü | https://www.deutsche-digitale-bibliothek.de/newspaper | Public Domain Mark 1.0 |
 
 ## Eigene Daten
 - `tools/data/cities.csv`: Städteliste (deutsche Namen von 1939, Koordinaten, Rang 1–4), selbst zusammengestellt.

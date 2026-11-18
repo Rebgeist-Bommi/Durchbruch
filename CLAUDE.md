@@ -71,7 +71,8 @@ src/ui/                    panel.js (Feldinfo, Nation), game.js (Lage, Frontfens
                            Meldungen, Abschlussbildschirm, General, Luftangriffe), economy.js (Kennzahlen,
                            Wirtschaftsleiste, Standortwahl, Reiter Forschung), intel.js (Akte,
                            Agenten, Missionen), phase5.js (Entscheidung, Diplomatie, Zeitung, Moral),
-                           menu.js (Hauptmenü, Einstellungen), flags.js
+                           menu.js (Hauptmenü, Einstellungen, Mitwirkende), menuMedia.js (Diashow,
+                           Zeitungsstapel, Musik, Bildnachweise), flags.js
 src/styles/                base.css + front.css / economy.css / intel.css (Layout je Modus), game.css, econ.css,
                            phase5.css
 src/assets/flags/          Nationalflaggen 1939 als SVG (vereinfacht)
@@ -80,6 +81,8 @@ tools/                     Datenpipeline, Tests, Screenshot- und Layoutprüfung
 tools/data/                handgepflegte Eingaben (Städte, Näherungspolygone, Industriezentren,
                            Rohstoffgebiete)
 SOURCES.md                 historische Werte mit Quelle (belegt / ungeprüft)
+MEDIA_SOURCES.md           Fotos, Zeitungen, Musik im Hauptmenü: Titel, Quelle, Urheber, Lizenz; Verworfenes
+public/media/              Menü-Medien (erzeugt von tools/build_media.py aus tools/data/media.json)
 tests/                     JavaScript-Tests (node:test), u. a. Testlauf Polenfeldzug
 screenshots/               Abnahme-Screenshots und Video der letzten Phase
 ```
@@ -88,6 +91,7 @@ screenshots/               Abnahme-Screenshots und Video der letzten Phase
 ```bash
 pip install -r tools/requirements.txt
 python tools/build_all.py        # Rohdaten laden -> public/data/* erzeugen -> pytest
+python tools/build_media.py      # Menü-Medien laden (Lizenz je Datei geprüft) -> public/media/*, MEDIA_SOURCES.md
 npm ci
 npm test                         # JavaScript-Tests
 npm run dev                      # Entwicklungsserver
@@ -213,3 +217,14 @@ node tools/sim_run.mjs [seed]    # Kampagne ohne Spieler (Normal, Angriff auf Po
 - Leistung: Nachschub wird bei Bedarf je angreifender Nation berechnet (`ensureSupply`, regional um
   die Fronten), Grenzfeldliste statt Rechteckdurchlauf, Kessel/Bedrohung nur nach Gebietsverlust.
   Alle Felder des Simulationsobjekts werden im Konstruktor angelegt (stabile Objektform).
+
+## Hauptmenü mit Originalmaterial (Zwischenauftrag)
+- Nur gemeinfreies oder frei lizenziertes Material; Lizenz je Datei an der Quelle geprüft
+  (`tools/build_media.py`), Nachweise in `MEDIA_SOURCES.md` und `public/media/credits.json`
+  (Menüpunkt „Mitwirkende“). Unklare Lizenz → Datei wird nicht verwendet.
+- Fotos 1600×900 WebP < 300 KB (Sepia, Filmkorn), Wechsel alle 8 s mit langsamem Zoom und
+  verschwommener Überblendung; Zeitungsseiten als gedrehter Stapel (Hover vergrößert);
+  Filmkorn, Flackern, Kratzer, Vignette per CSS; bei „Bewegung reduzieren“ nur Standbild.
+- Musik (MP3 < 5 MB) startet erst nach dem ersten Klick, Schalter „Musik an/aus“, Lautstärke aus
+  den Einstellungen; spielt nur, solange das Menü sichtbar ist.
+- Das Menü erscheint sofort beim Seitenaufruf; die Karte lädt dahinter (Spielstart erst danach).
