@@ -2,6 +2,10 @@
 // Grundlage sind Kontaktkanten (gemeinsame Feldkante zweier verfeindeter Felder).
 // Eine Front = zusammenhängende Kette solcher Kanten (über gemeinsame Eckpunkte).
 // Identität über Ticks: Mehrheitsentscheid über die Front-Kennung der beteiligten Felder.
+// Aufmarsch (Überarbeitung 2): Auch im Frieden kann eine Grenze als Front geplant werden
+// (`sim.dip.plans`, Paare [Planer, Ziel]). Solche Fronten tragen `planned = true`: Truppen werden
+// dorthin verlegt, die Vorbereitung wächst, gekämpft wird nicht. Bei der Kriegserklärung behält
+// die Front ihre Kennung (gleiche Kanten) und damit Divisionen, Vorbereitung und General.
 import { NMAX } from './constants.js';
 
 function emptySide() {
@@ -10,7 +14,7 @@ function emptySide() {
     lossesToday: 0, lossesTotal: 0, prisonersToday: 0, prisonersTotal: 0,
     airToday: 0, airTotal: 0, tied: 0, kmToday: 0, kmTotal: 0,
     // vorab angelegt (gleiche Objektform von Anfang an, vermeidet Deoptimierung)
-    general: null, airShare: 0, strikeTarget: null, strikeToday: 0, strikeHits: 0,
+    general: null, airShare: 0, strikeTarget: null, strikeToday: 0, strikeHits: 0, tactic: 'standard', objective: null,
   };
 }
 
@@ -22,6 +26,8 @@ function inheritSide(p) {
     s.method = p.method;
     s.attackStartDay = p.attackStartDay;
     s.attackPrep = p.attackPrep;
+    s.tactic = p.tactic || 'standard';
+    s.objective = p.objective || null;
   }
   return s;
 }
@@ -45,16 +51,20 @@ export function updateFronts(sim) {
   const E = sim.edges;
   E.count = 0;
 
-  // Kriegspaar je Nationspaar: Index in sim.wars (+1), Vorzeichen = Reihenfolge
+  // Kriegs- und Aufmarschpaare: Index in `pairs` (+1), Vorzeichen = Reihenfolge
+  const pairs = activePairs(sim);
   const pairIdx = new Int16Array(NMAX * NMAX);
-  sim.wars.forEach(([a, b], w) => {
+  const inPair = new Uint8Array(NMAX);
+  pairs.forEach(([a, b], w) => {
     pairIdx[a * NMAX + b] = w + 1;
     pairIdx[b * NMAX + a] = -(w + 1);
+    inPair[a] = 1;
+    inPair[b] = 1;
   });
   const edgeWar = sim._edgeWar && sim._edgeWar.length >= E.a.length ? sim._edgeWar : (sim._edgeWar = new Int16Array(E.a.length));
   // Suchbereich (Phase 5, Leistung): nur Grenzfelder (Land-Nachbar mit anderem Besitzer), aufsteigend
   // sortiert – gleiche Reihenfolge wie der frühere Durchlauf über das Rechteck aller Kriegsparteien.
-  const inWar = sim.inWar;
+  const inWar = inPair;
   const border = borderCells(sim);
   for (let q = 0; q < border.length; q++) {
     const i = border[q];
@@ -100,7 +110,7 @@ export function updateFronts(sim) {
   const winners = new Map(); // frontId -> comp
   const allComps = [];
 
-  sim.wars.forEach(([a, b], w) => {
+  pairs.forEach(([a, b, planned], w) => {
     uf.cur++;
     const ks = [];
     for (let k = 0; k < E.count; k++) {
@@ -128,7 +138,7 @@ export function updateFronts(sim) {
           if (h && prevAlive.has(h)) votes.set(h, (votes.get(h) || 0) + 1);
         }
       }
-      return { edges, votes, a, b, war: w, id: 0, parent: 0 };
+      return { edges, votes, a, b, war: w, id: 0, parent: 0, planned: !!planned };
     });
     // größte Komponenten zuerst; Reihenfolge eindeutig (Kantenzahl, erste Kante)
     comps.sort((x, y) => y.edges.length - x.edges.length || x.edges[0] - y.edges[0]);
@@ -153,7 +163,7 @@ export function updateFronts(sim) {
       id: sim.nextFrontId++, a: comp.a, b: comp.b, name: '', born: sim.day, alive: true,
       encircled: { [comp.a]: false, [comp.b]: false }, sections: [], edgeList: null, cx: 0, cy: 0,
       side: { [comp.a]: inheritSide(parent?.side[comp.a]), [comp.b]: inheritSide(parent?.side[comp.b]) },
-      retreatLogged: false, warned: false,
+      retreatLogged: false, warned: false, planned: comp.planned,
     };
     sim.fronts.set(f.id, f);
     comp.id = f.id;
@@ -165,6 +175,10 @@ export function updateFronts(sim) {
   for (const comp of allComps) {
     const f = sim.fronts.get(comp.id);
     f.alive = true;
+    // Aufmarsch wird Krieg (oder umgekehrt): gleiche Front, Seiten bleiben erhalten
+    f.planned = comp.planned;
+    if (f.a !== comp.a) { f.a = comp.a; f.b = comp.b; }
+    for (const n of [comp.a, comp.b]) if (!f.side[n]) f.side[n] = emptySide();
     mk.stamp++;
     const bySector = new Map();
     let sx = 0;
@@ -215,7 +229,9 @@ export function updateFronts(sim) {
       }
       f.encircled[n] = total > 0 && inPocket * 2 > total;
     }
-    if (comp.isNew || !f.name) {
+    if (f.planned) {
+      if (comp.isNew || !f.name.startsWith('Grenze')) f.name = `Grenze bei ${sim.nearestCityName(f.cx, f.cy, 4, f.b)}`;
+    } else if (comp.isNew || !f.name || f.name.startsWith('Grenze')) {
       const where = sim.nearestCityName(f.cx, f.cy, 4, f.b);
       f.name = f.encircled[f.b] || f.encircled[f.a] ? `Kessel bei ${where}` : `Front bei ${where}`;
     } else if ((f.encircled[f.b] || f.encircled[f.a]) && !f.name.startsWith('Kessel')) {
@@ -269,6 +285,16 @@ export function updateFronts(sim) {
   }
   // alte, tote Fronten nach einiger Zeit vergessen
   for (const [id, f] of sim.fronts) if (!f.alive && sim.day - f.born > 400) sim.fronts.delete(id);
+}
+
+/** Kriegspaare und (nicht im Krieg stehende) Aufmarschpaare [a, b, geplant]. */
+function activePairs(sim) {
+  const out = sim.wars.map(([a, b]) => [a, b, false]);
+  for (const [a, b] of sim.dip?.plans || []) {
+    if (sim.isWar(a, b) || !sim.ownedCount[a] || !sim.ownedCount[b]) continue;
+    out.push([a, b, true]);
+  }
+  return out;
 }
 
 /** Grenzfeld: Land mit mindestens einem Land-Nachbarn (4er) anderen Besitzers. */

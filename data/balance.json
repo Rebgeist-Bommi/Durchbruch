@@ -1680,5 +1680,90 @@
         ]
       }
     ]
+  },
+  "tactics": {
+    "_todo": "Spielwerte (Platzhalter), Taktik je Front und Seite beim Angriff",
+    "standard": {
+      "label": "Ausgewogen",
+      "text": "Infanterie, Panzer und Luftwaffe gemeinsam.",
+      "attack": 1.0,
+      "tank": 1.0,
+      "air": 1.0,
+      "substeps": 0,
+      "exploit": 1.0,
+      "speed": 1.0,
+      "lossAtt": 1.0,
+      "lossDef": 1.0,
+      "supplyExp": 1.0,
+      "pincer": 1.0,
+      "prepDecay": 1.0,
+      "moneyPerDivDay": 0
+    },
+    "blitzkrieg": {
+      "label": "Blitzkrieg",
+      "text": "Panzerkeile stoßen tief vor. Schnell, aber stark vom Nachschub abhängig und mit höheren eigenen Verlusten; wirkt nur mit Panzern.",
+      "attack": 1.0,
+      "tank": 1.8,
+      "air": 1.2,
+      "substeps": 2,
+      "exploit": 1.45,
+      "speed": 1.15,
+      "lossAtt": 1.2,
+      "lossDef": 1.0,
+      "supplyExp": 2.0,
+      "pincer": 1.2,
+      "prepDecay": 1.6,
+      "moneyPerDivDay": 0,
+      "needTank": 0.08
+    },
+    "luft": {
+      "label": "Starke Luftunterstützung",
+      "text": "Stukas und Bomber vor jedem Vorstoß. Mehr Durchschlagskraft, weniger eigene Verluste, kostet täglich Geld; wirkt nur mit Luftwaffe.",
+      "attack": 1.15,
+      "tank": 1.0,
+      "air": 2.2,
+      "substeps": 0,
+      "exploit": 1.0,
+      "speed": 1.0,
+      "lossAtt": 0.85,
+      "lossDef": 1.2,
+      "supplyExp": 1.0,
+      "pincer": 1.0,
+      "prepDecay": 1.0,
+      "moneyPerDivDay": 0.6,
+      "needAir": 0.12
+    },
+    "zange": {
+      "label": "Zangenangriff",
+      "text": "Stöße auf die Flanken: Felder, die schon von zwei Seiten bedrängt sind, fallen leichter – gut für Kessel.",
+      "attack": 0.95,
+      "tank": 1.1,
+      "air": 1.0,
+      "substeps": 1,
+      "exploit": 1.1,
+      "speed": 1.0,
+      "lossAtt": 1.05,
+      "lossDef": 1.0,
+      "supplyExp": 1.0,
+      "pincer": 1.9,
+      "prepDecay": 1.0,
+      "moneyPerDivDay": 0
+    },
+    "material": {
+      "label": "Materialschlacht",
+      "text": "Langsames Vorgehen mit Artillerie. Kaum Geländegewinn, aber geringe eigene und hohe gegnerische Verluste.",
+      "attack": 1.0,
+      "tank": 0.8,
+      "air": 1.0,
+      "substeps": -1,
+      "exploit": 0.6,
+      "speed": 0.55,
+      "lossAtt": 0.65,
+      "lossDef": 1.45,
+      "supplyExp": 1.0,
+      "pincer": 1.0,
+      "prepDecay": 0.6,
+      "moneyPerDivDay": 0
+    }
   }
 }

@@ -1,4 +1,5 @@
 import { Camera } from './camera.js';
+import { flagUrl } from '../ui/flags.js';
 import { DIPLO_COLORS, STYLES, reliefGray } from './styles.js';
 import { isRevealed, describeTarget } from '../sim/intel.js';
 import { statusOf as diploStatus, relation as diploRelation } from '../sim/diplomacy.js';
@@ -139,6 +140,7 @@ export class MapRenderer {
   /** Ein Bild zeichnen. `t` (0–1) = Fortschritt innerhalb des laufenden Spieltags. */
   render(t = 1) {
     const t0 = performance.now();
+    if (this.camera.stepZoom && this.camera.stepZoom()) this.requestRender(); // weicher Zoom
     const { camera: cam, dpr } = this;
     const st = STYLES[this.mode];
     const W = this.canvas.width;
@@ -176,6 +178,7 @@ export class MapRenderer {
     ctx.drawImage(this.layers.labels, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (this.sim) this.drawSieges(st);
+    if (this.sim && this.mode === 'front') { this.drawObjectives(); this.drawUnits(st, t); }
     if (st.spotlight) this.drawSpotlight();
     if (this.sim && st.spotlight) this.drawIntel(st);
 
@@ -548,8 +551,11 @@ export class MapRenderer {
       c.height = rows;
       return c;
     };
-    this.occ = { prev: mk(), curr: mk(), annex: mk() };
+    this.occ = { prev: mk(), curr: mk(), annex: mk(), anim: mk() };
     this.occImg = this.occ.curr.getContext('2d').createImageData(cols, rows);
+    this.animImg = this.occ.anim.getContext('2d').createImageData(cols, rows);
+    this.anim = null;
+    this.prevOwner = Uint8Array.from(sim.owner);
     this.annexImg = this.occ.annex.getContext('2d').createImageData(cols, rows);
     this.origOwner = new Uint8Array(this.grid.size);
     const idx = new Map(this.grid.nationCodes.map((c, i) => [c, i + 1]));
@@ -755,15 +761,14 @@ export class MapRenderer {
     pc.clearRect(0, 0, this.occ.prev.width, this.occ.prev.height);
     pc.drawImage(this.occ.curr, 0, 0);
     this.occ.annex.getContext('2d').putImageData(this.annexImg, 0, 0);
+    this.anim = null;
+    if (this.prevOwner) this.prevOwner.set(this.sim.owner);
   }
 
   /** Nach jedem Simulations-Tick: geänderte Felder und Frontgeometrie übernehmen. */
   onTick() {
     if (this.applyAnnexations()) this.frontGeom = this.buildFrontGeometry();
     if (this.mode === 'diplomacy') this.updateDiploColors();
-    const pc = this.occ.prev.getContext('2d');
-    pc.clearRect(0, 0, this.occ.prev.width, this.occ.prev.height);
-    pc.drawImage(this.occ.curr, 0, 0);
     const { cols, rows } = this.grid;
     const touched = new Set();
     for (const i of this.sim.changed) {
@@ -777,11 +782,153 @@ export class MapRenderer {
         }
       }
     }
+    const occ = this.occImg.data;
+    const before = new Map();
+    for (const i of touched) before.set(i, occ.slice(i * 4, i * 4 + 4));
     for (const i of touched) this.writeOccPixel(i);
     this.occ.curr.getContext('2d').putImageData(this.occImg, 0, 0);
     if (touched.size) this.occ.annex.getContext('2d').putImageData(this.annexImg, 0, 0);
-    this.prevFrontGeom = this.frontGeom;
+    this.startOccAnim(before);
+    this.prevOwner.set(this.sim.owner);
+    const prev = this.frontGeom;
     this.frontGeom = this.buildFrontGeometry();
+    this.linkGeometry(prev, this.frontGeom);
+  }
+
+  /**
+   * Eroberte Felder füllen sich über den Tag wellenförmig: Felder neben dem bisherigen Gebiet des
+   * Eroberers zuerst, tiefere Vorstöße später (Tiefe über Breitensuche), mit leichter Streuung.
+   */
+  startOccAnim(before) {
+    const sim = this.sim;
+    const occ = this.occImg.data;
+    const cells = [];
+    for (const [i, px] of before) {
+      const o = i * 4;
+      if (px[0] !== occ[o] || px[1] !== occ[o + 1] || px[2] !== occ[o + 2] || px[3] !== occ[o + 3]) cells.push(i);
+    }
+    if (!cells.length) return; // nichts Neues: laufende Animation bleibt
+    const prevOwner = this.prevOwner;
+    const depth = new Map();
+    const q = [];
+    for (const i of cells) {
+      const n = sim.owner[i];
+      if (n === prevOwner[i]) { depth.set(i, 0); continue; }
+      for (let k = i * 4, e = k + 4; k < e; k++) {
+        const j = sim.nb[k];
+        if (j >= 0 && prevOwner[j] === n && sim.owner[j] === n) { depth.set(i, 0); q.push(i); break; }
+      }
+    }
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h];
+      const d = depth.get(i);
+      for (let k = i * 4, e = k + 4; k < e; k++) {
+        const j = sim.nb[k];
+        if (j >= 0 && before.has(j) && !depth.has(j) && sim.owner[j] === sim.owner[i] && prevOwner[j] !== sim.owner[j]) { depth.set(j, d + 1); q.push(j); }
+      }
+    }
+    const n = cells.length;
+    const delay = new Float32Array(n);
+    const prev = new Uint8ClampedArray(n * 4);
+    const { cols } = this.grid;
+    let x0 = cols; let x1 = -1; let y0 = 1e9; let y1 = -1;
+    cells.forEach((i, k) => {
+      const jitter = (((i * 2654435761) >>> 0) % 1000) / 1000;
+      delay[k] = Math.min(0.62, (depth.get(i) ?? 2) * 0.17 + jitter * 0.14);
+      prev.set(before.get(i), k * 4);
+      const r = (i / cols) | 0;
+      const c = i - r * cols;
+      if (c < x0) x0 = c; if (c > x1) x1 = c; if (r < y0) y0 = r; if (r > y1) y1 = r;
+    });
+    this.animImg.data.set(occ);
+    this.anim = { cells: Int32Array.from(cells), delay, prev, box: [x0, y0, x1 - x0 + 1, y1 - y0 + 1], lastT: -1 };
+    this.updateOccAnim(0);
+  }
+
+  updateOccAnim(t) {
+    const A = this.anim;
+    if (!A || Math.abs(t - A.lastT) < 0.004) return;
+    A.lastT = t;
+    const cur = this.occImg.data;
+    const out = this.animImg.data;
+    for (let k = 0; k < A.cells.length; k++) {
+      const o = A.cells[k] * 4;
+      const a = ease(Math.max(0, Math.min(1, (t - A.delay[k]) / 0.3)));
+      const pa = A.prev[k * 4 + 3];
+      const ca = cur[o + 3];
+      if (!pa) { out[o] = cur[o]; out[o + 1] = cur[o + 1]; out[o + 2] = cur[o + 2]; out[o + 3] = ca * a; }
+      else if (!ca) { out[o] = A.prev[k * 4]; out[o + 1] = A.prev[k * 4 + 1]; out[o + 2] = A.prev[k * 4 + 2]; out[o + 3] = pa * (1 - a); }
+      else for (let c = 0; c < 4; c++) out[o + c] = A.prev[k * 4 + c] + (cur[o + c] - A.prev[k * 4 + c]) * a;
+    }
+    const [x, y, w, h] = A.box;
+    this.occ.anim.getContext('2d').putImageData(this.animImg, 0, 0, x, y, w, h);
+  }
+
+  /**
+   * Draht wandert statt zu überblenden: Jeder Punkt der neuen Linie wird dem nächsten Punkt der
+   * alten Linie (bis ca. 4 Felder) zugeordnet und über den Tag dorthin verschoben. Neue Linienteile
+   * blenden ein, verschwundene aus.
+   */
+  linkGeometry(prev, next) {
+    next.linked = false;
+    next.gone = null;
+    if (!prev || !prev.chains.length) return;
+    const B = this.cellU * 3.5;
+    const R2 = B * B;
+    const bucket = (geom) => {
+      const m = new Map();
+      for (const ch of geom.chains) {
+        const P = ch.p;
+        for (let i = 0; i < P.length; i += 2) {
+          const k = Math.floor(P[i] / B) * 65536 + Math.floor(P[i + 1] / B);
+          let b = m.get(k);
+          if (!b) m.set(k, (b = []));
+          b.push(P[i], P[i + 1]);
+        }
+      }
+      return m;
+    };
+    const nearest = (m, x, y, out) => {
+      const cx = Math.floor(x / B);
+      const cy = Math.floor(y / B);
+      let bd = R2;
+      let hit = false;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const b = m.get((cx + dx) * 65536 + cy + dy);
+          if (!b) continue;
+          for (let j = 0; j < b.length; j += 2) {
+            const d = (b[j] - x) ** 2 + (b[j + 1] - y) ** 2;
+            if (d < bd) { bd = d; out[0] = b[j]; out[1] = b[j + 1]; hit = true; }
+          }
+        }
+      }
+      return hit;
+    };
+    const old = bucket(prev);
+    const tmp = [0, 0];
+    let moved = 0;
+    for (const ch of next.chains) {
+      const P = ch.p;
+      const from = new Float32Array(P.length);
+      let fresh = 0;
+      for (let i = 0; i < P.length; i += 2) {
+        if (nearest(old, P[i], P[i + 1], tmp)) {
+          from[i] = tmp[0]; from[i + 1] = tmp[1];
+          if (tmp[0] !== P[i] || tmp[1] !== P[i + 1]) moved++;
+        } else { from[i] = P[i]; from[i + 1] = P[i + 1]; fresh++; }
+      }
+      ch.from = from;
+      ch.fadeIn = fresh * 2 > P.length / 2;
+    }
+    const neu = bucket(next);
+    const gone = prev.chains.filter((ch) => {
+      let miss = 0;
+      for (let i = 0; i < ch.p.length; i += 2) if (!nearest(neu, ch.p[i], ch.p[i + 1], tmp)) miss++;
+      return miss * 2 > ch.p.length / 2;
+    }).map((ch) => ({ ...ch, from: null }));
+    next.gone = gone.length ? this.geomPaths(gone) : null;
+    next.linked = moved > 0 || !!gone.length || next.chains.some((c) => c.fadeIn);
   }
 
   /** Feldbild in Karteneinheiten zeichnen (Zeile 0 = Norden). */
@@ -813,9 +960,12 @@ export class MapRenderer {
     tmp.setTransform(...cam.matrix(dpr));
     tmp.clip(this.landPath);
     tmp.imageSmoothingEnabled = false;
-    this.drawCells(tmp, this.occ.prev);
-    tmp.globalAlpha = ease(Math.max(0, Math.min(1, t / 0.85))); // neue Felder blenden weich über den Tag ein
-    this.drawCells(tmp, this.occ.curr);
+    if (this.anim && t < 1) {
+      this.updateOccAnim(t); // Felder füllen sich wellenförmig über den Tag
+      this.drawCells(tmp, this.occ.anim);
+    } else {
+      this.drawCells(tmp, this.occ.curr);
+    }
     tmp.restore();
     tmp.globalAlpha = 1;
     tmp.globalCompositeOperation = 'source-atop';
@@ -904,6 +1054,11 @@ export class MapRenderer {
         }
       }
     }
+    return this.geomPaths(chains);
+  }
+
+  /** Pfade einer Kettenliste: Schein je Kategorie, Linie, Pfad je Front (Auswahl). */
+  geomPaths(chains) {
     // Schein je Kategorie (Karteneinheiten), schlichte Linie für alle
     const glow = new Map();
     const line = new Path2D();
@@ -1001,9 +1156,469 @@ export class MapRenderer {
   drawWarFronts(st, u, t) {
     const fs = st.warFront;
     if (!fs) return;
+    const g = this.frontGeom;
+    if (!g) return;
     const tt = ease(Math.max(0, Math.min(1, t / 0.85))); // Draht wandert weich über den Tag
-    if (this.prevFrontGeom && tt < 1) this.drawWire(st, u, this.prevFrontGeom, 1 - tt);
-    this.drawWire(st, u, this.frontGeom, this.prevFrontGeom ? tt : 1);
+    if (tt >= 1 || !g.linked) {
+      this.curChains = g.chains;
+      this.drawWire(st, u, g, 1);
+      return;
+    }
+    if (g.gone) this.drawWire(st, u, g.gone, 1 - tt);
+    const moving = [];
+    const fresh = [];
+    for (const ch of g.chains) {
+      const P = ch.p;
+      const F = ch.from;
+      const p = new Float32Array(P.length);
+      if (F) for (let i = 0; i < P.length; i++) p[i] = F[i] + (P[i] - F[i]) * tt;
+      else p.set(P);
+      (ch.fadeIn ? fresh : moving).push({ fid: ch.fid, p, cat: ch.cat, fort: ch.fort });
+    }
+    this.curChains = moving.concat(fresh);
+    if (moving.length) this.drawWire(st, u, this.geomPaths(moving), 1);
+    if (fresh.length) this.drawWire(st, u, this.geomPaths(fresh), tt);
+  }
+
+  /** Feldkoordinaten (Spalte, Zeile als Kommazahl) unter einem Bildschirmpunkt. */
+  cellCoordAt(sx, sy) {
+    const [mx, my] = this.camera.toMap(sx, sy);
+    return [(mx - this.gx0) / this.cellU, (this.gy1 - my) / this.cellU];
+  }
+
+  /** Haltelinien eigener Fronten (gestrichelt, ausgewählte Front kräftig) und Entwurf. */
+  drawObjectives() {
+    const sim = this.sim;
+    const p = sim.player;
+    const { ctx, camera: cam } = this;
+    const cu = this.cellU;
+    const toScr = ([cx, cy]) => cam.toScreen(this.gx0 + cx * cu, this.gy1 - cy * cu);
+    const smooth = (P) => {
+      let Q = P;
+      for (let it = 0; it < 2 && Q.length > 2; it++) {
+        const N = [Q[0]];
+        for (let i = 0; i < Q.length - 1; i++) {
+          N.push([0.75 * Q[i][0] + 0.25 * Q[i + 1][0], 0.75 * Q[i][1] + 0.25 * Q[i + 1][1]]);
+          N.push([0.25 * Q[i][0] + 0.75 * Q[i + 1][0], 0.25 * Q[i][1] + 0.75 * Q[i + 1][1]]);
+        }
+        N.push(Q[Q.length - 1]);
+        Q = N;
+      }
+      return Q;
+    };
+    const stroke = (raw, sel, draft) => {
+      if (raw.length < 2) return;
+      const pts = smooth(raw);
+      ctx.beginPath();
+      pts.forEach((q, k) => { const [x, y] = toScr(q); if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(20,16,10,0.75)';
+      ctx.lineWidth = sel ? 6 : 4;
+      ctx.stroke();
+      ctx.setLineDash(draft ? [6, 5] : [10, 6]);
+      ctx.strokeStyle = draft ? '#f0c96a' : sel ? '#e8553a' : 'rgba(232,85,58,0.7)';
+      ctx.lineWidth = sel ? 3 : 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Querstriche an den Enden ("Halt")
+      for (const q of [pts[0], pts[pts.length - 1]]) {
+        const [x, y] = toScr(q);
+        ctx.fillStyle = draft ? '#f0c96a' : '#e8553a';
+        ctx.beginPath(); ctx.arc(x, y, sel ? 4.5 : 3.5, 0, Math.PI * 2); ctx.fill();
+      }
+    };
+    ctx.save();
+    for (const f of sim.fronts.values()) {
+      const o = f.alive && f.side[p]?.objective;
+      if (o) stroke(o.line, f.id === this.selectedFront, false);
+    }
+    const d = this.lineDraft;
+    if (d) {
+      stroke(d.pts, true, true);
+    }
+    ctx.restore();
+  }
+
+  /** Miniflagge (Bild) je Nation, einmal geladen; zeichnet neu, sobald sie da ist. */
+  flagImage(code) {
+    this._flags = this._flags || new Map();
+    let img = this._flags.get(code);
+    if (!img) {
+      img = new Image();
+      img.onload = () => { this._counters?.clear(); this.requestRender(); };
+      img.src = flagUrl(code);
+      this._flags.set(code, img);
+    }
+    return img.complete && img.naturalWidth ? img : null;
+  }
+
+  /**
+   * Spielstein einer Division-Gruppe als Medaillon (vorgerendert, je Zustand zwischengespeichert):
+   * Eichenlaubkranz (eigen: Messing, Gegner: Stahl), Porträt-Silhouette im Rund (Soldat mit
+   * Stahlhelm, bei Panzerverbänden ein Panzer), Stärkering, Flagge oben, Befehlsstein rechts und
+   * ein Band mit der Divisionszahl. Eigene Zeichnung, keine Hoheitszeichen. `kind`: 'front' | 'small'.
+   */
+  counter({ code, text, tank = 0, str = 1, order = '', kind = 'front', enemy = false }) {
+    const dpr = this.dpr;
+    const armor = tank > 0.25;
+    const key = `${code}|${text}|${armor ? 1 : 0}|${Math.round(str * 10)}|${order}|${kind}|${enemy}|${dpr}|${this.flagImage(code) ? 1 : 0}`;
+    this._counters = this._counters || new Map();
+    let c = this._counters.get(key);
+    if (c) return c;
+    const sc = kind === 'small' ? 0.64 : 1;
+    const W = Math.round(66 * sc);
+    const H = Math.round(64 * sc);
+    const M = 6;
+    c = document.createElement('canvas');
+    c.width = Math.ceil((W + 2 * M) * dpr);
+    c.height = Math.ceil((H + 2 * M) * dpr);
+    c.W = W; c.H = H; c.M = M;
+    const x = c.getContext('2d');
+    x.scale(dpr, dpr);
+    x.translate(M, M);
+    const R = 15 * sc; // Porträt
+    const cx = W / 2;
+    const cy = 25 * sc;
+    const metal = enemy ? ['#eef0f2', '#a9aeb3', '#5d6166', '#2c2f33'] : ['#fff1c2', '#d9b25e', '#8c6424', '#3b2a10'];
+    const grad = (r0, r1) => { const g = x.createRadialGradient(cx - r1 * 0.35, cy - r1 * 0.45, r0, cx, cy, r1); g.addColorStop(0, metal[0]); g.addColorStop(0.45, metal[1]); g.addColorStop(1, metal[2]); return g; };
+    // Schatten
+    x.save();
+    x.shadowColor = 'rgba(0,0,0,0.55)';
+    x.shadowBlur = 6 * sc;
+    x.shadowOffsetY = 2.5 * sc;
+    x.beginPath(); x.arc(cx, cy, R + 3 * sc, 0, Math.PI * 2); x.fillStyle = '#000'; x.fill();
+    x.restore();
+    // Eichenlaubkranz: je Seite Blätter vom unteren Ende bis knapp unter die Spitze
+    const leaf = (px, py, ang, len, wid) => {
+      x.save();
+      x.translate(px, py);
+      x.rotate(ang);
+      x.beginPath();
+      x.moveTo(0, 0);
+      // gelappter Rand (drei Lappen je Seite), Eichenblatt
+      const lob = [0.22, 0.5, 0.78];
+      for (const sgn of [-1, 1]) {
+        if (sgn === 1) x.moveTo(0, 0);
+        let lx = 0;
+        for (const t of lob) {
+          const tx = t * len;
+          x.quadraticCurveTo((lx + tx) / 2, sgn * wid * 0.55, tx - len * 0.06, sgn * wid * 0.35);
+          x.quadraticCurveTo(tx + len * 0.04, sgn * wid * 1.05, tx + len * 0.12, sgn * wid * 0.3);
+          lx = tx + len * 0.12;
+        }
+        x.quadraticCurveTo(len * 0.97, sgn * wid * 0.35, len, 0);
+      }
+      const g = x.createLinearGradient(0, -wid, 0, wid);
+      g.addColorStop(0, metal[0]); g.addColorStop(0.5, metal[1]); g.addColorStop(1, metal[2]);
+      x.fillStyle = g;
+      x.fill();
+      x.lineWidth = 0.7 * sc;
+      x.strokeStyle = metal[3];
+      x.stroke();
+      x.beginPath(); x.moveTo(len * 0.05, 0); x.lineTo(len * 0.9, 0); x.lineWidth = 0.5 * sc; x.stroke();
+      x.restore();
+    };
+    const acorn = (px, py, ang) => {
+      x.save();
+      x.translate(px, py);
+      x.rotate(ang);
+      x.beginPath(); x.ellipse(0, 2.2 * sc, 1.9 * sc, 2.6 * sc, 0, 0, Math.PI * 2);
+      x.fillStyle = metal[1]; x.fill(); x.strokeStyle = metal[3]; x.lineWidth = 0.6 * sc; x.stroke();
+      x.beginPath(); x.ellipse(0, 0.2 * sc, 2.3 * sc, 1.4 * sc, 0, Math.PI, Math.PI * 2); x.closePath();
+      x.fillStyle = metal[2]; x.fill(); x.stroke();
+      x.restore();
+    };
+    const Rw = R + 6 * sc;
+    const n = kind === 'small' ? 5 : 7;
+    for (const side of [-1, 1]) {
+      // Stängel
+      x.beginPath();
+      x.arc(cx, cy, Rw - 1 * sc, Math.PI / 2 + side * 0.35, Math.PI / 2 + side * 2.55, side < 0);
+      x.strokeStyle = metal[3]; x.lineWidth = 1.2 * sc; x.stroke();
+      for (let i = 0; i < n; i++) {
+        const a = Math.PI / 2 + side * (0.45 + (i * 2.05) / (n - 1));
+        const px = cx + Math.cos(a) * Rw;
+        const py = cy + Math.sin(a) * Rw;
+        // Blatt zeigt schräg nach außen und in Wuchsrichtung (nach oben)
+        const ang = a + side * (Math.PI / 2) - side * 0.55;
+        leaf(px, py, ang, 9.5 * sc, 3.6 * sc);
+        if (i === 2 || i === 4) acorn(cx + Math.cos(a + side * 0.12) * (Rw - 3.5 * sc), cy + Math.sin(a + side * 0.12) * (Rw - 3.5 * sc), a + side * 0.4);
+      }
+    }
+    // Rahmen und Porträtgrund (Sepia mit Ton der Nationalfarbe)
+    x.beginPath(); x.arc(cx, cy, R + 3 * sc, 0, Math.PI * 2); x.fillStyle = grad(1, R + 3 * sc); x.fill();
+    x.lineWidth = 0.8 * sc; x.strokeStyle = metal[3]; x.stroke();
+    const tint = STYLES.front.nation[code] || '#888888';
+    const tg = x.createRadialGradient(cx - R * 0.3, cy - R * 0.4, 1, cx, cy, R);
+    tg.addColorStop(0, '#f3e7c8');
+    tg.addColorStop(1, tint);
+    x.beginPath(); x.arc(cx, cy, R, 0, Math.PI * 2); x.fillStyle = tg; x.fill();
+    // Porträt-Silhouette
+    x.save();
+    x.beginPath(); x.arc(cx, cy, R - 0.5, 0, Math.PI * 2); x.clip();
+    x.fillStyle = 'rgba(38,27,16,0.92)';
+    const u = R / 15;
+    if (armor) {
+      // Panzer von der Seite: Laufwerk, Wanne, Turm, Rohr
+      x.beginPath();
+      x.moveTo(cx - 11 * u, cy + 6 * u); x.lineTo(cx + 11 * u, cy + 6 * u); x.lineTo(cx + 9 * u, cy + 10 * u); x.lineTo(cx - 9 * u, cy + 10 * u); x.closePath(); x.fill();
+      x.fillRect(cx - 10 * u, cy + 1 * u, 20 * u, 5 * u);
+      x.beginPath(); x.moveTo(cx - 5 * u, cy + 1 * u); x.lineTo(cx - 4 * u, cy - 4 * u); x.lineTo(cx + 4 * u, cy - 4 * u); x.lineTo(cx + 6 * u, cy + 1 * u); x.closePath(); x.fill();
+      x.fillRect(cx + 5 * u, cy - 2.6 * u, 10 * u, 1.6 * u);
+      x.fillStyle = 'rgba(243,231,200,0.55)';
+      for (let k = -3; k <= 3; k++) { x.beginPath(); x.arc(cx + k * 2.8 * u, cy + 8 * u, 1 * u, 0, Math.PI * 2); x.fill(); }
+    } else {
+      // Soldat im Profil: Schultern, Hals, Kopf, Stahlhelm mit Nackenschirm
+      x.beginPath();
+      x.moveTo(cx - 13 * u, cy + 16 * u);
+      x.quadraticCurveTo(cx - 11 * u, cy + 6 * u, cx - 3 * u, cy + 5 * u);
+      x.lineTo(cx - 2 * u, cy + 2 * u);
+      x.lineTo(cx + 3 * u, cy + 2 * u);
+      x.lineTo(cx + 4 * u, cy + 5 * u);
+      x.quadraticCurveTo(cx + 12 * u, cy + 6 * u, cx + 13 * u, cy + 16 * u);
+      x.closePath(); x.fill();
+      x.beginPath(); x.ellipse(cx + 0.5 * u, cy - 1 * u, 4.2 * u, 4.6 * u, 0, 0, Math.PI * 2); x.fill();
+      x.beginPath();
+      x.moveTo(cx - 7.5 * u, cy - 0.5 * u);
+      x.quadraticCurveTo(cx - 7 * u, cy - 10 * u, cx + 0.5 * u, cy - 10 * u);
+      x.quadraticCurveTo(cx + 7 * u, cy - 10 * u, cx + 6.5 * u, cy - 3 * u);
+      x.lineTo(cx + 8 * u, cy - 2.2 * u);
+      x.lineTo(cx + 5.5 * u, cy - 1.6 * u);
+      x.lineTo(cx - 3 * u, cy - 2.5 * u);
+      x.quadraticCurveTo(cx - 6 * u, cy - 2 * u, cx - 7.5 * u, cy - 0.5 * u);
+      x.closePath(); x.fill();
+      x.strokeStyle = 'rgba(243,231,200,0.45)'; x.lineWidth = 0.8 * u;
+      x.beginPath(); x.moveTo(cx - 5.5 * u, cy - 7 * u); x.quadraticCurveTo(cx, cy - 9.5 * u, cx + 5 * u, cy - 6.5 * u); x.stroke();
+    }
+    x.restore();
+    // Stärkering
+    if (kind !== 'small') {
+      x.lineWidth = 2.2 * sc;
+      x.strokeStyle = 'rgba(30,20,10,0.45)';
+      x.beginPath(); x.arc(cx, cy, R + 1.4 * sc, 0, Math.PI * 2); x.stroke();
+      x.strokeStyle = str > 0.75 ? '#5d8c38' : str > 0.45 ? '#d1a032' : '#b8391f';
+      x.beginPath(); x.arc(cx, cy, R + 1.4 * sc, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(1, str))); x.stroke();
+    }
+    // Flagge oben auf dem Rahmen
+    const fw = 13 * sc;
+    const fh = 8.5 * sc;
+    const flag = this.flagImage(code);
+    const fx = cx - fw / 2;
+    const fy = cy - R - 7.5 * sc;
+    if (flag) x.drawImage(flag, fx, fy, fw, fh); else { x.fillStyle = tint; x.fillRect(fx, fy, fw, fh); }
+    x.strokeStyle = metal[3]; x.lineWidth = 0.9 * sc; x.strokeRect(fx, fy, fw, fh);
+    // Befehlsstein rechts oben
+    const col = { prepare: '#e0b04e', attack: '#d2401f', hold: '#8a877c' }[order];
+    if (col && kind !== 'small') {
+      const gx = cx + (R + 4) * Math.cos(-0.75);
+      const gy = cy + (R + 4) * Math.sin(-0.75);
+      x.beginPath(); x.moveTo(gx, gy - 4); x.lineTo(gx + 4, gy); x.lineTo(gx, gy + 4); x.lineTo(gx - 4, gy); x.closePath();
+      x.fillStyle = col; x.fill(); x.strokeStyle = '#21170c'; x.lineWidth = 0.9; x.stroke();
+    }
+    // Band mit der Zahl (Schwalbenschwanz)
+    const bw = (kind === 'small' ? 30 : 40) * sc / (kind === 'small' ? 0.64 : 1);
+    const bh = 13 * sc;
+    const by = cy + R + 1 * sc;
+    const bx = cx - bw / 2;
+    x.beginPath();
+    x.moveTo(bx - 6 * sc, by + 1 * sc); x.lineTo(bx + 2 * sc, by + bh / 2); x.lineTo(bx - 6 * sc, by + bh);
+    x.lineTo(bx + bw + 6 * sc, by + bh); x.lineTo(bx + bw - 2 * sc, by + bh / 2); x.lineTo(bx + bw + 6 * sc, by + 1 * sc);
+    x.closePath();
+    x.fillStyle = enemy ? '#7a2c22' : '#5d2a1a';
+    x.fill();
+    x.beginPath(); x.rect(bx, by, bw, bh);
+    const rg = x.createLinearGradient(0, by, 0, by + bh);
+    if (enemy) { rg.addColorStop(0, '#d9d4cb'); rg.addColorStop(1, '#a9a197'); } else { rg.addColorStop(0, '#f6ecd0'); rg.addColorStop(1, '#d8c597'); }
+    x.fillStyle = rg; x.fill();
+    x.strokeStyle = metal[3]; x.lineWidth = 0.9 * sc; x.stroke();
+    x.fillStyle = '#21170c';
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.font = `700 ${Math.round(11 * Math.max(sc, 0.85))}px "IBM Plex Sans", system-ui, sans-serif`;
+    x.fillText(text, cx, by + bh / 2 + 0.5);
+    this._counters.set(key, c);
+    if (this._counters.size > 400) this._counters.clear();
+    return c;
+  }
+
+  /** Spielstein mittig auf (sx, sy) setzen; `scale` für sanftes Ein-/Ausblenden. */
+  stamp(c, sx, sy, alpha = 1) {
+    const { ctx } = this;
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(c, sx - c.W / 2 - c.M, sy - c.H / 2 - c.M, c.W + 2 * c.M, c.H + 2 * c.M);
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Truppenanzeige (Frontansicht): je Front ein eigener Spielstein auf der eigenen Seite des Drahts
+   * und ein gegnerischer gegenüber (geschätzt), verlegte Divisionen als wandernde Steine mit
+   * gepunkteter Marschroute und Resttagen, die Reserve an der Hauptstadt.
+   */
+  drawUnits(st, t) {
+    const sim = this.sim;
+    const p = sim.player;
+    const { ctx, camera: cam } = this;
+    const cu = this.cellU;
+    const toScr = (cx, cy) => cam.toScreen(this.gx0 + cx * cu, this.gy1 - cy * cu);
+    const myCode = sim.code(p);
+    const now = performance.now();
+    // Mitte und Richtung der längsten Kette je Front (wandert mit dem Draht)
+    const mid = new Map();
+    for (const ch of this.curChains || []) {
+      const n = ch.p.length / 2;
+      const best = mid.get(ch.fid);
+      if ((best && best.n >= n) || n < 2) continue;
+      const k = Math.floor(n / 2);
+      const k0 = Math.max(0, k - 3) * 2;
+      const k1 = Math.min(n - 1, k + 3) * 2;
+      mid.set(ch.fid, { n, x: ch.p[k * 2], y: ch.p[k * 2 + 1], dx: ch.p[k1] - ch.p[k0], dy: ch.p[k1 + 1] - ch.p[k0 + 1] });
+    }
+    ctx.save();
+    const strengthOf = (fid, n) => {
+      const divs = sim.divisionsOn(fid, n);
+      if (!divs.length) return { str: 0, tank: 0 };
+      let s = 0;
+      let tk = 0;
+      for (const d of divs) { s += (d.men / d.maxMen) * 0.5 + Math.min(d.men / d.maxMen, (d.equip ?? 100) / 100) * 0.5; tk += d.tank; }
+      return { str: s / divs.length, tank: tk / divs.length };
+    };
+    for (const f of sim.fronts.values()) {
+      if (!f.alive || !f.side[p]) continue;
+      const m = mid.get(f.id);
+      if (!m) continue;
+      const [sx, sy] = cam.toScreen(m.x, m.y);
+      if (sx < -60 || sy < -40 || sx > cam.width + 60 || sy > cam.height + 40) continue;
+      // Normale zur Linie (Bildschirm), eigene Seite über den Feldbesitz bestimmen
+      const L = Math.hypot(m.dx, m.dy) || 1;
+      let nx = -m.dy / L;
+      let ny = m.dx / L; // Karteneinheiten, y nach Norden
+      const probe = this.cellAtMap(m.x + nx * cu * 1.5, m.y + ny * cu * 1.5);
+      if (probe >= 0 && sim.owner[probe] !== p) { nx = -nx; ny = -ny; }
+      const off = 36;
+      const ox = nx * off;
+      const oy = -ny * off; // Bildschirm: y nach unten
+      const e = sim.enemyOn(f, p);
+      const side = f.side[p];
+      const own = sim.divisionsOn(f.id, p).length;
+      const os = strengthOf(f.id, p);
+      const known = !f.planned || sim.frontRevealed(f.id, p);
+      // im Frieden steht der Gegner noch nicht an der Grenze: geschätzte Gesamtarmee zeigen
+      const total = sim.divisions.filter((d) => d.nation === e).length;
+      const est = f.planned ? (known ? total : Math.max(1, Math.round(total / 5) * 5)) : sim.estimate(f.id, e);
+      const es = strengthOf(f.id, e);
+      // Verbindungsstrich zum Draht
+      ctx.strokeStyle = 'rgba(30,22,12,0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + ox * 0.55, sy + oy * 0.55); ctx.moveTo(sx, sy); ctx.lineTo(sx - ox * 0.55, sy - oy * 0.55); ctx.stroke();
+      const cOwn = this.counter({ code: myCode, text: String(own), tank: os.tank, str: own ? os.str : 0, order: side.order });
+      const cEn = this.counter({ code: sim.code(e), text: `~${est}`, tank: es.tank, str: est > 0 ? es.str : 0, order: f.side[e].order, enemy: true });
+      if (f.id === this.selectedFront) {
+        ctx.save();
+        ctx.shadowColor = '#f0c96a';
+        ctx.shadowBlur = 12;
+        ctx.strokeStyle = 'rgba(240,201,106,0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(sx + ox, sy + oy - cOwn.H / 2 + 25, 25, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+      this.stamp(cEn, sx - ox, sy - oy, 0.95);
+      this.stamp(cOwn, sx + ox, sy + oy);
+      // Gefahr: Gegner deutlich stärker oder Front leer → rot pulsierender Rahmen um den eigenen Stein
+      if (!f.planned && est > 0 && (own === 0 || est > own * 1.6)) {
+        const a = 0.5 + 0.5 * Math.sin(now / 200);
+        ctx.strokeStyle = `rgba(214,52,30,${0.45 + 0.55 * a})`;
+        ctx.lineWidth = 2 + a;
+        ctx.beginPath(); ctx.arc(sx + ox, sy + oy - cOwn.H / 2 + 25, 27, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+    // verlegte Divisionen: Stein wandert über den Tag weich zum Ziel, gepunktete Route mit Pfeil
+    const groups = new Map();
+    for (const d of sim.divisions) {
+      if (d.nation !== p || !d.transit) continue;
+      const k = `${d.transit.from}|${d.transit.to}|${d.transit.arrive}|${d.transit.days}`;
+      groups.set(k, (groups.get(k) || 0) + 1);
+    }
+    for (const [k, count] of groups) {
+      const [from, to, arrive, days] = k.split('|').map(Number);
+      const raw = Math.max(0, Math.min(1, (sim.day + t - (arrive - days)) / Math.max(1, days)));
+      const prog = raw * raw * (3 - 2 * raw);
+      const [ax, ay] = toScr(...sim.placeOf(from, p));
+      const [bx, by] = toScr(...sim.placeOf(to, p));
+      // leicht gebogene Route (Bogen nach Norden), damit sich Routen nicht decken
+      const cx = (ax + bx) / 2 - (by - ay) * 0.12;
+      const cy = (ay + by) / 2 + (bx - ax) * 0.12;
+      const q = (u) => [(1 - u) ** 2 * ax + 2 * (1 - u) * u * cx + u * u * bx, (1 - u) ** 2 * ay + 2 * (1 - u) * u * cy + u * u * by];
+      const [x, y] = q(prog);
+      ctx.setLineDash([2, 5]);
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(30,22,12,0.6)';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let i = 1; i <= 24; i++) ctx.lineTo(...q(prog + ((1 - prog) * i) / 24));
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(241,231,204,0.95)';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Pfeilspitze am Ziel
+      const [px2, py2] = q(0.97);
+      const ang = Math.atan2(by - py2, bx - px2);
+      ctx.fillStyle = 'rgba(241,231,204,0.95)';
+      ctx.strokeStyle = 'rgba(30,22,12,0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx - 9 * Math.cos(ang - 0.45), by - 9 * Math.sin(ang - 0.45));
+      ctx.lineTo(bx - 9 * Math.cos(ang + 0.45), by - 9 * Math.sin(ang + 0.45));
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      const c = this.counter({ code: myCode, text: String(count), kind: 'small' });
+      const fade = raw > 0.85 ? Math.max(0.25, 1 - (raw - 0.85) / 0.15) : 1; // verschmilzt bei Ankunft mit dem Frontstein
+      this.stamp(c, x, y, fade);
+      // Resttage als kleines Band unter dem Stein
+      const left = Math.max(0, arrive - sim.day);
+      const label = left <= 0 ? 'heute' : `${left} ${left === 1 ? 'Tag' : 'Tage'}`;
+      ctx.font = '600 10px "IBM Plex Sans", system-ui, sans-serif';
+      const w = ctx.measureText(label).width + 8;
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = 'rgba(32,24,15,0.85)';
+      ctx.fillRect(x + 20, y - 9, w, 14);
+      ctx.fillStyle = '#f1e7cc';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x + 20 + w / 2, y - 2);
+      ctx.globalAlpha = 1;
+    }
+    // Reserve an der Hauptstadt
+    const res = sim.reserveOf(p);
+    const cap = sim.capital.get(p);
+    if (cap !== undefined) {
+      const [rx, ry] = toScr(cap % sim.cols + 0.5, Math.floor(cap / sim.cols) + 0.5);
+      if (rx > -60 && ry > -40 && rx < cam.width + 60 && ry < cam.height + 40) {
+        let tk = 0;
+        for (const d of res) tk += d.tank;
+        const c = this.counter({ code: myCode, text: String(res.length), tank: res.length ? tk / res.length : 0, str: res.length ? 1 : 0 });
+        this.stamp(c, rx, ry + 26);
+        ctx.font = '600 10px "IBM Plex Sans", system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(32,24,15,0.85)';
+        ctx.fillRect(rx - 24, ry + 43, 48, 13);
+        ctx.fillStyle = '#f1e7cc';
+        ctx.fillText('Reserve', rx, ry + 50);
+      }
+    }
+    ctx.restore();
+  }
+
+  /** Feldindex unter Kartenkoordinaten (-1 außerhalb). */
+  cellAtMap(mx, my) {
+    const c = Math.floor((mx - this.gx0) / this.cellU);
+    const r = Math.floor((this.gy1 - my) / this.cellU);
+    const { cols, rows } = this.grid;
+    return c < 0 || r < 0 || c >= cols || r >= rows ? -1 : r * cols + c;
   }
 
   /** Stacheldraht zeichnen: Schein (Befehl), dann Draht je nach Zoomstufe. */

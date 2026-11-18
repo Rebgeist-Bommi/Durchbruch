@@ -36,7 +36,7 @@ export function strikePower(sim, front, n) {
 export function runAirStrikes(sim) {
   const R = sim.bal.airstrike;
   for (const f of [...sim.fronts.values()].sort((a, b) => a.id - b.id)) {
-    if (!f.alive) continue;
+    if (!f.alive || f.planned) continue;
     for (const n of [f.a, f.b]) {
       const side = f.side[n];
       if (!side?.airShare || !side.strikeTarget) continue;

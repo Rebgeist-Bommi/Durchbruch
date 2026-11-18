@@ -95,9 +95,7 @@ async function main() {
   const centerOnCell = (cell) => {
     const b = grid.cellBounds(cell);
     const [mx, my] = data.map.worldToMap((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
-    renderer.camera.cx = mx;
-    renderer.camera.cy = my;
-    renderer.camera.clamp();
+    renderer.camera.glideTo(mx, my); // weich zur Front gleiten
     renderer.requestRender();
   };
   const ui = new GameUI({ sim, renderer, panel, onCenter: centerOnCell });
@@ -194,6 +192,7 @@ async function main() {
     refreshUi2();
     renderer.requestRender();
   };
+  ui.onWar = () => afterChange();
   // Überarbeitung: Länderfenster, Diplomatie-Reiter, Banner, Ziele, Tutorial, Hinweise
   const openFrontOf = (n) => {
     const f = [...sim.fronts.values()].find((x) => x.alive && x.side[sim.player] && sim.enemyOn(x, sim.player) === n);
@@ -203,13 +202,13 @@ async function main() {
   const diploTab = new DiplomacyTab({ sim, onChange: () => afterChange(), openFront: openFrontOf });
   const banner = new Banner({ sim, onClick: () => {} });
   const goals = new GoalsUI({ sim, onChange: () => afterChange() });
-  const tutorial = new Tutorial({});
+  const tutorial = new Tutorial({ setMode: (m) => { if (renderer.mode !== m) setMode(m); }, econTab: (t) => { if (econ.tab !== t) { econ.tab = t; econ.refresh(); } }, ctx: () => ({ sim, popover, ui, renderer, econ, goals, clock }) });
   document.getElementById('top-flag').src = flagUrl(sim.code(sim.player));
   document.getElementById('goal-chip').addEventListener('click', () => goals.show());
   document.getElementById('supply-toggle').addEventListener('change', (e) => { renderer.supplyOn = e.target.checked; renderer.requestRender(); });
   // nur sichtbare Seitenleisten neu aufbauen (Kennzahlen oben immer)
   function refreshPanels() {
-    if (renderer.mode === 'economy') econ.refresh(); else econ.renderKpis();
+    if (renderer.mode === 'economy') { econ.refresh(); if (econ.tab === 'forschung') tutorial.offer('forschung'); } else econ.renderKpis();
     if (renderer.mode === 'intel') intel.refresh();
   }
   function refreshUi2() {
@@ -221,6 +220,7 @@ async function main() {
       morale: () => setMode('front'),
     });
     banner.collect();
+    if (sim.enemiesOf(sim.player).length) tutorial.offer('krieg'); // erster Krieg: Erklärung anbieten
     if (renderer.mode === 'diplomacy') diploTab.render();
     if (popover.open) popover.render();
   }
@@ -258,7 +258,8 @@ async function main() {
       afterChange();
       let seen = false;
       try { seen = localStorage.getItem('durchbruch-tutorial') === 'done'; } catch { /* ohne Speicher */ }
-      if (tut || (!seen && !sandbox)) setTimeout(() => tutorial.start(), 400);
+      if (tut) setTimeout(() => tutorial.start(), 400);
+      else if (!seen && !sandbox) setTimeout(() => tutorial.startGuided(), 400);
       toast(`${sandbox ? 'Sandbox' : 'Kampagne'} · ${balance.difficulty.levels[level].label}${sandbox ? ' · unbegrenzte Mittel' : ''}`);
     },
     onLoad: (kind) => {
@@ -373,6 +374,9 @@ async function main() {
     if (mode === 'intel') intel.refresh();
     popover.hide();
     renderer.setMode(mode);
+    // erster Besuch einer Ansicht: kurze Erklärung anbieten
+    const chap = { economy: 'wirtschaft', intel: 'geheim', diplomacy: 'diplomatie' }[mode];
+    if (chap) tutorial.offer(chap);
   }
   document.getElementById('modes').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-mode]');
@@ -388,9 +392,69 @@ async function main() {
     e.preventDefault();
     const r = canvas.getBoundingClientRect();
     const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-    renderer.camera.zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-delta * 0.0015));
+    renderer.camera.zoomSmooth(e.clientX - r.left, e.clientY - r.top, Math.exp(-delta * 0.0015));
     renderer.requestRender();
   }, { passive: false });
+
+  // Haltelinie: Zeichenmodus aus dem Frontfenster, Abschluss per Doppelklick oder Enter
+  ui.onDrawLine = (fid) => {
+    renderer.lineDraft = { fid, pts: [] };
+    setMode('front');
+    toast('Haltelinie: Maustaste gedrückt halten und die Linie von A nach B ziehen. Esc bricht ab.');
+    canvas.classList.add('drawing');
+    renderer.requestRender();
+  };
+  function finishLine() {
+    const d = renderer.lineDraft;
+    renderer.lineDraft = null;
+    canvas.classList.remove('drawing');
+    const pts = simplifyLine(d.pts, 0.6);
+    if (pts.length >= 2 && sim.fronts.get(d.fid)?.alive) { sim.setObjective(d.fid, pts); toast('Haltelinie gesetzt. Die Truppen stoßen bis dorthin vor und halten dann.'); }
+    ui.refresh();
+    renderer.requestRender();
+  }
+  // Ziehen: Maus gedrückt halten, jeder Mauspunkt (ab ca. 0,4 Feldern Abstand) wird Teil der Linie
+  const linePoint = (e) => { const r = canvas.getBoundingClientRect(); return renderer.cellCoordAt(e.clientX - r.left, e.clientY - r.top); };
+  canvas.addEventListener('pointerdown', (e) => {
+    if (!renderer.lineDraft || e.button !== 0) return;
+    e.stopImmediatePropagation();
+    canvas.setPointerCapture(e.pointerId);
+    renderer.lineDraft.drawing = true;
+    renderer.lineDraft.pts = [linePoint(e)];
+    renderer.requestRender();
+  }, { capture: true });
+  canvas.addEventListener('pointermove', (e) => {
+    const d = renderer.lineDraft;
+    if (!d || !d.drawing) return;
+    e.stopImmediatePropagation();
+    const q = linePoint(e);
+    const last = d.pts[d.pts.length - 1];
+    if (Math.hypot(q[0] - last[0], q[1] - last[1]) > 0.4) { d.pts.push(q); renderer.requestRender(); }
+  }, { capture: true });
+  canvas.addEventListener('pointerup', (e) => {
+    const d = renderer.lineDraft;
+    if (!d || !d.drawing) return;
+    e.stopImmediatePropagation();
+    d.pts.push(linePoint(e));
+    if (d.pts.length >= 2) finishLine(); else d.drawing = false;
+  }, { capture: true });
+
+  // Rechtsklick auf eine Front: Truppen der gewählten Front (oder Reserve) dorthin verlegen
+  canvas.addEventListener('contextmenu', (e) => {
+    if (renderer.mode !== 'front') return;
+    e.preventDefault();
+    const r = canvas.getBoundingClientRect();
+    const fid = renderer.frontAtScreen(e.clientX - r.left, e.clientY - r.top);
+    const to = sim.fronts.get(fid);
+    if (!to || !to.side[sim.player]) return;
+    const from = ui.frontId && ui.frontId !== fid ? ui.frontId : 0;
+    const c = ui.transferCount === 'alle' ? 1e6 : Number(ui.transferCount || (from ? 1 : 5));
+    const n = sim.transfer(from, fid, c);
+    const days = sim.travelDays(from, fid, sim.player);
+    toast(n ? `${n} Div. ${from ? 'verlegt' : 'aus der Reserve'} nach ${to.name} – Ankunft in ${days} ${days === 1 ? 'Tag' : 'Tagen'}.` : 'Keine Truppen zum Verlegen.');
+    ui.refresh();
+    renderer.requestRender();
+  });
 
   let drag = null;
   canvas.addEventListener('pointerdown', (e) => {
@@ -464,7 +528,7 @@ async function main() {
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (menu.open || decision.open) return; // Menü und Entscheidung: nur Maus/Tab
-    if (tutorial.open && e.key !== 'Escape') return;
+    if (tutorial.open && !tutorial.interactive && e.key !== 'Escape') return;
     const cam = renderer.camera;
     switch (e.key) {
       case '1': setMode('front'); break;
@@ -476,12 +540,14 @@ async function main() {
       case 'd': case 'D': setMode(renderer.mode === 'diplomacy' ? 'front' : 'diplomacy'); break;
       case 'z': case 'Z': if (goals.open) goals.close(); else goals.show(); break;
       case 't': case 'T': if (paper.open) paper.close(); else paper.show(); break;
+      case 'h': case 'H': if (tutorial.open) tutorial.end(); else tutorial.start(); break;
       case 'g': case 'G': renderer.showGrid = !renderer.showGrid; renderer.requestRender(); break;
       case '0': renderer.focusStart(); renderer.requestRender(); break;
-      case '+': case '=': cam.zoomAt(cam.width / 2, cam.height / 2, 1.25); renderer.requestRender(); break;
-      case '-': cam.zoomAt(cam.width / 2, cam.height / 2, 0.8); renderer.requestRender(); break;
+      case '+': case '=': cam.zoomSmooth(cam.width / 2, cam.height / 2, 1.25); renderer.requestRender(); break;
+      case '-': cam.zoomSmooth(cam.width / 2, cam.height / 2, 0.8); renderer.requestRender(); break;
       case 'Escape':
-        if (popover.open) popover.hide();
+        if (renderer.lineDraft) { renderer.lineDraft = null; canvas.classList.remove('drawing'); ui.refresh(); renderer.requestRender(); }
+        else if (popover.open) popover.hide();
         else if (goals.open) goals.close();
         else if (tutorial.open) tutorial.end();
         else if (diplo.open) diplo.close();
@@ -514,3 +580,26 @@ main().catch((err) => {
   const el = document.getElementById('loading');
   el.textContent = `Fehler beim Laden: ${err.message}`;
 });
+
+/** Linie vereinfachen (Douglas-Peucker, Toleranz in Feldern), Endpunkte bleiben. */
+function simplifyLine(pts, tol) {
+  if (pts.length < 3) return pts.slice();
+  const keep = new Uint8Array(pts.length);
+  keep[0] = 1;
+  keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    const [ax, ay] = pts[a];
+    const [bx, by] = pts[b];
+    const L = Math.hypot(bx - ax, by - ay) || 1e-9;
+    let best = -1;
+    let bd = tol;
+    for (let i = a + 1; i < b; i++) {
+      const d = Math.abs((bx - ax) * (ay - pts[i][1]) - (ax - pts[i][0]) * (by - ay)) / L;
+      if (d > bd) { bd = d; best = i; }
+    }
+    if (best > 0) { keep[best] = 1; stack.push([a, best], [best, b]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}

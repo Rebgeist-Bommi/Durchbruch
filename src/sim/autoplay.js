@@ -1,7 +1,7 @@
 import { declareWar as declareWarDip } from './diplomacy.js';
 // Automatische Führung für Testläufe und die Schaltfläche "Alle Fronten: Angriff".
 export function allFrontsAttack(sim, n = sim.player) {
-  const fronts = [...sim.fronts.values()].filter((f) => f.alive && f.side[n]).sort((x, y) => x.id - y.id);
+  const fronts = [...sim.fronts.values()].filter((f) => f.alive && !f.planned && f.side[n]).sort((x, y) => x.id - y.id);
   for (const f of fronts) if (f.side[n].order !== 'attack') sim.attack(f.id, n);
   // Reserve nach Frontlänge verteilen
   const open = fronts.filter((f) => !f.encircled[n]);
@@ -38,7 +38,7 @@ export function autoplayCampaign(sim) {
     sim.dip.flags.testWar = true;
     declareWarDip(sim, n, pol);
   }
-  const fronts = [...sim.fronts.values()].filter((f) => f.alive && f.side[n]).sort((x, y) => x.id - y.id);
+  const fronts = [...sim.fronts.values()].filter((f) => f.alive && !f.planned && f.side[n]).sort((x, y) => x.id - y.id);
   const east = fronts.filter((f) => sim.enemyOn(f, n) === pol);
   const west = fronts.filter((f) => sim.enemyOn(f, n) !== pol);
   for (const f of east) if (f.side[n].order !== 'attack') sim.attack(f.id, n);

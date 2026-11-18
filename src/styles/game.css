@@ -159,3 +159,7 @@ body.mode-intel .day-progress i { background: var(--accent); }
   #kpis .k-label { font-size: 9.5px; letter-spacing: 0.04em; }
   #time .date { font-size: 13px; }
 }
+
+/* Aufmarsch (Grenzfront im Frieden) */
+.fw-plan { margin: 6px 0 8px; padding: 7px 9px; border-left: 3px solid #b9a36a; background: rgba(185,163,106,0.12); font-size: 13px; line-height: 1.4; }
+.btn.btn-main.confirm { background: #a8321f; border-color: #a8321f; color: #fff; }

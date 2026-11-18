@@ -131,3 +131,25 @@
 @media (max-width: 1500px) { #kpis .k-unit { display: none; } #time .date { min-width: 0; } #modes button { padding: 4px 9px; } }
 @media (max-width: 1300px) { #modes button span { display: none; } #modes kbd { display: inline-block !important; font-size: 12px; padding: 1px 6px; } #goal-chip { max-width: 130px; } }
 @media (max-width: 1100px) { #goal-chip .g-text { display: none; } #kpis .k-ico { display: none; } #kpis li { padding: 3px 5px; } #kpis .k-value { font-size: 14px; } .speeds button { min-width: 24px; } }
+#popover .p-acts button.plan, .dl-acts button.plan { border-color: #b9a36a; color: #f1e2b4; }
+#tutorial .tut-box.tut-wide { max-width: min(640px, calc(100vw - 20px)); width: 640px; }
+#tutorial .tut-chaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin: 10px 0 14px; pointer-events: auto; }
+#tutorial .tut-chaps button { text-align: left; font: inherit; padding: 8px 10px; cursor: pointer; background: rgba(0, 0, 0, 0.3); color: inherit; border: 1px solid rgba(200, 161, 86, 0.45); }
+#tutorial .tut-chaps button:hover { border-color: #f0c66a; background: rgba(200, 161, 86, 0.15); }
+#tutorial .tut-chaps b { display: block; color: #e8cf94; font-weight: 600; }
+#tutorial .tut-chaps small { display: block; opacity: 0.75; font-size: 12px; margin-top: 2px; }
+#tutorial .tut-chap { display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; margin-bottom: 2px; }
+/* geführter Einstieg: Spieler handelt, Karte bleibt sichtbar */
+#tutorial.tut-free .tut-ring { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.12); animation: tut-pulse 1.2s ease-in-out infinite; }
+@keyframes tut-pulse { 50% { border-color: #fff3c4; outline: 3px solid rgba(240, 198, 106, 0.35); } }
+#tutorial .tut-todo { color: #f0c66a; font-size: 13px; margin: -4px 0 10px; }
+#tut-offer { position: fixed; right: 16px; bottom: 80px; z-index: 44; width: min(320px, 90vw); padding: 12px 14px; background: #2e2117; color: #E4D9BC; border: 2px solid #C8A156; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6); font-size: 13.5px; }
+#tut-offer b { display: block; color: #e8cf94; margin-bottom: 3px; }
+#tut-offer span { display: block; opacity: 0.8; margin-bottom: 9px; }
+#tut-offer div { display: flex; gap: 8px; }
+#tut-offer button { font: inherit; font-size: 13px; padding: 5px 10px; cursor: pointer; background: rgba(0, 0, 0, 0.3); color: inherit; border: 1px solid rgba(200, 161, 86, 0.5); }
+#tut-offer button.next { background: linear-gradient(180deg, #d9b56a, #a8823f); color: #1A1C14; }
+@media (prefers-reduced-motion: reduce) { #tutorial.tut-free .tut-ring { animation: none; } }
+#map-canvas.drawing { cursor: crosshair; }
+#tutorial .tut-box { width: min(430px, 92vw); }
+#tutorial .tut-nav span { white-space: nowrap; }

@@ -14,13 +14,13 @@ export function runAi(sim) {
 
 /** Vorlauf ohne Wirkung: Bedrohungserkennung einmal rechnen. */
 export function warmupAi(sim, n) {
-  const fronts = [...sim.fronts.values()].filter((f) => f.alive && f.side[n]);
+  const fronts = [...sim.fronts.values()].filter((f) => f.alive && !f.planned && f.side[n]);
   if (fronts.length) detectThreats(sim, n, fronts);
 }
 
 function aiNation(sim, n) {
   const A = sim.bal.ai;
-  const fronts = [...sim.fronts.values()].filter((f) => f.alive && f.side[n]).sort((x, y) => x.id - y.id);
+  const fronts = [...sim.fronts.values()].filter((f) => f.alive && !f.planned && f.side[n]).sort((x, y) => x.id - y.id);
   if (!fronts.length) return;
 
   // 1. Halten und befestigen – oder angreifen, wenn die Lage es erlaubt (Phase 5)

@@ -42,7 +42,11 @@ export class Camera {
     return [s, 0, 0, -s, (this.width / 2 - this.cx * this.scale) * dpr, (this.height / 2 + this.cy * this.scale) * dpr];
   }
 
+  /** Weich zu einem Punkt gleiten (Karteneinheiten). */
+  glideTo(cx, cy) { this.panTarget = { cx, cy }; }
+
   panBy(dxPx, dyPx) {
+    this.panTarget = null;
     this.cx -= dxPx / this.scale;
     this.cy += dyPx / this.scale;
     this.clamp();
@@ -55,6 +59,32 @@ export class Camera {
     this.cx = mx - (sx - this.width / 2) / this.scale;
     this.cy = my + (sy - this.height / 2) / this.scale;
     this.clamp();
+  }
+
+  /** Weicher Zoom: Ziel sammeln, je Bild einen Teil davon ausführen. */
+  zoomSmooth(sx, sy, factor) {
+    this.zoomPending = { sx, sy, log: (this.zoomPending?.log || 0) + Math.log(factor) };
+  }
+
+  /** Einen Zoomschritt ausführen; true, solange noch Zoom aussteht. */
+  stepZoom() {
+    const pan = this.panTarget;
+    if (pan) {
+      const dx = pan.cx - this.cx;
+      const dy = pan.cy - this.cy;
+      const ox = this.cx;
+      const oy = this.cy;
+      if (Math.hypot(dx, dy) * this.scale < 0.6) { this.cx = pan.cx; this.cy = pan.cy; this.panTarget = null; } else { this.cx += dx * 0.18; this.cy += dy * 0.18; }
+      this.clamp();
+      if (Math.hypot(this.cx - ox, this.cy - oy) * this.scale < 0.05) this.panTarget = null; // Rand erreicht
+    }
+    const z = this.zoomPending;
+    if (!z) return !!this.panTarget;
+    const step = Math.abs(z.log) < 0.004 ? z.log : z.log * 0.28;
+    this.zoomAt(z.sx, z.sy, Math.exp(step));
+    z.log -= step;
+    if (Math.abs(z.log) < 1e-4 || this.scale <= this.minScale + 1e-9 && z.log < 0 || this.scale >= this.maxScale - 1e-9 && z.log > 0) { this.zoomPending = null; return !!this.panTarget; }
+    return true;
   }
 
   clamp() {

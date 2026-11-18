@@ -112,7 +112,7 @@ export function resolveSieges(sim) {
     const col = c % sim.cols;
     const row = Math.floor(c / sim.cols);
     const fronts = [...sim.fronts.values()]
-      .filter((f) => f.alive && f.side[by])
+      .filter((f) => f.alive && !f.planned && f.side[by])
       .sort((x, y) => (x === here ? -1 : y === here ? 1 : (x.cx - col) ** 2 + (x.cy - row) ** 2 - ((y.cx - col) ** 2 + (y.cy - row) ** 2)) || x.id - y.id);
     let bound = 0;
     let airSum = 0;
@@ -204,7 +204,7 @@ function surrender(sim, n, enemy, comp, mark, where) {
   let men = 0;
   let count = 0;
   for (const f of sim.fronts.values()) {
-    if (!f.alive || !f.side[n]) continue;
+    if (!f.alive || f.planned || !f.side[n]) continue;
     const cells = sim.frontCellsOf(f, n);
     const inside = cells.filter((c) => mark[c] === comp.id).length;
     if (!cells.length || inside * 2 <= cells.length) continue;

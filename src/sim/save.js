@@ -41,7 +41,7 @@ function unsparse(target, list, base) {
 export function serialize(sim) {
   const fronts = [...sim.fronts.values()].map((f) => ({
     id: f.id, a: f.a, b: f.b, name: f.name, born: f.born, alive: f.alive, encircled: f.encircled,
-    cx: f.cx, cy: f.cy, side: f.side, retreatLogged: !!f.retreatLogged, warned: !!f.warned,
+    cx: f.cx, cy: f.cy, side: f.side, retreatLogged: !!f.retreatLogged, warned: !!f.warned, planned: !!f.planned,
   }));
   const pockets = {};
   for (const [n, cells] of sim._pocketCells || []) pockets[n] = cells;
@@ -184,6 +184,7 @@ export function deserialize(sim, s) {
   }
   sim.settings = s.settings == null ? null : structuredClone(s.settings);
   sim.dip = s.dip == null ? null : structuredClone(s.dip);
+  if (sim.dip && !sim.dip.plans) sim.dip.plans = [];
   sim.pending = s.pending == null ? null : structuredClone(s.pending);
   sim.outcome = s.outcome == null ? null : structuredClone(s.outcome);
   sim.news = s.news == null ? null : structuredClone(s.news);

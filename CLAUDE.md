@@ -13,6 +13,7 @@ gebaut.
 | 4 | Forschung, Geheimdienst, Generäle | fertig |
 | 5 | Moral, Diplomatie, Ereignisse, Hauptmenü, Spielende (Version 1 fertig) | fertig |
 | – | Überarbeitung: Start 01.03.1939, Diplomatie-Reiter, Länderfenster, Ziele, Tutorial | fertig |
+| – | Überarbeitung 2: Aufmarsch im Frieden, Taktiken, Haltelinie, Truppen-Medaillons, geführter Einstieg | fertig |
 | 6 | folgt | offen |
 
 ## Technik
@@ -107,6 +108,9 @@ node tools/sim_run.mjs [seed]    # Kampagne ohne Spieler (Normal, Angriff auf Po
 
 ## Arbeitsregeln
 - Pro Sitzung genau eine Phase.
+- Änderungswünsche des Nutzers vollständig und gründlich umsetzen, nicht minimal: jeden genannten
+  Punkt in voller Breite (z. B. Tutorial erklärt alle Bereiche, nicht nur die Grundbedienung) und
+  vor dem Bericht gegen die ursprüngliche Liste abhaken.
 - Erst testen, dann berichten: `python tools/build_all.py` (pytest) und `npm test` müssen grün sein,
   Screenshots aller drei Modi werden angesehen und geprüft.
 - Spielwerte nur in `data/balance.json`; nichts als historische Tatsache ausgeben, was nicht geprüft ist.
@@ -252,3 +256,21 @@ node tools/sim_run.mjs [seed]    # Kampagne ohne Spieler (Normal, Angriff auf Po
 - Flüssigkeit: Besetzung und Draht blenden weich über den Tag über; Seitenleisten werden nur
   aktualisiert, wenn sichtbar, und erst nach dem Bild des Tageswechsels.
 - Speicherstand Version 6 (Ziele; Nationsindizes geändert, ältere Stände werden nicht geladen).
+
+## Überarbeitung 2 (Aufmarsch, Taktik, Bedienung)
+- Aufmarsch: `sim.dip.plans` = Paare [Planer, Ziel]. `updateFronts` legt dafür Grenzfronten mit
+  `planned = true` an (kein Kampf, KI/Kessel/Luftangriffe ignorieren sie; nur der Planer bereitet vor
+  und befestigt). Bei Kriegserklärung behält die Front Kennung, Divisionen, Vorbereitung, General.
+  `planDeployment` (Reserve per Verlegung), `cancelPlan`, `bordersWith` in `diplomacy.js`.
+- Taktik je Front und Seite (`side.tactic`, `balance.json tactics`): standard, blitzkrieg (Panzer,
+  Nachschub), luft (Geld je Division/Tag), zange (Felder mit ≥ 2 eigenen Nachbarn), material.
+  Wirkung anteilig nach Panzer-/Luftanteil (`tacticOf` in `combat.js`).
+- Haltelinie (`side.objective = {line}` in Feldkoordinaten): `objectiveMask` erlaubt nur Felder, die
+  von der Front ohne Überqueren der (an den Enden verlängerten) Linie erreichbar sind; erreicht →
+  Befehl halten. Zeichnen: Maus gedrückt ziehen (Douglas-Peucker, Chaikin in der Anzeige).
+- Darstellung: Draht wandert (Punktzuordnung alt → neu, `linkGeometry`), eroberte Felder füllen sich
+  wellenförmig (`startOccAnim`), weicher Zoom/Schwenk (`camera.stepZoom`). Truppen-Medaillons
+  (Eichenlaub, Porträt-Silhouette, Stärkering, Band mit Zahl) beidseits des Drahts, wandernde
+  Verlegungen mit Resttagen, Reserve an der Hauptstadt. Rechtsklick auf Front = verlegen.
+- Tutorial: Kapitelübersicht (Taste H), geführter Einstieg beim ersten Spiel (wartet auf Aktionen),
+  Erstbesuch-Angebote je Ansicht (`localStorage durchbruch-seen-*`).

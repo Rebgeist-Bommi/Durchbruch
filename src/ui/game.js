@@ -5,6 +5,8 @@ import { freeGenerals, assignGeneral } from '../sim/generals.js';
 import { strikeTargets, strikePower } from '../sim/airstrike.js';
 import { describeTarget } from '../sim/intel.js';
 import { renderMorale } from './phase5.js';
+import { declareWar as declareWarFn } from '../sim/diplomacy.js';
+import { tacticOf } from '../sim/combat.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -30,13 +32,19 @@ export class GameUI {
       if (d) { if (d.open) this.openDetails.add(d.dataset.d); else this.openDetails.delete(d.dataset.d); }
     }, true);
     $('frontwin').addEventListener('change', (e) => {
-      if (e.target.id === 'tf-target') this.transferTarget = Number(e.target.value);
+      if (e.target.id === 'tf-target') { this.transferTarget = Number(e.target.value); this.refresh(); }
+      if (e.target.id === 'tf-count') { this.transferCount = e.target.value; this.refresh(); }
+      if (e.target.id === 'tactic-select') this.cmd(() => this.sim.setTactic(this.frontId, e.target.value));
       if (e.target.id === 'gen-select') this.cmd(() => assignGeneral(this.sim, this.frontId, this.sim.player, e.target.value || null));
       if (e.target.id === 'strike-target') this.cmd(() => {
         const [kind, id] = e.target.value.split(':');
         const side = this.sim.fronts.get(this.frontId).side[this.sim.player];
         side.strikeTarget = kind ? { kind, id: Number(id) } : null;
       });
+      if (e.target.name === 'objective') {
+        if (e.target.value === 'all') this.cmd(() => this.sim.setObjective(this.frontId, null));
+        else if (!this.sim.fronts.get(this.frontId)?.side[this.sim.player].objective && this.onDrawLine) this.onDrawLine(this.frontId);
+      }
       if (e.target.name === 'method') this.cmd(() => this.sim.setMethod(this.frontId, e.target.value));
       if (e.target.name === 'order') this.cmd(() => this.sim.setOrder(this.frontId, e.target.value));
     });
@@ -138,7 +146,7 @@ export class GameUI {
     });
     const over = sim.isOver();
     $('lage').innerHTML = `
-      <ul class="fronts">${rows.join('') || '<li class="empty">Keine Front – kein Krieg.</li>'}</ul>
+      <ul class="fronts">${rows.join('') || '<li class="empty">Keine Front. Für einen Aufmarsch ein Nachbarland anklicken → „Aufmarsch an der Grenze“.</li>'}</ul>
       <div class="reserve">Reserve: <b>${reserve}</b> Div.${transit ? ` · unterwegs: ${transit}` : ''}</div>`;
     $('all-attack').disabled = over || !fronts.length;
   }
@@ -175,18 +183,28 @@ export class GameUI {
         <h2>${esc(f.name)}</h2>
         <button type="button" class="close" data-action="close" aria-label="Frontfenster schließen">×</button>
       </header>
-      <p class="fw-sub">gegen ${esc(sim.nationName(e))} · ${f.sections.length} Abschnitte · ${fmtInt(f.length * 9)} km${f.encircled[e] ? ' · <b>Gegner eingeschlossen</b>' : ''}</p>
+      ${f.planned ? `<p class="fw-plan">Aufmarsch – noch Frieden mit ${esc(sim.nameDat(e))}. Truppen sammeln, „Angriff vorbereiten“ wählen und erst dann den Krieg erklären.</p>` : ''}
+      <p class="fw-sub">${f.planned ? 'Grenze zu' : 'gegen'} ${esc(sim.nationName(e))} · ${f.sections.length} Abschnitte · ${fmtInt(f.length * 9)} km${f.encircled[e] ? ' · <b>Gegner eingeschlossen</b>' : ''}</p>
 
       <section>
         <h3>Kräfte</h3>
         <dl class="fw-grid">
           <dt>Eigene</dt><dd><b>${own.count}</b> Div.${transit ? ` (+${transit} unterwegs)` : ''} · Stärke ${own.count ? pct(own.str / own.count) : '–'}</dd>
           <dt></dt><dd>Panzer ${pct(own.tank)} · Luft ${pct(own.air)}${side.tied ? ` · Belagerung bindet ${side.tied.toFixed(1)}` : ''}</dd>
-          <dt>Gegner</dt><dd>ca. <b>${enemyEst}</b> Div. <span class="muted">(geschätzt)</span></dd>
+          <dt>Gegner</dt><dd>${f.planned ? `Armee gesamt ca. <b>${Math.max(1, Math.round(sim.divisions.filter((d) => d.nation === e).length / 5) * 5)}</b> Div. <span class="muted">(noch nicht an der Grenze)</span>` : `ca. <b>${enemyEst}</b> Div. <span class="muted">(geschätzt)</span>`}</dd>
         </dl>
       </section>
 
       ${this.generalHtml(f, p)}
+
+      ${this.tacticHtml(f, p)}
+
+      <section>
+        <h3>Angriffsziel</h3>
+        <label class="radio"><input type="radio" name="objective" value="all" ${side.objective ? '' : 'checked'}> Ganzes Land <span class="muted">– die Truppen rücken immer weiter vor</span></label>
+        <label class="radio"><input type="radio" name="objective" value="line" ${side.objective ? 'checked' : ''}> Bis zur Haltelinie <span class="muted">– danach halten und eingraben</span></label>
+        <div class="row"><button type="button" class="btn small" data-action="draw-line">${side.objective ? 'Linie neu zeichnen' : 'Linie auf der Karte zeichnen'}</button></div>
+      </section>
 
       <section>
         <h3>Befehl</h3>
@@ -197,7 +215,9 @@ export class GameUI {
         <div class="bar" title="Angriffsbonus"><i style="width:${Math.round(side.prep * 100)}%"></i></div>
         ${attacking
           ? `<button type="button" class="btn" data-action="stop">Angriff einstellen</button>`
-          : `<button type="button" class="btn btn-main" data-action="attack" ${sim.isOver() ? 'disabled' : ''}>Angriff auslösen</button>`}
+          : f.planned
+            ? `<button type="button" class="btn btn-main${this.warConfirm === f.id ? ' confirm' : ''}" data-action="war-attack" ${sim.isOver() ? 'disabled' : ''}>${this.warConfirm === f.id ? `Wirklich ${esc(sim.nameDat(e))} den Krieg erklären?` : 'Krieg erklären und angreifen'}</button>`
+            : `<button type="button" class="btn btn-main" data-action="attack" ${sim.isOver() ? 'disabled' : ''}>Angriff auslösen</button>`}
       </section>
 
       <details data-d="vorgehen" ${this.isOpen('vorgehen')}>
@@ -206,21 +226,24 @@ export class GameUI {
         <label class="radio"><input type="radio" name="method" value="total" ${side.method === 'total' ? 'checked' : ''}> Totale Verwüstung <span class="muted">– schneller, kaum Ertrag für lange Zeit</span></label>
       </details>
 
-      ${this.airHtml(f, p)}
+      ${f.planned ? '' : this.airHtml(f, p)}
 
       <section>
         <h3>Truppen</h3>
         <div class="row">
           <button type="button" class="btn small" data-action="from-reserve" ${sim.reserveOf(p).length ? '' : 'disabled'}>+1 aus Reserve (${sim.reserveOf(p).length})</button>
+          <button type="button" class="btn small" data-action="from-reserve5" ${sim.reserveOf(p).length ? '' : 'disabled'}>+5</button>
           <button type="button" class="btn small" data-action="to-reserve" ${own.count && !f.encircled[p] ? '' : 'disabled'}>−1 zur Reserve</button>
         </div>
+        <p class="fw-sub">Aus der Reserve: ${sim.travelDays(0, f.id, p)} ${sim.travelDays(0, f.id, p) === 1 ? 'Tag' : 'Tage'} Marsch. Auf der Karte: Rechtsklick auf eine andere Front verlegt die gewählte Anzahl dorthin.</p>
         ${others.length ? `<div class="row">
           <select id="tf-target" aria-label="Zielfront">${others.map((x) => `<option value="${x.id}" ${x.id === target ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
-          <button type="button" class="btn small" data-action="transfer" ${own.count ? '' : 'disabled'}>Verlegen (1 Div., ${days} ${days === 1 ? 'Tag' : 'Tage'})</button>
+          <select id="tf-count" aria-label="Anzahl">${['1', '5', '10', 'alle'].map((v) => `<option value="${v}" ${v === (this.transferCount || '1') ? 'selected' : ''}>${v === 'alle' ? 'alle' : `${v} Div.`}</option>`).join('')}</select>
+          <button type="button" class="btn small" data-action="transfer" ${own.count ? '' : 'disabled'}>Verlegen · ${days} ${days === 1 ? 'Tag' : 'Tage'}</button>
         </div>` : ''}
       </section>
 
-      <details data-d="kampf" ${this.isOpen('kampf')}>
+      ${f.planned ? '' : `<details data-d="kampf" ${this.isOpen('kampf')}>
         <summary>Kampfbericht</summary>
         <table class="fw-table">
           <thead><tr><th>Abschnitt</th><th class="num">km heute</th><th class="num">km ges.</th><th>Status</th></tr></thead>
@@ -233,7 +256,26 @@ export class GameUI {
           <dt>Gefangene</dt><dd>${fmtInt(side.prisonersToday)} heute · ${fmtInt(side.prisonersTotal)} gesamt</dd>
           <dt>Lufteinsätze</dt><dd>${fmtInt(side.airToday)} heute · ${fmtInt(side.airTotal)} gesamt</dd>
         </dl>
-      </details>`;
+      </details>`}`;
+  }
+
+  tacticHtml(f, p) {
+    const sim = this.sim;
+    const side = f.side[p];
+    const all = Object.entries(sim.bal.tactics).filter(([k]) => !k.startsWith('_'));
+    const cur = sim.bal.tactics[side.tactic] || sim.bal.tactics.standard;
+    const k = tacticOf(sim, f, p, undefined, false).k ?? 1;
+    const t = cur;
+    const warn = t.needTank && k < 1 ? ` Wirkung nur ${Math.round(k * 100)} % – zu wenige Panzer an dieser Front.`
+      : t.needAir && k < 1 ? ` Wirkung nur ${Math.round(k * 100)} % – zu wenig Luftwaffe an dieser Front.` : '';
+    const cost = t.moneyPerDivDay ? ` Kosten beim Angriff: ${(t.moneyPerDivDay * sim.divisionsOn(f.id, p).length).toFixed(0)} Geld je Tag.` : '';
+    return `<section>
+        <h3>Taktik beim Angriff</h3>
+        <select id="tactic-select" aria-label="Taktik" class="full">
+          ${all.map(([key, v]) => `<option value="${key}" ${key === (side.tactic || 'standard') ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}
+        </select>
+        <p class="fw-sub">${esc(t.text)}${esc(warn)}${esc(cost)}</p>
+      </section>`;
   }
 
   generalHtml(f, p) {
@@ -279,13 +321,31 @@ export class GameUI {
     switch (b.dataset.action) {
       case 'close': this.closeFront(); return;
       case 'attack': this.cmd(() => sim.attack(id)); break;
+      case 'war-attack': {
+        if (this.warConfirm !== id) { this.warConfirm = id; this.refresh(); return; }
+        this.warConfirm = 0;
+        const f = sim.fronts.get(id);
+        const enemy = sim.enemyOn(f, sim.player);
+        // alle Grenzfronten gegen diesen Gegner greifen gemeinsam an, wenn vorbereitet
+        const mine = this.playerFronts().filter((x) => x.planned && sim.enemyOn(x, sim.player) === enemy);
+        const ready = new Set(mine.filter((x) => x.id === id || x.side[sim.player].order === 'prepare').map((x) => x.id));
+        if (declareWarFn(sim, sim.player, enemy)) {
+          for (const fid of ready) if (sim.fronts.get(fid)?.alive) sim.attack(fid);
+          if (this.onWar) this.onWar();
+        }
+        this.cmd(() => {});
+        break;
+      }
+      case 'draw-line': if (this.onDrawLine) this.onDrawLine(id); return;
+      case 'from-reserve5': this.cmd(() => sim.transfer(0, id, 5)); break;
       case 'stop': this.cmd(() => sim.stopAttack(id)); break;
       case 'from-reserve': this.cmd(() => sim.transfer(0, id, 1)); break;
       case 'airshare': this.cmd(() => { sim.fronts.get(id).side[sim.player].airShare = Number(b.dataset.v); }); break;
       case 'to-reserve': this.cmd(() => sim.transfer(id, 0, 1)); break;
       case 'transfer': {
         const t = this.transferTarget || this.playerFronts().find((x) => x.id !== id)?.id;
-        if (t) this.cmd(() => sim.transfer(id, t, 1));
+        const c = this.transferCount === 'alle' ? 1e6 : Number(this.transferCount || 1);
+        if (t) this.cmd(() => sim.transfer(id, t, c));
         break;
       }
       default:

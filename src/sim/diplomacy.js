@@ -2,7 +2,7 @@
 // anbieten. Beziehungswert je Nationenpaar (−100 … +100). Bündnisse sind Beistandspakte: Wird ein
 // Bündnispartner angegriffen, erklären die übrigen Partner dem Angreifer nach `allyDelayDays` den
 // Krieg (einmal je Partner; Kriegserklärungen aus Bündnispflicht lösen keine weitere Kette aus).
-import { updateFronts } from './fronts.js';
+import { updateFronts, borderCells } from './fronts.js';
 import { changeMorale } from './morale.js';
 import { runGenerals } from './generals.js';
 
@@ -25,6 +25,7 @@ export function initDiplomacy(sim) {
     flags: {},
     effects: [],
     partition: null,
+    plans: [], // Aufmarsch im Frieden: Paare [Planer, Ziel] (Grenzfronten ohne Kampf)
     annexed: [], // friedliche Gebietsänderungen (Szenario, Anschluss) für Darstellung und Speicherstand
   };
   for (const [k, v] of Object.entries(D.relations)) {
@@ -118,6 +119,7 @@ export function declareWar(sim, a, b, { obligation = false, text = null } = {}) 
   if (!obligation) for (const n of sim.nations.keys()) if (n !== a && n !== b) changeRelation(sim, a, n, D.warRelationOthers);
   sim.startWar(sim.code(a), sim.code(b), text || `${sim.nameNom(a)} erklärt ${sim.nameDat(b)} den Krieg.`);
   sim.dip.wars[key(a, b)] = { aggressor: a, day: sim.day, attacked: true, obligation };
+  sim.dip.plans = sim.dip.plans.filter(([x, y]) => !((x === a && y === b) || (x === b && y === a)));
   applyBorderFort(sim, a, b);
   // Szenario: an einen Krieg gebundene Gebietsänderungen (Danzig bei Krieg mit Polen)
   let annexed = false;
@@ -140,6 +142,46 @@ export function declareWar(sim, a, b, { obligation = false, text = null } = {}) 
   if (!obligation) scheduleAllyResponses(sim, a, b);
   trackEnemies(sim);
   return true;
+}
+
+/**
+ * Aufmarsch an der Grenze zu `b` planen (ohne Krieg): Grenzfronten entstehen, Generäle werden
+ * besetzt. Mit `send` geht die Reserve (bis auf den Reserveanteil) per Verlegung dorthin.
+ * Gibt die Kennungen der neuen Fronten zurück.
+ */
+export function planDeployment(sim, a, b, { send = true } = {}) {
+  if (a === b || sim.isWar(a, b) || !active(sim, a) || !active(sim, b)) return [];
+  if (!sim.plansAgainst(a, b)) sim.dip.plans.push([a, b]);
+  updateFronts(sim);
+  runGenerals(sim);
+  const fronts = [...sim.fronts.values()].filter((f) => f.alive && f.planned && f.side[a] && sim.enemyOn(f, a) === b);
+  if (!fronts.length) { cancelPlan(sim, a, b); return []; }
+  if (send) {
+    const share = sim.bal.divisions.nations[sim.code(a)]?.reserveShare ?? 0;
+    const total = sim.divisions.filter((d) => d.nation === a).length;
+    let free = sim.reserveOf(a).length - Math.round(total * share);
+    const have = (f) => sim.divisionsOn(f.id, a).length + sim.inTransitTo(f.id, a).length;
+    while (free > 0) {
+      const best = fronts.reduce((x, f) => (f.length / (have(f) + 1) > x.length / (have(x) + 1) ? f : x), fronts[0]);
+      if (!sim.transfer(0, best.id, 1, a)) break;
+      free--;
+    }
+  }
+  if (a === sim.player) sim.log('plan', `Aufmarsch an der Grenze zu ${sim.nameDat(b)} befohlen.`);
+  return fronts.map((f) => f.id);
+}
+
+/** Aufmarsch aufheben: Divisionen der Grenzfronten kehren in die Reserve zurück. */
+export function cancelPlan(sim, a, b) {
+  const ids = [...sim.fronts.values()].filter((f) => f.alive && f.planned && f.side[a] && sim.enemyOn(f, a) === b).map((f) => f.id);
+  sim.dip.plans = sim.dip.plans.filter(([x, y]) => !(x === a && y === b));
+  for (const d of sim.divisions) {
+    if (d.nation !== a) continue;
+    if (d.transit && ids.includes(d.transit.to)) d.transit.to = 0;
+    if (!d.transit && ids.includes(d.front)) d.front = 0;
+  }
+  updateFronts(sim);
+  return ids.length;
 }
 
 /** Reserve auf die Fronten gegen `enemy` verteilen (nach Länge). */
@@ -282,7 +324,7 @@ export function runDiplomacy(sim) {
   // schließt nach `ceasefireDays` einen Waffenstillstand.
   const p = sim.player;
   for (const e of sim.enemiesOf(p)) {
-    const front = [...sim.fronts.values()].some((f) => f.alive && ((f.a === p && f.b === e) || (f.a === e && f.b === p)));
+    const front = [...sim.fronts.values()].some((f) => f.alive && !f.planned && ((f.a === p && f.b === e) || (f.a === e && f.b === p)));
     const alliesFight = alliesOf(sim, e).some((x) => active(sim, x) && sim.isWar(x, p));
     // Frist läuft erst, wenn weder eine eigene Landfront besteht noch ein Verbündeter kämpft
     if (front || alliesFight) { delete sim.dip.noFront[e]; continue; }
@@ -294,7 +336,7 @@ export function runDiplomacy(sim) {
   }
   // Warnung: eigene Front ohne Truppen, an der der Gegner Divisionen sammelt (einmal je Front)
   for (const f of sim.fronts.values()) {
-    if (!f.alive || !f.side[p] || f.warned) continue;
+    if (!f.alive || f.planned || !f.side[p] || f.warned) continue;
     const o = sim.enemyOn(f, p);
     const enemy = sim.divisionsOn(f.id, o).length;
     if (enemy < 3 || sim.divisionsOn(f.id, p).length || sim.inTransitTo(f.id, p).length) continue;
@@ -348,7 +390,18 @@ export function actionsFor(sim, n, from = sim.player) {
     pact: alive && !war && !isAllied(sim, from, n) && !hasPact(sim, from, n),
     anschluss: alive && !war && !isMajor(sim, n),
     rohstoffe: alive && !war && !sim.dip.effects.some((x) => x.kind === 'rohstoffe' && x.partner === n),
+    plan: alive && !war && !sim.plansAgainst(from, n) && bordersWith(sim, from, n),
+    unplan: !war && sim.plansAgainst(from, n),
   };
+}
+
+/** Gemeinsame Landgrenze zweier Nationen (Grundlage für einen Aufmarsch). */
+export function bordersWith(sim, a, b) {
+  for (const i of borderCells(sim)) {
+    if (sim.owner[i] !== a) continue;
+    for (let k = i * 4, e = k + 4; k < e; k++) if (sim.nb[k] >= 0 && sim.owner[sim.nb[k]] === b) return true;
+  }
+  return false;
 }
 
 /** Anschluss anbieten: bei Annahme geht die ganze Nation friedlich an den Anbietenden. */

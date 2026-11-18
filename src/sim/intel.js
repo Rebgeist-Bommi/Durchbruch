@@ -263,7 +263,7 @@ function runAiIntel(sim) {
     let type = 'aufklaeren';
     if (atWar) {
       // Sabotage am Bahnknoten des Spielers, der einer gemeinsamen Front am nächsten liegt
-      const f = [...sim.fronts.values()].find((x) => x.alive && x.side[n] && x.side[p]);
+      const f = [...sim.fronts.values()].find((x) => x.alive && !x.planned && x.side[n] && x.side[p]);
       if (f) {
         let best = -1;
         let bd = Infinity;

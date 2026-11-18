@@ -175,6 +175,8 @@ export class Simulation {
   nameDat(i) { const a = ARTICLES[this.code(i)]; return a ? a[1] : this.nationName(i); }
   nameAcc(i) { const a = ARTICLES[this.code(i)]; return a ? a[2] : this.nationName(i); }
   isWar(a, b) { return this.atWar[a * NMAX + b] === 1; }
+  /** Aufmarsch geplant (`a` sammelt Truppen an der Grenze zu `b`)? */
+  plansAgainst(a, b) { return (this.dip?.plans || []).some(([x, y]) => x === a && y === b); }
   warNations() {
     const s = new Set();
     for (const [a, b] of this.wars) { s.add(a); s.add(b); }
@@ -458,6 +460,7 @@ export class Simulation {
 
   attack(frontId, n = this.player) {
     const s = this.frontSide(frontId, n);
+    if (this.fronts.get(frontId).planned) return; // Aufmarsch: erst Krieg erklären
     if (s.order === 'attack') return;
     s.order = 'attack';
     s.attackStartDay = this.day;
@@ -467,6 +470,16 @@ export class Simulation {
   stopAttack(frontId, n = this.player) {
     const s = this.frontSide(frontId, n);
     if (s.order === 'attack') s.order = 'hold';
+  }
+
+  setTactic(frontId, tactic, n = this.player) {
+    if (!this.bal.tactics[tactic] || tactic.startsWith('_')) throw new Error(`Taktik ${tactic}`);
+    this.frontSide(frontId, n).tactic = tactic;
+  }
+
+  /** Haltelinie setzen (Feldkoordinaten) oder mit null aufheben (ganzes Land). */
+  setObjective(frontId, line, n = this.player) {
+    this.frontSide(frontId, n).objective = line && line.length >= 2 ? { line: line.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) } : null;
   }
 
   setMethod(frontId, method, n = this.player) {
