@@ -51,7 +51,8 @@ export const STYLES = {
     internal: { color: 'rgba(31,29,20,0.75)', width: 1.0, dash: [5, 4] },
     front: { color: '#9b2a1f', edge: '#e4d9bc', width: 3.2, teeth: true },
     warFront: {
-      width: 5, edge: '#15140e', selected: 'rgba(228,217,188,0.55)',
+      width: 5, edge: '#15140e', selected: 'rgba(228,217,188,0.45)',
+      glow: { Durchbruch: 'rgba(224,69,42,0.55)', Vormarsch: 'rgba(181,64,42,0.45)', festgefahren: 'rgba(110,108,100,0.4)', halten: 'rgba(150,150,140,0.38)', vorbereiten: 'rgba(200,161,86,0.42)' },
       colors: { Durchbruch: '#e0452a', Vormarsch: '#b5402a', festgefahren: '#7b7a70', halten: '#C8A156', vorbereiten: '#e3b45c' },
     },
     siege: '#e0452a',
@@ -80,6 +81,7 @@ export const STYLES = {
     front: null,
     warFront: {
       width: 4, edge: '#16191c', selected: 'rgba(224,168,58,0.45)',
+      glow: { Durchbruch: 'rgba(255,106,42,0.55)', Vormarsch: 'rgba(224,168,58,0.45)', festgefahren: 'rgba(154,161,168,0.4)', halten: 'rgba(190,196,202,0.35)', vorbereiten: 'rgba(240,200,106,0.45)' },
       colors: { Durchbruch: '#ff6a2a', Vormarsch: '#E0A83A', festgefahren: '#9aa1a8', halten: '#cfd4d9', vorbereiten: '#f0c86a' },
     },
     siege: '#E0A83A',
@@ -108,6 +110,7 @@ export const STYLES = {
     front: null,
     warFront: {
       width: 3, edge: '#050608', selected: 'rgba(179,38,30,0.45)',
+      glow: { Durchbruch: 'rgba(255,59,46,0.5)', Vormarsch: 'rgba(179,38,30,0.45)', festgefahren: 'rgba(111,106,98,0.4)', halten: 'rgba(143,137,123,0.35)', vorbereiten: 'rgba(201,88,79,0.4)' },
       colors: { Durchbruch: '#ff3b2e', Vormarsch: '#B3261E', festgefahren: '#6f6a62', halten: '#8f897b', vorbereiten: '#c9584f' },
     },
     siege: '#B3261E',

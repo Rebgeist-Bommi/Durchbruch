@@ -59,7 +59,7 @@ src/data/loader.js         Laden und Dekodieren von public/data/*
 src/map/camera.js          Kamera (Zoom um Mauszeiger, Verschieben, Begrenzung)
 src/map/renderer.js        Kartenzeichnung in Ebenen: statisch (Länder, Relief, Grenzen, Bahn,
                            Beschriftung; nur bei Kamera-/Moduswechsel neu) und dynamisch (Besetzung
-                           feldweise mit Schraffur, Frontbalken mit Abschnittsstatus, Belagerungen)
+                           feldweise mit Schraffur, Fronten als Stacheldraht, Belagerungen)
 src/map/styles.js          Farben und Schriften je Kartenmodus
 src/ui/                    panel.js (Feldinfo, Nation), game.js (Lage, Frontfenster, Kampfanzeige,
                            Meldungen, Abschluss, General, Luftangriffe), economy.js (Kennzahlen,
@@ -172,3 +172,11 @@ node tools/sim_run.mjs [seed]    # Feldzug ohne Spieler im Terminal (Tagesprotok
   (gesättigt bei `capNodes`). Zerstörte Knoten/Brücken brauchen länger zur Instandsetzung und
   bremsen Verlegungen in ihrer Nähe.
 - Front-Seite zusätzlich: `general`, `airShare` (fehlt an der Front), `strikeTarget`.
+
+## Darstellung Frontlinie (Zwischenauftrag)
+- Fronten werden als Stacheldraht gezeichnet (`renderer.js`: `buildFrontGeometry`, `wireTiles`,
+  `drawWire`). Kontaktkanten je Front zu Linien verkettet, Chaikin-geglättet (2 Durchgänge).
+- Draht = vorberechnete Musterkacheln, in gleichen Bogenlängen als Sehnen entlang der Linie gestempelt.
+- Zoomstufen: unter 6 px je Feld schlichte Linie, bis 14 px verdrillter Draht, darüber Stacheln,
+  Dichte nach Befestigung (0,33 / 0,66), ab 0,66 Holzpfähle. Schein: Messing = vorbereiten,
+  grau = halten, rot = Angriff (nach Abschnittsstatus).

@@ -716,19 +716,20 @@ export class MapRenderer {
     main.globalAlpha = 1;
   }
 
-  /** Frontbalken aus den Kontaktkanten der Simulation (Karteneinheiten). */
+  /**
+   * Frontlinien als Stacheldraht (nur Darstellung). Kontaktkanten werden je Front zu Linien
+   * verkettet und mit Chaikin geglättet; je Teilstück: Befehl/Status (Schein) und Befestigung
+   * der eigenen Seite (Drahtdichte, Pfähle). Die Felder darunter bleiben unverändert.
+   */
   buildFrontGeometry() {
     const sim = this.sim;
     const E = sim.edges;
     const { cols } = this.grid;
+    const VC = cols + 1;
     const cu = this.cellU;
-    const gx0 = this.gx0;
-    const gy1 = this.gy1;
-    const paths = new Map();
-    const byFront = new Map();
-    const teeth = [];
     this.edgeFrontAt.fill(0);
     const player = sim.player;
+    const byFront = new Map(); // fid -> Liste von Kanten {v1, v2, cat, fort}
     for (let k = 0; k < E.count; k++) {
       const fid = E.front[k];
       const f = sim.fronts.get(fid);
@@ -740,101 +741,257 @@ export class MapRenderer {
       const lo = a < b ? a : b;
       const r = Math.floor(lo / cols);
       const c = lo - r * cols;
-      let x1;
-      let y1;
-      let x2;
-      let y2;
-      if (E.dir[k] === 0) {
-        x1 = x2 = gx0 + (c + 1) * cu;
-        y1 = gy1 - r * cu;
-        y2 = gy1 - (r + 1) * cu;
-      } else {
-        y1 = y2 = gy1 - (r + 1) * cu;
-        x1 = gx0 + c * cu;
-        x2 = x1 + cu;
-      }
+      const v1 = E.dir[k] === 0 ? r * VC + c + 1 : (r + 1) * VC + c;
+      const v2 = E.dir[k] === 0 ? v1 + VC : v1 + 1;
       const me = f.side[player] ? player : f.a;
       const side = f.side[me];
-      let status = 'halten';
-      if (side.order === 'prepare') status = 'vorbereiten';
+      let cat = 'halten';
+      if (side.order === 'prepare') cat = 'vorbereiten';
       if (side.order === 'attack') {
         const sec = f.sections.find((x) => x.sector === sim.sectors.sectorOf[b]);
-        status = sec?.stats.status[me] || 'Vormarsch';
-        // Zahn zeigt in das gegnerische Feld
-        const myCell = me === f.a ? a : b;
-        const enemyCell = me === f.a ? b : a;
-        let nx = 0;
-        let ny = 0;
-        if (E.dir[k] === 0) nx = enemyCell > myCell ? 1 : -1;
-        else ny = enemyCell > myCell ? -1 : 1;
-        teeth.push((x1 + x2) / 2, (y1 + y2) / 2, nx, ny, (a * 7 + b * 13) % 997);
+        cat = sec?.stats.status[me] || 'Vormarsch';
       }
-      if (!paths.has(status)) paths.set(status, new Path2D());
-      const p = paths.get(status);
-      p.moveTo(x1, y1);
-      p.lineTo(x2, y2);
-      if (!byFront.has(fid)) byFront.set(fid, new Path2D());
-      const q = byFront.get(fid);
-      q.moveTo(x1, y1);
-      q.lineTo(x2, y2);
+      const myCell = me === f.a ? a : b;
+      if (!byFront.has(fid)) byFront.set(fid, []);
+      byFront.get(fid).push({ v1, v2, cat, fort: sim.fort[myCell] });
     }
-    return { paths, byFront, teeth };
+    const vx = (v) => this.gx0 + (v % VC) * cu;
+    const vy = (v) => this.gy1 - Math.floor(v / VC) * cu;
+    const chains = [];
+    for (const [fid, edges] of byFront) {
+      const adj = new Map();
+      edges.forEach((e, i) => {
+        for (const v of [e.v1, e.v2]) {
+          if (!adj.has(v)) adj.set(v, []);
+          adj.get(v).push(i);
+        }
+      });
+      const used = new Uint8Array(edges.length);
+      const walk = (startV) => {
+        const pts = [startV];
+        const attr = [];
+        let v = startV;
+        for (;;) {
+          const next = (adj.get(v) || []).find((i) => !used[i]);
+          if (next === undefined) break;
+          used[next] = 1;
+          const e = edges[next];
+          v = e.v1 === v ? e.v2 : e.v1;
+          pts.push(v);
+          attr.push(e);
+        }
+        return { pts, attr };
+      };
+      // erst offene Enden (Grad 1), dann Schleifen
+      const starts = [...adj.entries()].filter(([, l]) => l.length === 1).map(([v]) => v);
+      for (const v of [...starts, ...adj.keys()]) {
+        while ((adj.get(v) || []).some((i) => !used[i])) {
+          const { pts, attr } = walk(v);
+          if (attr.length) chains.push(smoothChain(pts.map((q) => [vx(q), vy(q)]), attr, fid));
+        }
+      }
+    }
+    // Schein je Kategorie (Karteneinheiten), schlichte Linie für alle
+    const glow = new Map();
+    const line = new Path2D();
+    const byFrontPath = new Map();
+    for (const ch of chains) {
+      const P = ch.p;
+      if (!byFrontPath.has(ch.fid)) byFrontPath.set(ch.fid, new Path2D());
+      const fp = byFrontPath.get(ch.fid);
+      line.moveTo(P[0], P[1]);
+      fp.moveTo(P[0], P[1]);
+      for (let i = 2; i < P.length; i += 2) { line.lineTo(P[i], P[i + 1]); fp.lineTo(P[i], P[i + 1]); }
+      for (let i = 0; i + 3 < P.length; i += 2) {
+        const cat = ch.cat[i / 2];
+        if (!glow.has(cat)) glow.set(cat, new Path2D());
+        const g = glow.get(cat);
+        g.moveTo(P[i], P[i + 1]);
+        g.lineTo(P[i + 2], P[i + 3]);
+      }
+    }
+    return { chains, glow, line, byFront: byFrontPath };
+  }
+
+  /** Musterkacheln (einmal je Detailstufe und Pixeldichte vorberechnet). */
+  wireTiles() {
+    const dpr = this.dpr;
+    if (this._tiles && this._tiles.dpr === dpr) return this._tiles;
+    const make = (L, H, draw) => {
+      const c = document.createElement('canvas');
+      // doppelte Auflösung, damit die Kachel auch vergrößert scharf bleibt
+      const q = dpr * 2;
+      c.width = Math.ceil(L * q);
+      c.height = Math.ceil(H * q);
+      const x = c.getContext('2d');
+      x.scale(q, q);
+      draw(x, L, H);
+      return { c, L, H };
+    };
+    const IRON = '#2a2925';
+    const SHINE = 'rgba(205,200,186,0.85)';
+    const wires = (x, L, H, amp, twists, extra = 0) => {
+      const strands = [0, Math.PI];
+      if (extra) strands.push(Math.PI / 2);
+      for (const [lw, col, dy] of [[1.9, IRON, 0], [0.6, SHINE, -0.55]]) {
+        x.strokeStyle = col;
+        x.lineWidth = lw;
+        for (const ph of strands) {
+          const a = ph === Math.PI / 2 ? amp * 1.7 : amp;
+          x.beginPath();
+          for (let i = 0; i <= 48; i++) {
+            const px = (i / 48) * L;
+            const py = H / 2 + a * Math.sin((px / L) * Math.PI * 2 * twists + ph) + dy;
+            if (i === 0) x.moveTo(px, py); else x.lineTo(px, py);
+          }
+          x.stroke();
+        }
+      }
+    };
+    const barb = (x, cx, cy, s) => {
+      x.lineCap = 'round';
+      for (const [lw, col, off] of [[1.6, IRON, 0], [0.5, SHINE, -0.4]]) {
+        x.strokeStyle = col;
+        x.lineWidth = lw;
+        x.beginPath();
+        x.moveTo(cx - s, cy - s + off); x.lineTo(cx + s, cy + s + off);
+        x.moveTo(cx + s, cy - s + off); x.lineTo(cx - s, cy + s + off);
+        x.stroke();
+      }
+      x.fillStyle = IRON;
+      x.beginPath();
+      x.arc(cx, cy, 1.4, 0, Math.PI * 2);
+      x.fill();
+    };
+    const tiles = {
+      dpr,
+      plain: make(24, 10, (x, L, H) => wires(x, L, H, 1.6, 2)),
+      full: [0, 1, 2].map((d) => make(24, 14, (x, L, H) => {
+        wires(x, L, H, 2.2, 2, d === 2);
+        const n = d + 1; // Befestigung: mehr Stachelknoten
+        for (let i = 0; i < n; i++) barb(x, ((i + 0.5) / n) * L, H / 2, 2.6);
+      })),
+      post: make(8, 22, (x, L, H) => {
+        x.fillStyle = '#5b3d22';
+        x.fillRect(L / 2 - 1.8, 1, 3.6, H - 2);
+        x.fillStyle = 'rgba(255,220,170,0.35)';
+        x.fillRect(L / 2 - 1.8, 1, 1, H - 2);
+        x.strokeStyle = '#2b1c10';
+        x.lineWidth = 0.8;
+        x.strokeRect(L / 2 - 1.8, 1, 3.6, H - 2);
+      }),
+    };
+    this._tiles = tiles;
+    return tiles;
   }
 
   drawWarFronts(st, u, t) {
     const fs = st.warFront;
     if (!fs) return;
-    const { ctx } = this;
-    const pulse = 0.7 + 0.3 * Math.sin(performance.now() / 160);
-    const draw = (g, alpha) => {
-      if (!g || alpha <= 0.01) return;
-      ctx.globalAlpha = alpha;
-      ctx.lineCap = 'square';
-      ctx.lineJoin = 'miter';
-      const sel = this.selectedFront && g.byFront.get(this.selectedFront);
-      if (sel) {
-        ctx.strokeStyle = fs.selected;
-        ctx.lineWidth = (fs.width + 9) * u;
-        ctx.stroke(sel);
-      }
-      ctx.strokeStyle = fs.edge;
-      ctx.lineWidth = (fs.width + 3) * u;
-      for (const p of g.paths.values()) ctx.stroke(p);
-      // Zähne zur Gegnerseite bei Angriff
-      const cellPx = this.cellU / u;
-      const every = Math.max(1, Math.ceil(13 / cellPx));
-      const size = Math.min(7, Math.max(3.5, cellPx * 0.45)) * u;
-      const tp = new Path2D();
-      for (let i = 0; i < g.teeth.length; i += 5) {
-        if (g.teeth[i + 4] % every) continue;
-        const mx = g.teeth[i];
-        const my = g.teeth[i + 1];
-        const nx = g.teeth[i + 2];
-        const ny = g.teeth[i + 3];
-        tp.moveTo(mx - ny * size * 0.7, my + nx * size * 0.7);
-        tp.lineTo(mx + nx * size * 1.25, my + ny * size * 1.25);
-        tp.lineTo(mx + ny * size * 0.7, my - nx * size * 0.7);
-        tp.closePath();
-      }
-      ctx.fillStyle = fs.edge;
-      ctx.lineWidth = 2 * u;
-      ctx.strokeStyle = fs.edge;
-      ctx.stroke(tp);
-      for (const [status, p] of g.paths) {
-        ctx.strokeStyle = fs.colors[status] || fs.colors.halten;
-        ctx.globalAlpha = alpha * (status === 'Durchbruch' ? pulse : 1);
-        ctx.lineWidth = fs.width * u;
-        ctx.stroke(p);
-      }
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = fs.colors.Vormarsch;
-      ctx.fill(tp);
-      ctx.globalAlpha = 1;
-    };
-    // kurze Überblendung im ersten Drittel des Tages, danach steht die neue Front
     const tt = Math.max(0, Math.min(1, t / 0.3));
-    if (this.prevFrontGeom && tt < 1) draw(this.prevFrontGeom, 1 - tt);
-    draw(this.frontGeom, this.prevFrontGeom ? tt : 1);
+    if (this.prevFrontGeom && tt < 1) this.drawWire(st, u, this.prevFrontGeom, 1 - tt);
+    this.drawWire(st, u, this.frontGeom, this.prevFrontGeom ? tt : 1);
+  }
+
+  /** Stacheldraht zeichnen: Schein (Befehl), dann Draht je nach Zoomstufe. */
+  drawWire(st, u, g, alpha) {
+    if (!g || alpha <= 0.01) return;
+    const { ctx, camera: cam, dpr } = this;
+    const fs = st.warFront;
+    const cellPx = this.cellU / u;
+    const pulse = 0.7 + 0.3 * Math.sin(performance.now() / 160);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const sel = this.selectedFront && g.byFront.get(this.selectedFront);
+    if (sel) {
+      ctx.strokeStyle = fs.selected;
+      ctx.lineWidth = 16 * u;
+      ctx.stroke(sel);
+    }
+    // Schein unter dem Draht: Messing (vorbereiten), grau (halten), rot nach Kampfstatus
+    for (const [cat, p] of g.glow) {
+      const col = fs.glow[cat] || fs.glow.halten;
+      ctx.globalAlpha = alpha * (cat === 'Durchbruch' ? pulse : 1);
+      ctx.strokeStyle = col;
+      ctx.lineWidth = Math.max(7, Math.min(16, cellPx * 1.1)) * u;
+      ctx.stroke(p);
+    }
+    ctx.globalAlpha = alpha;
+    if (cellPx < 6) {
+      // weit herausgezoomt: schlichte Drahtlinie
+      ctx.strokeStyle = '#2a2925';
+      ctx.lineWidth = 2.2 * u;
+      ctx.stroke(g.line);
+      ctx.strokeStyle = 'rgba(205,200,186,0.6)';
+      ctx.lineWidth = 0.7 * u;
+      ctx.stroke(g.line);
+      ctx.restore();
+      return;
+    }
+    // Musterkacheln entlang der Linie (Bildschirmraum): Die Linie wird in gleichen Bogenlängen
+    // abgetastet, jede Kachel liegt als Sehne zwischen zwei Abtastpunkten und folgt so den Biegungen.
+    const tiles = this.wireTiles();
+    const detail = cellPx >= 14;
+    // nah herangezoomt wächst der Draht maßvoll mit (bis 1,8-fach)
+    const k = detail ? Math.min(1.8, Math.max(1, cellPx / 28)) : 1;
+    const D = tiles.plain.L * k;
+    const W = cam.width;
+    const H = cam.height;
+    const m = cam.matrix(1);
+    const off = (x, y) => x < -40 || x > W + 40 || y < -40 || y > H + 40;
+    const posts = [];
+    const stampAt = (ax, ay, bx, by, fort, n) => {
+      if (off(ax, ay) && off(bx, by)) return;
+      const dx = bx - ax;
+      const dy = by - ay;
+      const c = Math.hypot(dx, dy);
+      if (c < 0.5) return;
+      const tile = detail ? tiles.full[fort >= 0.66 ? 2 : fort >= 0.33 ? 1 : 0] : tiles.plain;
+      const cos = dx / c;
+      const sin = dy / c;
+      ctx.setTransform(dpr * cos, dpr * sin, -dpr * sin, dpr * cos, dpr * ax, dpr * ay);
+      const f = Math.min(1, c / D);
+      ctx.drawImage(tile.c, 0, 0, tile.c.width * f, tile.c.height, 0, (-tile.H * k) / 2, c + 0.6, tile.H * k);
+      // Holzpfähle ab hoher Befestigung (nur nah), nach dem Draht gesammelt gezeichnet
+      if (detail && fort >= 0.66 && n % 3 === 0) posts.push(ax, ay);
+    };
+    for (const ch of g.chains) {
+      const P = ch.p;
+      let px = P[0] * m[0] + m[4];
+      let py = P[1] * m[3] + m[5];
+      let ax = px;
+      let ay = py;
+      let need = D;
+      let fortA = ch.fort[0];
+      let n = 0;
+      for (let i = 2; i < P.length; i += 2) {
+        const qx = P[i] * m[0] + m[4];
+        const qy = P[i + 1] * m[3] + m[5];
+        const len = Math.hypot(qx - px, qy - py);
+        let pos = 0;
+        while (len - pos >= need) {
+          pos += need;
+          const bx = px + ((qx - px) * pos) / len;
+          const by = py + ((qy - py) * pos) / len;
+          stampAt(ax, ay, bx, by, fortA, n++);
+          ax = bx;
+          ay = by;
+          need = D;
+          fortA = ch.fort[i / 2 - 1];
+        }
+        need -= len - pos;
+        px = qx;
+        py = qy;
+      }
+      if (D - need > 1) stampAt(ax, ay, px, py, fortA, n);
+    }
+    for (let i = 0; i < posts.length; i += 2) {
+      ctx.setTransform(dpr, 0, 0, dpr, dpr * posts[i], dpr * posts[i + 1]);
+      ctx.drawImage(tiles.post.c, (-tiles.post.L * k) / 2, -tiles.post.H * 0.75 * k, tiles.post.L * k, tiles.post.H * k);
+    }
+    ctx.restore();
   }
 
   /** Belagerte Städte: Ring mit verbleibendem Verteidigungswert. */
@@ -1323,3 +1480,35 @@ export class MapRenderer {
     return this.grid.cellAtWorld(wx, wy);
   }
 }
+
+/**
+ * Chaikin-Glättung (2 Durchgänge) einer Linie aus Feldecken. `attr[i]` gehört zum Stück i→i+1;
+ * jedes neue Stück erbt Kategorie und Befestigung seines Ursprungsstücks.
+ */
+function smoothChain(pts, attr, fid) {
+  let P = pts;
+  let A = attr.map((e) => ({ cat: e.cat, fort: e.fort }));
+  const closed = P.length > 3 && P[0][0] === P[P.length - 1][0] && P[0][1] === P[P.length - 1][1];
+  for (let it = 0; it < 2; it++) {
+    const NP = [];
+    const NA = [];
+    if (!closed) NP.push(P[0]);
+    for (let i = 0; i < P.length - 1; i++) {
+      const [x0, y0] = P[i];
+      const [x1, y1] = P[i + 1];
+      NP.push([0.75 * x0 + 0.25 * x1, 0.75 * y0 + 0.25 * y1]);
+      NP.push([0.25 * x0 + 0.75 * x1, 0.25 * y0 + 0.75 * y1]);
+      NA.push(A[i], A[i]);
+    }
+    if (closed) NP.push(NP[0]);
+    else NP.push(P[P.length - 1]);
+    // Stückattribute auf die neue Punktzahl bringen
+    while (NA.length < NP.length - 1) NA.push(NA[NA.length - 1] || A[A.length - 1]);
+    P = NP;
+    A = NA.slice(0, NP.length - 1);
+  }
+  const p = new Float32Array(P.length * 2);
+  P.forEach(([x, y], i) => { p[i * 2] = x; p[i * 2 + 1] = y; });
+  return { fid, p, cat: A.map((a) => a.cat), fort: A.map((a) => a.fort) };
+}
+
