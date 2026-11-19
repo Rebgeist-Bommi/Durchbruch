@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Durchbruch</title>
+  <meta name="description" content="Durchbruch – Echtzeit-Strategie, Europa ab 1. März 1939" />
+  <link rel="preload" as="image" href="media/photos/p01.webp" type="image/webp" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231A1C14'/%3E%3Cpath d='M3 11 8 4l5 7' fill='none' stroke='%23C8A156' stroke-width='2'/%3E%3C/svg%3E" />
+  <script type="module" crossorigin src="./assets/index-Bx3V8a_y.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BUrXlBjI.css">
+</head>
+<body class="mode-front">
+  <div id="app">
+    <header id="topbar">
+      <ul id="kpis" aria-label="Kennzahlen">
+        <li class="k-flag"><img class="flag" id="top-flag" alt="Deutsches Reich" /></li>
+        <li data-kpi="money" title="Geld (Mio. RM-Gegenwert) und Veränderung je Tag"><span class="k-ico">ℳ</span><span class="k-label">Geld</span><span class="k-value">–</span><span class="k-unit"></span></li>
+        <li data-kpi="resources" title="Rohstoffe und Veränderung je Tag"><span class="k-ico">⛏</span><span class="k-label">Rohstoffe</span><span class="k-value">–</span><span class="k-unit"></span></li>
+        <li data-kpi="manpower" title="Arbeitskräfte (Mio.)"><span class="k-ico">⚒</span><span class="k-label">Arbeitskräfte</span><span class="k-value">–</span><span class="k-unit"></span></li>
+        <li data-kpi="morale" title="Moral der Bevölkerung"><span class="k-ico">✦</span><span class="k-label">Moral</span><span class="k-value">–</span><span class="k-unit">%</span></li>
+      </ul>
+      <nav id="modes" role="tablist" aria-label="Kartenmodus">
+        <button type="button" role="tab" data-mode="front" aria-selected="true"><kbd>1</kbd><span>Front</span></button>
+        <button type="button" role="tab" data-mode="economy" aria-selected="false"><kbd>2</kbd><span>Wirtschaft</span></button>
+        <button type="button" role="tab" data-mode="intel" aria-selected="false"><kbd>3</kbd><span>Geheimdienst</span></button>
+        <button type="button" role="tab" data-mode="diplomacy" aria-selected="false"><kbd>4</kbd><span>Diplomatie</span></button>
+      </nav>
+      <div class="brand">
+        <div id="alerts" aria-label="Hinweise"></div>
+        <button type="button" id="goal-chip" title="Nationales Ziel (Z)"><span class="g-ico">◆</span><span class="g-text">Ziel wählen</span><i class="g-bar"><b></b></i></button>
+        <div id="time" aria-label="Zeit">
+          <span class="date" id="date">1. März 1939</span>
+          <span class="day-progress" aria-hidden="true"><i id="day-bar"></i></span>
+          <span class="speeds" role="group" aria-label="Geschwindigkeit">
+            <button type="button" data-speed="0" title="Pause (Leertaste)" aria-pressed="true"><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><rect x="1.5" y="1" width="2.5" height="8" fill="currentColor"/><rect x="6" y="1" width="2.5" height="8" fill="currentColor"/></svg><span class="sr">Pause</span></button>
+            <button type="button" data-speed="1" title="1×" aria-pressed="false">1×</button>
+            <button type="button" data-speed="2" title="2×" aria-pressed="false">2×</button>
+            <button type="button" data-speed="4" title="4×" aria-pressed="false">4×</button>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <aside id="panel" aria-live="polite" data-map-overlay>
+      <section class="nation" id="nation">
+        <img class="flag" id="nation-flag" alt="" />
+        <div>
+          <div class="eyebrow" data-label="nation">Eigene Nation</div>
+          <div class="nation-name" id="nation-name">Deutsches Reich</div>
+        </div>
+      </section>
+      <section class="field" id="field">
+        <h2 data-label="field">Ausgewähltes Feld</h2>
+        <p class="hint" id="field-hint">Feld auf der Karte anklicken.</p>
+        <dl id="field-info" hidden>
+          <dt>Besitzer</dt><dd><img class="flag mini" id="f-flag" alt="" /><span id="f-owner"></span></dd>
+          <dt>Gebiet</dt><dd id="f-territory"></dd>
+          <dt>Terrain</dt><dd id="f-terrain"></dd>
+          <dt>Feld</dt><dd id="f-cell"></dd>
+          <dt>Lage</dt><dd id="f-coord"></dd>
+          <dt>Nachbarn</dt><dd id="f-neighbors"></dd>
+          <dt>Befestigung</dt><dd id="f-fort"></dd>
+          <dt>Nachschub</dt><dd id="f-supply"></dd>
+          <dt>Ertrag</dt><dd id="f-yield"></dd>
+          <dt>Bahn</dt><dd id="f-rail"></dd>
+          <dt>Industrie</dt><dd id="f-industry"></dd>
+        </dl>
+      </section>
+      <section class="mode-section" data-for="front">
+        <h2>Lage</h2>
+        <div id="lage"></div>
+        <button type="button" class="btn btn-main" id="all-attack">Alle Fronten: Angriff</button>
+        <label class="toggle"><input type="checkbox" id="supply-toggle"> Nachschub auf der Karte (N)</label>
+      </section>
+      <section class="mode-section" data-for="diplomacy">
+        <div id="diplopanel"></div>
+      </section>
+      <section class="mode-section moral-section" data-for="front">
+        <h2>Moral</h2>
+        <div id="moral"></div>
+      </section>
+      <section class="mode-section" data-for="economy">
+        <div id="econ"></div>
+        <h2>Legende</h2>
+        <ul class="legend">
+          <li><span class="sw rail-lvl"></span>Bahn, Breite = Ausbaustufe 1–5</li>
+          <li><span class="sw rail-dmg"></span>beschädigt / <span class="sw rail-des"></span> zerstört</li>
+          <li><span class="sw res-k"></span>Kohle <span class="sw res-e"></span>Erz <span class="sw res-o"></span>Öl <span class="sw res-u"></span>Uran</li>
+          <li><span class="sw ind"></span>Industrie (Zahlen: Fabrik·Rüstung·Forschung)</li>
+        </ul>
+      </section>
+      <section class="mode-section" data-for="intel">
+        <div class="stamp">Geheim</div>
+        <div id="intelui"></div>
+      </section>
+    </aside>
+
+    <main id="map">
+      <canvas id="map-canvas" aria-label="Karte Europa 1939"></canvas>
+      <div id="loading">Karte wird geladen …</div>
+    </main>
+
+    <aside id="frontwin" aria-live="polite"></aside>
+
+    <div id="messages" aria-live="polite" aria-label="Meldungen"></div>
+
+    <footer id="statusbar">
+      <span id="s-coord">–</span>
+      <span id="s-zoom">–</span>
+      <span class="keys">Mausrad: Zoom · Ziehen: Karte · Klick: Land/Front · Leertaste: Pause · 1–4: Ansicht</span>
+      <span class="gamebar" role="group" aria-label="Spiel">
+        <button type="button" data-open="menu" title="Hauptmenü (Spiel wird angehalten)">Menü</button>
+        <button type="button" data-open="diplo" title="Diplomatie (D)">Diplomatie</button>
+        <button type="button" data-open="paper" title="Zeitung „Der Tagesanzeiger“ (Z)">Zeitung<i class="badge" id="paper-badge" hidden></i></button>
+      </span>
+      <span class="savebar" role="group" aria-label="Spielstand">
+        <button type="button" data-save="save" title="Spielstand im Browser speichern">Speichern</button>
+        <button type="button" data-save="load" title="Gespeicherten Spielstand laden">Laden</button>
+        <button type="button" data-save="auto" title="Automatischen Speicherstand (alle 7 Tage) laden">Autosave</button>
+        <button type="button" data-save="export" title="Spielstand als Datei herunterladen">Export</button>
+        <button type="button" data-save="import" title="Spielstand aus Datei laden">Import</button>
+        <input type="file" id="import-file" accept=".durchbruch,.json,.gz" hidden>
+      </span>
+      <span id="debugbar" hidden>
+        <select id="debug-nation" aria-label="Nation für Kriegserklärung"></select>
+        <button type="button" id="debug-war">Krieg erklären (Debug)</button>
+      </span>
+      <span class="credits" title="Grenzen: CShapes 2.0 (Weidmann, Schvitz, Girardin; GPL ≥ 2) · Natural Earth (gemeinfrei) · Höhenmodell: ETOPO1 (NOAA) über Fatiando a Terra, CC BY 4.0">Quellen: CShapes 2.0 · Natural Earth · ETOPO1/Fatiando (CC BY 4.0)</span>
+    </footer>
+  </div>
+  <div id="buildtip" hidden></div>
+  <div id="selbar" hidden role="status"></div>
+  <div id="citywin" hidden></div>
+  <div id="toast" hidden></div>
+  <div id="banner" hidden aria-live="assertive"></div>
+  <div id="popover" hidden role="dialog" aria-label="Land"></div>
+  <div id="goals" class="modal" hidden>
+    <div class="sheet goals-sheet" role="dialog" aria-modal="true" aria-labelledby="gl-title">
+      <header class="sheet-head"><h2 id="gl-title">Nationale Ziele</h2><button type="button" class="close" data-close aria-label="Schließen">×</button></header>
+      <div id="goals-body"></div>
+    </div>
+  </div>
+  <div id="tutorial" hidden><div class="tut-shade"></div><div class="tut-ring"></div><div class="tut-box" role="dialog" aria-live="polite"></div></div>
+  <div id="gameover" hidden>
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="go-title">
+      <h2 id="go-title">Feldzug beendet</h2>
+      <div id="go-body"></div>
+      <div class="go-actions">
+        <button type="button" class="btn" id="go-menu">Hauptmenü</button>
+        <button type="button" class="btn btn-main" id="go-close">Karte weiter ansehen</button>
+      </div>
+    </div>
+  </div>
+  <!-- Phase 5: Entscheidung, Diplomatie, Zeitung, Hauptmenü -->
+  <div id="decision" class="modal" hidden>
+    <div class="sheet decision-sheet" role="dialog" aria-modal="true" aria-labelledby="dc-title">
+      <div class="dc-stamp">Entscheidung</div>
+      <h2 id="dc-title"></h2>
+      <p class="dc-date" id="dc-date"></p>
+      <p class="dc-text" id="dc-text"></p>
+      <div class="dc-options" id="dc-options"></div>
+      <p class="dc-note">Das Spiel ist angehalten und läuft nach der Entscheidung weiter.</p>
+    </div>
+  </div>
+  <div id="diplo" class="modal" hidden>
+    <div class="sheet diplo-sheet" role="dialog" aria-modal="true" aria-labelledby="dp-title">
+      <header class="sheet-head"><h2 id="dp-title">Diplomatie</h2><button type="button" class="close" data-close aria-label="Schließen">×</button></header>
+      <div id="diplo-body"></div>
+    </div>
+  </div>
+  <div id="paper" class="modal" hidden>
+    <div class="sheet paper-sheet" role="dialog" aria-modal="true" aria-label="Der Tagesanzeiger">
+      <button type="button" class="close" data-close aria-label="Schließen">×</button>
+      <div id="paper-body"></div>
+    </div>
+  </div>
+  <div id="menu" hidden>
+    <!-- Zwischenauftrag: Hintergrund aus Originalfotos und Zeitungen (Nachweise: MEDIA_SOURCES.md) -->
+    <div class="m-slides" aria-hidden="true"><figure class="slide on"><img src="media/photos/p01.webp" alt="" decoding="async"></figure><figure class="slide"><img alt="" decoding="async"></figure></div>
+    <div class="m-papers" aria-label="Zeitungen vom 23. August bis 1. September 1939"></div>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="m-scratches" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="m-flicker" aria-hidden="true"></div>
+    <div class="m-vignette" aria-hidden="true"></div>
+    <p class="m-caption" aria-live="off"></p>
+    <button type="button" class="m-music" aria-pressed="false" title="Musik an/aus">♪ Musik: aus</button>
+    <div class="menu-board" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+      <h1 id="menu-title">Durchbruch</h1>
+      <p class="menu-sub">Europa · 1. März 1939</p>
+      <div id="menu-body"><p class="menu-wait">Karte wird geladen …</p></div>
+    </div>
+  </div>
+</body>
+</html>
