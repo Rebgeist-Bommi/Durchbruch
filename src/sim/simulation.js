@@ -3,6 +3,7 @@
 import { createRng, hash01 } from './rng.js';
 import { buildSectors } from './sectors.js';
 import { updateFronts } from './fronts.js';
+import { initPositions, runMovement, remaining, moveTo } from './movement.js';
 import { resolveCombat, updateOrdersOverTime } from './combat.js';
 import { resolvePockets, resolveSieges, checkCapitulation, markExclaves } from './pockets.js';
 import { runAi, warmupAi } from './ai.js';
@@ -151,6 +152,7 @@ export class Simulation {
     this.computeStartState();
     updateFronts(this);
     this.initialDeployment();
+    initPositions(this); // Richtung A: Divisionen stehen als Figuren auf der Karte
     // Vorlauf: rechenintensive Teile einmal ausführen (ohne Wirkung auf den Spielstand),
     // damit schon der erste Tick ohne Anlaufkosten läuft.
     resolvePockets(this);
@@ -477,6 +479,45 @@ export class Simulation {
     this.frontSide(frontId, n).tactic = tactic;
   }
 
+  /** Restliche Marschzeit einer Division in Tagen. */
+  unitEta(d) { return remaining(this, d); }
+
+  /**
+   * Marschbefehl für Divisionen des Spielers (Richtung A): an eine Front (`frontId`) oder zu einem
+   * Feld (`cell`, eigenes Gebiet; Divisionen verteilen sich im Umkreis). Gibt die Zahl zurück.
+   */
+  orderUnits(ids, { frontId = 0, cell = -1 } = {}, n = this.player) {
+    const set = new Set(ids);
+    const divs = this.divisions.filter((d) => set.has(d.id) && d.nation === n);
+    let k = 0;
+    if (frontId) {
+      const f = this.fronts.get(frontId);
+      if (!f || !f.alive || !f.side[n] || f.encircled[n]) return 0;
+      for (const d of divs) {
+        d.front = frontId; d.goal = null; d.path = null; d.slot = -1;
+        d.transit = { from: 0, to: frontId, arrive: this.day + this.travelDays(0, frontId, n), days: 1 };
+        k++;
+      }
+      return k;
+    }
+    if (cell < 0 || this.owner[cell] !== n) return 0;
+    // Zielfelder im Umkreis verteilen (Spirale über eigene Felder)
+    const targets = [];
+    const c0 = cell % this.cols;
+    const r0 = Math.floor(cell / this.cols);
+    for (let r = 0; targets.length < divs.length && r < 8; r++) {
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const cc = c0 + dx; const rr = r0 + dy;
+        if (cc < 0 || rr < 0 || cc >= this.cols || rr >= this.rows) continue;
+        const j = rr * this.cols + cc;
+        if (this.owner[j] === n) targets.push(j);
+      }
+    }
+    divs.forEach((d, i) => { if (moveTo(this, d, targets[Math.floor(i / 2) % Math.max(1, targets.length)] ?? cell)) k++; });
+    return k;
+  }
+
   /** Einsatzstärke eines Angriffs (Anteil der Divisionen, 0,25–1). */
   setCommit(frontId, v, n = this.player) {
     if (!this.bal.orders.commitLevels.includes(v)) throw new Error(`Einsatz ${v}`);
@@ -570,15 +611,7 @@ export class Simulation {
     if (annexed) updateFronts(this);
     for (const t of this.bal.scenario.treaties || []) if (t.day === this.day) scenarioTreaty(this, t);
 
-    // Ankunft verlegter Divisionen
-    for (const d of this.divisions) {
-      if (!d.transit || d.transit.arrive > this.day) continue;
-      const to = d.transit.to;
-      const f = to ? this.fronts.get(to) : null;
-      d.transit = null;
-      if (to && (!f || !f.alive)) d.front = this.nearestFront(d.nation, ...this.placeOf(to, d.nation)) || 0;
-      else d.front = to;
-    }
+    // Ankunft verlegter Divisionen: ergibt sich seit Richtung A aus dem Marsch (movement.js)
 
     for (const st of this.nations.values()) st.airToday = 0;
     const clock = globalThis.performance || Date;
@@ -596,6 +629,7 @@ export class Simulation {
     run('kessel', () => resolvePockets(this));
     run('kapitulation', () => checkCapitulation(this));
     run('fronten', () => updateFronts(this));
+    run('bewegung', () => runMovement(this));
     run('befehle', () => updateOrdersOverTime(this));
     run('infrastruktur', () => { repairRail(this); advanceUpgrades(this); });
     run('wirtschaft', () => runEconomy(this));

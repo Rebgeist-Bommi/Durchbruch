@@ -137,7 +137,8 @@ test('Generäle: einer je Front, Wechsel möglich, Eigenschaft wirkt', () => {
 test('Luftangriffe: Ziele hinter der Front, abgestellter Luftanteil trifft Infrastruktur', () => {
   const sim = newSim({ seed: 2 });
   const de = sim.player;
-  const f = [...sim.fronts.values()].find((x) => x.alive && x.side[de]);
+  for (let d = 0; d < 5; d++) sim.tick(); // Aufmarsch: Divisionen marschieren seit Richtung A an die Front
+  const f = [...sim.fronts.values()].filter((x) => x.alive && x.side[de]).sort((a, b) => sim.divisionsOn(b.id, de).length - sim.divisionsOn(a.id, de).length)[0];
   const targets = strikeTargets(sim, f, de);
   assert.ok(targets.length > 0);
   const t = targets.find((x) => x.kind === 'node') || targets[0];

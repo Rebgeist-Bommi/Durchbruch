@@ -14,6 +14,7 @@ gebaut.
 | 5 | Moral, Diplomatie, Ereignisse, Hauptmenü, Spielende (Version 1 fertig) | fertig |
 | – | Überarbeitung: Start 01.03.1939, Diplomatie-Reiter, Länderfenster, Ziele, Tutorial | fertig |
 | – | Überarbeitung 2: Aufmarsch im Frieden, Taktiken, Haltelinie, Truppen-Medaillons, geführter Einstieg | fertig |
+| – | Richtung A, Stufe A1: Divisionen als Figuren, Stadtfenster, schlankes Frontfenster (siehe KONZEPT.md) | fertig |
 | 6 | folgt | offen |
 
 ## Technik
@@ -55,6 +56,7 @@ src/sim/                   Simulation ohne DOM (läuft im Browser und in Node gl
                            Nebel des Krieges (isRevealed), Desinformation, KI-Missionen
   airstrike.js             Luftangriffe einer Front auf Knoten/Brücken/Fabriken hinter der Front
   generals.js              ein General je Front und Seite, Eigenschaften, automatische Besetzung
+  movement.js              Richtung A: Standort und Marsch der Divisionen (A*, Bahn/Gelände), Frontzuordnung
   morale.js                Moral je Nation, Propaganda, Wirkung auf Kampf/Produktion/Desertion/Kapitulation
   diplomacy.js             Verträge, Beziehungen, Kriegserklärung, Bündnispflicht, Angebote, Frieden,
                            Waffenstillstand ohne Landfront
@@ -108,6 +110,8 @@ node tools/sim_run.mjs [seed]    # Kampagne ohne Spieler (Normal, Angriff auf Po
 
 ## Arbeitsregeln
 - Pro Sitzung genau eine Phase.
+- Leitsatz (Nutzer): einfach und stimmig statt viel. Neue Funktionen nur, wenn sie zum Kernablauf in
+  `KONZEPT.md` beitragen; Feinheiten einklappen statt in die Hauptansicht.
 - Änderungswünsche des Nutzers vollständig und gründlich umsetzen, nicht minimal: jeden genannten
   Punkt in voller Breite (z. B. Tutorial erklärt alle Bereiche, nicht nur die Grundbedienung) und
   vor dem Bericht gegen die ursprüngliche Liste abhaken.
@@ -282,3 +286,17 @@ node tools/sim_run.mjs [seed]    # Kampagne ohne Spieler (Normal, Angriff auf Po
   `tools/data/media.json`): nur Gesichtsausschnitt, Lizenz geprüft, im Medaillon statt Silhouette.
 - Tageswechsel: Simulation und Kartenaufbereitung laufen außerhalb des Bildes (`renderer.tickPending`
   zeigt bis dahin den Vortag im Endzustand), Autosave im Leerlauf; Bahnstufe nur in Ansicht 2 im Cache-Schlüssel.
+
+## Richtung A, Stufe A1 (KONZEPT.md)
+- Divisionen haben `cell`, `path`, `prog`, `goal`, `slot`, `trail` (`movement.js`). Täglich nach
+  `updateFronts`: Zuordnung aus der Lage (≤ `movement.frontReach` Felder von der eigenen Frontseite =
+  kämpft dort), Anmarsch per A* (gewichtete Schätzung `pathGreed`, je Front höchstens `routesPerDay`
+  neue Routen am Tag), Marschbudget 1 Tag (Bahn `railCellsPerDay`, Infanterie/Panzer, Gebirge ×2,
+  ohne Landweg Seeweg `seaCellsPerDay`). An der Front verteilt sich jede Division auf einen Platz im
+  Umkreis `spreadCells`. `transfer`, `deployReserve`, `planDeployment` setzen nur Ziel/`transit`.
+- Befehle: `sim.orderUnits(ids, {frontId} | {cell})`; Darstellung `renderer.drawUnits` (Medaillons
+  je Bildschirmfeld zusammengefasst, Garnisonen leicht unter dem Stadtpunkt, gegnerische nur in
+  Sichtweite eigener Fronten), Auswahl `renderer.selection`, Leiste `SelectionBar`.
+- Stadtbauten `kaserne`/`festung` (`buildInCity`, `canRaiseAt`, Festung hebt `sim.fort` im Umkreis),
+  `raiseDivision(sim, n, tank, cell)` stellt in der Stadt auf; Stadtfenster `CityPanel`.
+- Frontfenster: Kräfte, drei Befehle, Reserve heranführen, General, Taktik; Rest unter „Erweitert“.

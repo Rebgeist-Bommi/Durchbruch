@@ -35,7 +35,8 @@ import { DecisionUI, DiplomacyUI, NewspaperUI } from './ui/phase5.js';
 import { MainMenu, loadSettings, saveSettingsNow } from './ui/menu.js';
 import { MenuBackdrop, MenuMusic } from './ui/menuMedia.js';
 import { autoplayCampaign } from './sim/autoplay.js';
-import { Popover, DiplomacyTab, Banner, GoalsUI, Tutorial, renderAlerts } from './ui/ui2.js';
+import { Popover, DiplomacyTab, Banner, GoalsUI, Tutorial, renderAlerts, SelectionBar, CityPanel } from './ui/ui2.js';
+import { findPath } from './sim/movement.js';
 import { flagUrl } from './ui/flags.js';
 
 const MODES = ['front', 'economy', 'intel', 'diplomacy'];
@@ -223,6 +224,7 @@ async function main() {
     if (sim.enemiesOf(sim.player).length) tutorial.offer('krieg'); // erster Krieg: Erklärung anbieten
     if (renderer.mode === 'diplomacy') diploTab.render();
     if (popover.open) popover.render();
+    if (typeof cityPanel !== 'undefined' && cityPanel.open) cityPanel.render();
   }
   const decision = new DecisionUI({
     sim,
@@ -308,7 +310,7 @@ async function main() {
     if (!advanced) { pauseForDecision(); return; }
     // Tageswechsel auf mehrere Bilder verteilt: Simulation jetzt, Kartenaufbereitung im nächsten
     // Bild (bis dahin zeigt die Karte den Vortag im Endzustand), Seitenleisten danach.
-    const ui2 = () => { ui.onTick(); refreshPanels(); paper.badge(); refreshUi2(); };
+    const ui2 = () => { ui.onTick(); refreshPanels(); paper.badge(); refreshUi2(); if (renderer.selection?.size) selbar.render(renderer.selection); };
     if (clock.speed > 0) {
       renderer.tickPending = true;
       setTimeout(() => {
@@ -481,6 +483,7 @@ async function main() {
     if (renderer.mode !== 'front') return;
     e.preventDefault();
     const r = canvas.getBoundingClientRect();
+    if (renderer.selection?.size) { orderSelection(e.clientX - r.left, e.clientY - r.top); return; }
     const fid = renderer.frontAtScreen(e.clientX - r.left, e.clientY - r.top);
     const to = sim.fronts.get(fid);
     if (!to || !to.side[sim.player]) return;
@@ -493,11 +496,59 @@ async function main() {
     renderer.requestRender();
   });
 
+  // ---- Richtung A: Divisionen auswählen und befehligen ----
+  renderer.selection = new Set();
+  const cityPanel = new CityPanel({ sim, onChange: () => { afterChange(); } });
+  const selbar = new SelectionBar({
+    sim,
+    onHold: () => { for (const d of sim.divisions) if (renderer.selection.has(d.id)) { d.goal = null; d.path = null; if (!d.front || d.transit) { d.front = 0; d.transit = null; } } afterSelect(); },
+    onClear: () => { renderer.selection.clear(); afterSelect(); },
+    onFront: (fid) => { setMode('front'); ui.selectFront(fid, true); },
+  });
+  function afterSelect() {
+    selbar.render(renderer.selection);
+    renderer.requestRender();
+  }
+  function orderSelection(sx, sy) {
+    const ids = [...renderer.selection];
+    const cell = renderer.cellAt(sx, sy);
+    let fid = renderer.frontAtScreen(sx, sy);
+    // auf fremdes Gebiet geklickt: nächstgelegene eigene Front gegen dieses Land
+    if (!fid && cell >= 0 && sim.owner[cell] && sim.owner[cell] !== sim.player) {
+      const fr = [...sim.fronts.values()].filter((f) => f.alive && f.side[sim.player] && sim.enemyOn(f, sim.player) === sim.owner[cell]);
+      const cx = cell % sim.cols; const cy = Math.floor(cell / sim.cols);
+      fr.sort((a, b) => (a.cx - cx) ** 2 + (a.cy - cy) ** 2 - ((b.cx - cx) ** 2 + (b.cy - cy) ** 2));
+      fid = fr[0]?.id || 0;
+    }
+    const f = fid ? sim.fronts.get(fid) : null;
+    const k = f && f.side[sim.player] ? sim.orderUnits(ids, { frontId: fid }) : sim.orderUnits(ids, { cell });
+    if (!k) { toast('Dorthin können die Divisionen nicht marschieren.'); return; }
+    runMovementPreview();
+    const eta = Math.max(1, ...sim.divisions.filter((d) => renderer.selection.has(d.id)).map((d) => Math.ceil(sim.unitEta(d))));
+    toast(`${k} Div. marschieren ${f ? `an die ${f.name}` : 'zum Ziel'} – Ankunft in etwa ${eta} ${eta === 1 ? 'Tag' : 'Tagen'}.`);
+    afterSelect();
+  }
+  // Route sofort berechnen (ohne Marsch), damit Pfad und Ankunft gleich sichtbar sind
+  function runMovementPreview() {
+    for (const d of sim.divisions) {
+      if (!renderer.selection.has(d.id) || d.path) continue;
+      const fid = d.transit ? d.transit.to : 0;
+      if (fid) {
+        const f = sim.fronts.get(fid);
+        const cells = f ? sim.frontCellsOf(f, d.nation) : [];
+        let best = -1; let bd = Infinity;
+        for (const c of cells) { const dd = Math.hypot(c % sim.cols - d.cell % sim.cols, Math.floor(c / sim.cols) - Math.floor(d.cell / sim.cols)); if (dd < bd) { bd = dd; best = c; } }
+        if (best >= 0) d.path = findPath(sim, d, d.cell, best, 30000);
+      } else if (d.goal !== null && d.goal >= 0) d.path = findPath(sim, d, d.cell, d.goal, 30000);
+      if (d.transit && d.path) d.transit.arrive = sim.day + Math.max(1, Math.ceil(sim.unitEta(d)));
+    }
+  }
+
   let drag = null;
   canvas.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     canvas.setPointerCapture(e.pointerId);
-    drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false };
+    drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false, box: e.shiftKey && renderer.mode === 'front' };
   });
   canvas.addEventListener('pointermove', (e) => {
     const r = canvas.getBoundingClientRect();
@@ -517,7 +568,13 @@ async function main() {
     }
     if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) {
       drag.moved = true;
-      canvas.classList.add('dragging');
+      if (!drag.box) canvas.classList.add('dragging');
+    }
+    if (drag.box) {
+      // Auswahlrahmen (Umschalt + Ziehen)
+      renderer.selBox = { x0: drag.sx - r.left, y0: drag.sy - r.top, x1: px, y1: py };
+      renderer.requestRender();
+      return;
     }
     if (drag.moved) {
       renderer.camera.panBy(e.clientX - drag.x, e.clientY - drag.y);
@@ -528,6 +585,35 @@ async function main() {
   });
   const endDrag = (e) => {
     if (!drag) return;
+    if (drag.box && drag.moved) {
+      const ids = renderer.unitsInBox(renderer.selBox);
+      renderer.selBox = null;
+      renderer.selection = new Set(ids);
+      drag = null;
+      afterSelect();
+      return;
+    }
+    renderer.selBox = null;
+    if (!drag.moved && e.type === 'pointerup' && renderer.mode === 'front' && !econ.buildType) {
+      const r = canvas.getBoundingClientRect();
+      // genau auf den Stadtpunkt geklickt: Stadtfenster hat Vorrang vor Truppen
+      const cityHit = renderer.cityAtScreen(e.clientX - r.left, e.clientY - r.top, 7);
+      if (cityHit >= 0) { popover.hide(); cityPanel.show(cityHit, e.clientX, e.clientY); drag = null; renderer.requestRender(); return; }
+      const hit = renderer.unitsAt(e.clientX - r.left, e.clientY - r.top);
+      if (hit) {
+        // Medaillon angeklickt: Gruppe auswählen (mit Umschalt ergänzen)
+        if (!e.shiftKey) renderer.selection = new Set();
+        for (const id of hit) renderer.selection.add(id);
+        popover.hide();
+        drag = null;
+        afterSelect();
+        return;
+      }
+      if (renderer.selection.size && !e.shiftKey) { renderer.selection = new Set(); afterSelect(); }
+      // eigene Stadt angeklickt: Stadtfenster (Kaserne, Festung, Division ausheben)
+      const city = renderer.cityAtScreen(e.clientX - r.left, e.clientY - r.top);
+      if (city >= 0) { popover.hide(); cityPanel.show(city, e.clientX, e.clientY); drag = null; renderer.requestRender(); return; }
+    }
     if (!drag.moved && e.type === 'pointerup') {
       const r = canvas.getBoundingClientRect();
       const sx = e.clientX - r.left;
@@ -583,7 +669,9 @@ async function main() {
       case '+': case '=': cam.zoomSmooth(cam.width / 2, cam.height / 2, 1.25); renderer.requestRender(); break;
       case '-': cam.zoomSmooth(cam.width / 2, cam.height / 2, 0.8); renderer.requestRender(); break;
       case 'Escape':
-        if (renderer.lineDraft || renderer.focusDraft) { renderer.lineDraft = null; renderer.focusDraft = null; canvas.classList.remove('drawing'); ui.refresh(); renderer.requestRender(); }
+        if (renderer.selection?.size && !renderer.lineDraft && !renderer.focusDraft && !popover.open) { renderer.selection = new Set(); afterSelect(); }
+        else if (renderer.lineDraft || renderer.focusDraft) { renderer.lineDraft = null; renderer.focusDraft = null; canvas.classList.remove('drawing'); ui.refresh(); renderer.requestRender(); }
+        else if (cityPanel.open) cityPanel.hide();
         else if (popover.open) popover.hide();
         else if (goals.open) goals.close();
         else if (tutorial.open) tutorial.end();

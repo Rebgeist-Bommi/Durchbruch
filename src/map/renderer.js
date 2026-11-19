@@ -181,7 +181,7 @@ export class MapRenderer {
     ctx.drawImage(this.layers.labels, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (this.sim) this.drawSieges(st);
-    if (this.sim && this.mode === 'front') { this.drawObjectives(); this.drawFocusArrows(); this.drawUnits(st, tDay); }
+    if (this.sim && this.mode === 'front') { this.drawObjectives(); this.drawFocusArrows(); this.drawCityWorks(); this.drawUnits(st, tDay); }
     if (st.spotlight) this.drawSpotlight();
     if (this.sim && st.spotlight) this.drawIntel(st);
 
@@ -1382,6 +1382,7 @@ export class MapRenderer {
     const R = 15 * sc; // Porträt
     const cx = W / 2;
     const cy = 25 * sc;
+    c.mcy = cy; // Medaillonmitte (für die Ausrichtung auf den Standort)
     const metal = enemy ? ['#eef0f2', '#a9aeb3', '#5d6166', '#2c2f33'] : ['#fff1c2', '#d9b25e', '#8c6424', '#3b2a10'];
     const grad = (r0, r1) => { const g = x.createRadialGradient(cx - r1 * 0.35, cy - r1 * 0.45, r0, cx, cy, r1); g.addColorStop(0, metal[0]); g.addColorStop(0.45, metal[1]); g.addColorStop(1, metal[2]); return g; };
     // Schatten
@@ -1560,168 +1561,238 @@ export class MapRenderer {
     ctx.globalAlpha = 1;
   }
 
+  /** Sichtbare gegnerische Divisionen: bis `fogCells` Felder vor eigenen Fronten (einmal je Tag). */
+  unitVisibility() {
+    const sim = this.sim;
+    if (this._vis && this._visDay === sim.day && this._visFronts === sim.fronts.size) return this._vis;
+    const p = sim.player;
+    const R = 8;
+    const near = new Uint8Array(sim.N);
+    const q = [];
+    for (const f of sim.fronts.values()) {
+      if (!f.alive || !f.side[p]) continue;
+      for (const c of sim.frontCellsOf(f, sim.enemyOn(f, p))) if (!near[c]) { near[c] = 1; q.push(c); }
+    }
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h];
+      if (near[i] > R) continue;
+      for (let k = i * 4, e = k + 4; k < e; k++) {
+        const j = sim.nb[k];
+        if (j >= 0 && !near[j]) { near[j] = near[i] + 1; q.push(j); }
+      }
+    }
+    this._vis = near;
+    this._visDay = sim.day;
+    this._visFronts = sim.fronts.size;
+    return near;
+  }
+
+  /** Lage einer Division in Kartenkoordinaten bei Tagesanteil t (weich entlang der heutigen Route). */
+  unitPos(d, t) {
+    const cu = this.cellU;
+    const cols = this.grid.cols;
+    const at = (c) => [this.gx0 + ((c % cols) + 0.5) * cu, this.gy1 - (Math.floor(c / cols) + 0.5) * cu];
+    const tr = d.trail;
+    if (!tr || tr.length < 2) return at(d.cell);
+    const e = t * t * (3 - 2 * t);
+    const x = e * (tr.length - 1);
+    const k = Math.min(tr.length - 2, Math.floor(x));
+    const [ax, ay] = at(tr[k]);
+    const [bx, by] = at(tr[k + 1]);
+    const u = x - k;
+    return [ax + (bx - ax) * u, ay + (by - ay) * u];
+  }
+
   /**
-   * Truppenanzeige (Frontansicht): je Front ein eigener Spielstein auf der eigenen Seite des Drahts
-   * und ein gegnerischer gegenüber (geschätzt), verlegte Divisionen als wandernde Steine mit
-   * gepunkteter Marschroute und Resttagen, die Reserve an der Hauptstadt.
+   * Divisionen als Figuren (Frontansicht): an ihrem Standort, während des Tages weich entlang der
+   * Marschroute. Nahe beieinander stehende Divisionen einer Nation werden zu einem Medaillon mit
+   * Zahl zusammengefasst (je nach Zoom). Eigene immer, Gegner nur in Sichtweite der Fronten.
+   * Ausgewählte Divisionen: goldener Ring und Marschroute mit Ankunftstag.
    */
   drawUnits(st, t) {
     const sim = this.sim;
     const p = sim.player;
     const { ctx, camera: cam } = this;
-    const cu = this.cellU;
-    const toScr = (cx, cy) => cam.toScreen(this.gx0 + cx * cu, this.gy1 - cy * cu);
-    const myCode = sim.code(p);
+    const vis = this.unitVisibility();
+    const sel = this.selection || new Set();
     const now = performance.now();
-    // Mitte und Richtung der längsten Kette je Front (wandert mit dem Draht)
-    const mid = new Map();
-    for (const ch of this.curChains || []) {
-      const n = ch.p.length / 2;
-      const best = mid.get(ch.fid);
-      if ((best && best.n >= n) || n < 2) continue;
-      const k = Math.floor(n / 2);
-      const k0 = Math.max(0, k - 3) * 2;
-      const k1 = Math.min(n - 1, k + 3) * 2;
-      mid.set(ch.fid, { n, x: ch.p[k * 2], y: ch.p[k * 2 + 1], dx: ch.p[k1] - ch.p[k0], dy: ch.p[k1 + 1] - ch.p[k0 + 1] });
-    }
-    ctx.save();
-    const strengthOf = (fid, n) => {
-      const divs = sim.divisionsOn(fid, n);
-      if (!divs.length) return { str: 0, tank: 0 };
-      let s = 0;
-      let tk = 0;
-      for (const d of divs) { s += (d.men / d.maxMen) * 0.5 + Math.min(d.men / d.maxMen, (d.equip ?? 100) / 100) * 0.5; tk += d.tank; }
-      return { str: s / divs.length, tank: tk / divs.length };
-    };
-    for (const f of sim.fronts.values()) {
-      if (!f.alive || !f.side[p]) continue;
-      const m = mid.get(f.id);
-      if (!m) continue;
-      const [sx, sy] = cam.toScreen(m.x, m.y);
-      if (sx < -60 || sy < -40 || sx > cam.width + 60 || sy > cam.height + 40) continue;
-      // Normale zur Linie (Bildschirm), eigene Seite über den Feldbesitz bestimmen
-      const L = Math.hypot(m.dx, m.dy) || 1;
-      let nx = -m.dy / L;
-      let ny = m.dx / L; // Karteneinheiten, y nach Norden
-      const probe = this.cellAtMap(m.x + nx * cu * 1.5, m.y + ny * cu * 1.5);
-      if (probe >= 0 && sim.owner[probe] !== p) { nx = -nx; ny = -ny; }
-      const off = 36;
-      const ox = nx * off;
-      const oy = -ny * off; // Bildschirm: y nach unten
-      const e = sim.enemyOn(f, p);
-      const side = f.side[p];
-      const own = sim.divisionsOn(f.id, p).length;
-      const os = strengthOf(f.id, p);
-      const known = !f.planned || sim.frontRevealed(f.id, p);
-      // im Frieden steht der Gegner noch nicht an der Grenze: geschätzte Gesamtarmee zeigen
-      const total = sim.divisions.filter((d) => d.nation === e).length;
-      const atBorder = sim.divisionsOn(f.id, e).length;
-      const est = f.planned ? (atBorder ? sim.estimate(f.id, e) : known ? total : Math.max(1, Math.round(total / 5) * 5)) : sim.estimate(f.id, e);
-      const es = strengthOf(f.id, e);
-      // Verbindungsstrich zum Draht
-      ctx.strokeStyle = 'rgba(30,22,12,0.55)';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + ox * 0.55, sy + oy * 0.55); ctx.moveTo(sx, sy); ctx.lineTo(sx - ox * 0.55, sy - oy * 0.55); ctx.stroke();
-      const gen = (n) => { const id = f.side[n]?.general; const g = id && sim.generals.find((x) => x.id === id); return g && g.historical ? g.id : null; };
-      const cOwn = this.counter({ code: myCode, text: String(own), tank: os.tank, str: own ? os.str : 0, order: side.order, portrait: gen(p) });
-      const cEn = this.counter({ code: sim.code(e), text: `~${est}`, tank: es.tank, str: est > 0 ? es.str : 0, order: f.side[e].order, enemy: true, portrait: f.planned ? null : gen(e) });
-      if (f.id === this.selectedFront) {
-        ctx.save();
-        ctx.shadowColor = '#f0c96a';
-        ctx.shadowBlur = 12;
-        ctx.strokeStyle = 'rgba(240,201,106,0.9)';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(sx + ox, sy + oy - cOwn.H / 2 + 25, 25, 0, Math.PI * 2); ctx.stroke();
-        ctx.restore();
-      }
-      this.stamp(cEn, sx - ox, sy - oy, 0.95);
-      this.stamp(cOwn, sx + ox, sy + oy);
-      // Gefahr: Gegner deutlich stärker oder Front leer → rot pulsierender Rahmen um den eigenen Stein
-      if (!f.planned && est > 0 && (own === 0 || est > own * 1.6)) {
-        const a = 0.5 + 0.5 * Math.sin(now / 200);
-        ctx.strokeStyle = `rgba(214,52,30,${0.45 + 0.55 * a})`;
-        ctx.lineWidth = 2 + a;
-        ctx.beginPath(); ctx.arc(sx + ox, sy + oy - cOwn.H / 2 + 25, 27, 0, Math.PI * 2); ctx.stroke();
-      }
-    }
-    // verlegte Divisionen: Stein wandert über den Tag weich zum Ziel, gepunktete Route mit Pfeil
+    // Zusammenfassung in Bildschirmfeldern: herausgezoomt gröber, damit die Karte ruhig bleibt
+    const cellPx = this.cellU * cam.scale;
+    const B = cellPx < 3 ? 84 : cellPx < 6 ? 62 : 48;
     const groups = new Map();
     for (const d of sim.divisions) {
-      if (d.nation !== p || !d.transit) continue;
-      const k = `${d.transit.from}|${d.transit.to}|${d.transit.arrive}|${d.transit.days}`;
-      groups.set(k, (groups.get(k) || 0) + 1);
-    }
-    for (const [k, count] of groups) {
-      const [from, to, arrive, days] = k.split('|').map(Number);
-      const raw = Math.max(0, Math.min(1, (sim.day + t - (arrive - days)) / Math.max(1, days)));
-      const prog = raw * raw * (3 - 2 * raw);
-      const [ax, ay] = toScr(...sim.placeOf(from, p));
-      const [bx, by] = toScr(...sim.placeOf(to, p));
-      // leicht gebogene Route (Bogen nach Norden), damit sich Routen nicht decken
-      const cx = (ax + bx) / 2 - (by - ay) * 0.12;
-      const cy = (ay + by) / 2 + (bx - ax) * 0.12;
-      const q = (u) => [(1 - u) ** 2 * ax + 2 * (1 - u) * u * cx + u * u * bx, (1 - u) ** 2 * ay + 2 * (1 - u) * u * cy + u * u * by];
-      const [x, y] = q(prog);
-      ctx.setLineDash([2, 5]);
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = 'rgba(30,22,12,0.6)';
-      ctx.lineWidth = 3.5;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      for (let i = 1; i <= 24; i++) ctx.lineTo(...q(prog + ((1 - prog) * i) / 24));
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(241,231,204,0.95)';
-      ctx.lineWidth = 1.8;
-      ctx.stroke();
-      ctx.setLineDash([]);
-      // Pfeilspitze am Ziel
-      const [px2, py2] = q(0.97);
-      const ang = Math.atan2(by - py2, bx - px2);
-      ctx.fillStyle = 'rgba(241,231,204,0.95)';
-      ctx.strokeStyle = 'rgba(30,22,12,0.7)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.lineTo(bx - 9 * Math.cos(ang - 0.45), by - 9 * Math.sin(ang - 0.45));
-      ctx.lineTo(bx - 9 * Math.cos(ang + 0.45), by - 9 * Math.sin(ang + 0.45));
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      const c = this.counter({ code: myCode, text: String(count), kind: 'small' });
-      const fade = raw > 0.85 ? Math.max(0.25, 1 - (raw - 0.85) / 0.15) : 1; // verschmilzt bei Ankunft mit dem Frontstein
-      this.stamp(c, x, y, fade);
-      // Resttage als kleines Band unter dem Stein
-      const left = Math.max(0, arrive - sim.day);
-      const label = left <= 0 ? 'heute' : `${left} ${left === 1 ? 'Tag' : 'Tage'}`;
-      ctx.font = '600 10px "IBM Plex Sans", system-ui, sans-serif';
-      const w = ctx.measureText(label).width + 8;
-      ctx.globalAlpha = fade;
-      ctx.fillStyle = 'rgba(32,24,15,0.85)';
-      ctx.fillRect(x + 20, y - 9, w, 14);
-      ctx.fillStyle = '#f1e7cc';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, x + 20 + w / 2, y - 2);
-      ctx.globalAlpha = 1;
-    }
-    // Reserve an der Hauptstadt
-    const res = sim.reserveOf(p);
-    const cap = sim.capital.get(p);
-    if (cap !== undefined) {
-      const [rx, ry] = toScr(cap % sim.cols + 0.5, Math.floor(cap / sim.cols) + 0.5);
-      if (rx > -60 && ry > -40 && rx < cam.width + 60 && ry < cam.height + 40) {
-        let tk = 0;
-        for (const d of res) tk += d.tank;
-        const c = this.counter({ code: myCode, text: String(res.length), tank: res.length ? tk / res.length : 0, str: res.length ? 1 : 0 });
-        this.stamp(c, rx, ry + 26);
-        ctx.font = '600 10px "IBM Plex Sans", system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(32,24,15,0.85)';
-        ctx.fillRect(rx - 24, ry + 43, 48, 13);
-        ctx.fillStyle = '#f1e7cc';
-        ctx.fillText('Reserve', rx, ry + 50);
+      if (d.cell === undefined || d.cell < 0) continue;
+      const mine = d.nation === p;
+      if (!mine) {
+        const hostile = sim.isWar(p, d.nation) || sim.plansAgainst(p, d.nation) || sim.plansAgainst(d.nation, p);
+        if (!hostile || !vis[d.cell]) continue;
       }
+      const [mx, my] = this.unitPos(d, t);
+      let [sx, sy] = cam.toScreen(mx, my);
+      // stehende Garnison in einer Stadt: etwas unterhalb, damit die Stadt anklickbar bleibt
+      if (!d.transit && !(d.goal >= 0) && sim.cityAt[d.cell] >= 0 && (!d.trail || d.trail.length < 2)) sy += 32;
+      if (sx < -60 || sy < -60 || sx > cam.width + 60 || sy > cam.height + 60) continue;
+      const key = `${d.nation}|${Math.floor(sx / B)}|${Math.floor(sy / B)}|${(d.transit || d.goal >= 0) && cellPx >= 6 ? 'm' : 's'}`;
+      let g = groups.get(key);
+      if (!g) groups.set(key, (g = { nation: d.nation, mine, ids: [], sx: 0, sy: 0, str: 0, tank: 0, fronts: new Map(), moving: false, sel: 0 }));
+      g.ids.push(d.id);
+      g.sx += sx; g.sy += sy;
+      g.str += (d.men / d.maxMen) * 0.5 + Math.min(d.men / d.maxMen, (d.equip ?? 100) / 100) * 0.5;
+      g.tank += d.tank;
+      if (d.front) g.fronts.set(d.front, (g.fronts.get(d.front) || 0) + 1);
+      if (d.transit || (d.goal !== null && d.goal >= 0)) g.moving = true;
+      if (sel.has(d.id)) g.sel++;
+    }
+    // Marschrouten der ausgewählten Divisionen (unter den Medaillons)
+    const byId = new Map(sim.divisions.map((d) => [d.id, d]));
+    ctx.save();
+    const routes = new Map();
+    for (const id of sel) {
+      const d = byId.get(id);
+      if (!d || !d.path || !d.path.length) continue;
+      const end = d.path[d.path.length - 1];
+      if (!routes.has(end)) routes.set(end, d);
+    }
+    const cu = this.cellU;
+    const cols = this.grid.cols;
+    const scrOf = (c) => cam.toScreen(this.gx0 + ((c % cols) + 0.5) * cu, this.gy1 - (Math.floor(c / cols) + 0.5) * cu);
+    for (const [end, d] of routes) {
+      const [x0, y0] = cam.toScreen(...this.unitPos(d, t));
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      for (let i = 0; i < d.path.length; i += 2) ctx.lineTo(...scrOf(d.path[i]));
+      const [ex, ey] = scrOf(end);
+      ctx.lineTo(ex, ey);
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(30,20,8,0.7)'; ctx.lineWidth = 5; ctx.stroke();
+      ctx.setLineDash([7, 6]); ctx.lineDashOffset = -now / 40;
+      ctx.strokeStyle = '#f0c96a'; ctx.lineWidth = 2.4; ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(ex, ey, 5, 0, Math.PI * 2); ctx.fillStyle = '#f0c96a'; ctx.fill(); ctx.strokeStyle = '#2b1c0c'; ctx.lineWidth = 1.2; ctx.stroke();
+      const days = Math.max(1, Math.ceil(sim.unitEta(d)));
+      const label = `${days} ${days === 1 ? 'Tag' : 'Tage'}`;
+      ctx.font = '600 11px "IBM Plex Sans", system-ui, sans-serif';
+      const w = ctx.measureText(label).width + 10;
+      ctx.fillStyle = 'rgba(32,24,15,0.9)'; ctx.fillRect(ex + 8, ey - 18, w, 16);
+      ctx.fillStyle = '#f1e7cc'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(label, ex + 13, ey - 10);
+    }
+    // Medaillons
+    this.unitClusters = [];
+    const list = [...groups.values()].sort((a, b) => (a.mine - b.mine) || a.sy - b.sy);
+    for (const g of list) {
+      const n = g.ids.length;
+      const x = g.sx / n;
+      const y = g.sy / n;
+      const fid = [...g.fronts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+      const f = fid ? sim.fronts.get(fid) : null;
+      const side = f?.side[g.nation];
+      const genId = side?.general;
+      const gen = genId && sim.generals.find((z) => z.id === genId);
+      const c = this.counter({
+        code: sim.code(g.nation), text: g.mine ? String(n) : `~${n}`, tank: g.tank / n, str: g.str / n,
+        order: g.moving ? '' : side?.order || '', enemy: !g.mine, portrait: gen && gen.historical && !g.moving ? gen.id : null,
+        kind: g.moving && n < 3 ? 'small' : 'front',
+      });
+      const r = c.mcy > 20 ? 24 : 15;
+      if (g.sel) {
+        ctx.save();
+        ctx.shadowColor = '#ffd77a'; ctx.shadowBlur = 14;
+        ctx.strokeStyle = 'rgba(255,215,122,0.95)'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(x, y, r + 2, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+      this.stamp(c, x, y + (c.H / 2 - c.mcy), 1); // Medaillonmitte genau auf dem Standort
+      // Gefahr an der Front: eigene Gruppe gegen deutlich stärkeren Gegner
+      if (g.mine && f && !f.planned && !g.moving) {
+        const e = sim.enemyOn(f, g.nation);
+        const est = sim.estimate(f.id, e);
+        const own = sim.divisionsOn(f.id, g.nation).length;
+        if (est > 0 && est > own * 1.6) {
+          const a = 0.5 + 0.5 * Math.sin(now / 200);
+          ctx.strokeStyle = `rgba(214,52,30,${0.45 + 0.55 * a})`; ctx.lineWidth = 2 + a;
+          ctx.beginPath(); ctx.arc(x, y, 27, 0, Math.PI * 2); ctx.stroke();
+        }
+      }
+      this.unitClusters.push({ x, y, ids: g.ids, mine: g.mine });
+    }
+    // Auswahlrahmen
+    if (this.selBox) {
+      const b = this.selBox;
+      ctx.fillStyle = 'rgba(240,201,106,0.12)';
+      ctx.strokeStyle = 'rgba(240,201,106,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.fillRect(Math.min(b.x0, b.x1), Math.min(b.y0, b.y1), Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
+      ctx.strokeRect(Math.min(b.x0, b.x1), Math.min(b.y0, b.y1), Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
+      ctx.setLineDash([]);
     }
     ctx.restore();
+  }
+
+  /** Eigene Stadt (Rang ≤ 3) unter einem Bildschirmpunkt (Toleranz 14 px) oder -1. */
+  cityAtScreen(sx, sy, tol = 14) {
+    const sim = this.sim;
+    let best = -1;
+    let bd = tol * tol;
+    for (const c of sim.cities) {
+      if (c.rank > 3 || sim.owner[c.cell] !== sim.player) continue;
+      const [x, y] = this.screenOfCell(c.cell);
+      const d = (x - sx) ** 2 + (y - sy) ** 2;
+      if (d < bd) { bd = d; best = c.cell; }
+    }
+    return best;
+  }
+
+  /** Stadtbauten als kleine Symbole: Festung (Turm mit Zinnen), Kaserne (Zelt mit Wimpel). */
+  drawCityWorks() {
+    const sim = this.sim;
+    const { ctx } = this;
+    ctx.save();
+    for (const b of sim.buildings) {
+      if (b.type !== 'festung' && b.type !== 'kaserne') continue;
+      const own = sim.owner[b.cell];
+      if (own !== sim.player && !(this._vis && this._vis[b.cell])) continue;
+      const [x0, y0] = this.screenOfCell(b.cell);
+      const x = x0 + (b.type === 'festung' ? -14 : 14);
+      const y = y0 - 12;
+      ctx.globalAlpha = b.done ? 1 : 0.5;
+      ctx.fillStyle = '#3a2c1a';
+      ctx.strokeStyle = '#f1e2b8';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (b.type === 'festung') {
+        ctx.moveTo(x - 6, y + 7); ctx.lineTo(x - 6, y - 5); ctx.lineTo(x - 4, y - 5); ctx.lineTo(x - 4, y - 7); ctx.lineTo(x - 1, y - 7); ctx.lineTo(x - 1, y - 5);
+        ctx.lineTo(x + 1, y - 5); ctx.lineTo(x + 1, y - 7); ctx.lineTo(x + 4, y - 7); ctx.lineTo(x + 4, y - 5); ctx.lineTo(x + 6, y - 5); ctx.lineTo(x + 6, y + 7); ctx.closePath();
+      } else {
+        ctx.moveTo(x - 7, y + 6); ctx.lineTo(x, y - 4); ctx.lineTo(x + 7, y + 6); ctx.closePath();
+        ctx.moveTo(x, y - 4); ctx.lineTo(x, y - 9); ctx.lineTo(x + 5, y - 7.5); ctx.lineTo(x, y - 6);
+      }
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** Eigene Divisionen unter einem Bildschirmpunkt (Medaillon getroffen) oder null. */
+  unitsAt(sx, sy) {
+    let best = null;
+    let bd = 26 * 26;
+    for (const c of this.unitClusters || []) {
+      if (!c.mine) continue;
+      const d = (c.x - sx) ** 2 + (c.y - sy) ** 2;
+      if (d < bd) { bd = d; best = c.ids; }
+    }
+    return best;
+  }
+
+  /** Eigene Divisionen im Rechteck (Bildschirm). */
+  unitsInBox(b) {
+    const x0 = Math.min(b.x0, b.x1); const x1 = Math.max(b.x0, b.x1);
+    const y0 = Math.min(b.y0, b.y1); const y1 = Math.max(b.y0, b.y1);
+    const out = [];
+    for (const c of this.unitClusters || []) if (c.mine && c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1) out.push(...c.ids);
+    return out;
   }
 
   /** Feldindex unter Kartenkoordinaten (-1 außerhalb). */

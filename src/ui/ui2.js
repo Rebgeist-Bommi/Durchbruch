@@ -6,6 +6,7 @@ import {
   anschlussScore, offerScore, isAllied, hasPact, planDeployment, cancelPlan,
 } from '../sim/diplomacy.js';
 import { goalList, goalState, goalTier, startGoal, goalProgress } from '../sim/goals.js';
+import { buildInCity, canRaiseAt, canRaiseDivision, raiseDivision } from '../sim/economy.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -333,25 +334,27 @@ const GUIDE = [
   { chap: 'gefuehrt', sel: '#kpis', title: 'Deine Mittel', text: 'Hier oben stehen Geld, Rohstoffe, Arbeitskräfte und Moral. Behalte sie im Blick – daraus entstehen Ausrüstung und neue Divisionen.' },
   { chap: 'gefuehrt', sel: '#map', title: 'Schritt 1: Polen anklicken', text: 'Klicke auf der Karte auf Polen (östlich von Deutschland, rötlich). Es öffnet sich ein Fenster mit allem, was du mit dem Land tun kannst.', wait: (c) => c.popover.n === POL(c) || c.sim.plansAgainst(c.sim.player, POL(c)) },
   { chap: 'gefuehrt', sel: '#popover', title: 'Schritt 2: Aufmarsch befehlen', text: 'Das Länderfenster zeigt Beziehung, Armee und Aktionen. Klicke auf „Aufmarsch an der Grenze“: Es entsteht eine Grenzfront mit Stacheldraht, deine Reserve marschiert dorthin – noch ohne Krieg.', wait: (c) => c.sim.plansAgainst(c.sim.player, POL(c)) || c.sim.isWar(c.sim.player, POL(c)) },
-  { chap: 'gefuehrt', sel: '#map', title: 'Deine Truppen auf der Karte', text: 'Auf dem Draht sitzt eine Marke: links deine Divisionen an dieser Front, rechts die des Gegners. Die Marken mit Pfeil sind Truppen auf dem Marsch – die Zahl dahinter sind die Resttage. An Berlin steht deine Reserve.' },
-  { chap: 'gefuehrt', sel: '#frontwin', title: 'Das Frontfenster', text: 'Rechts siehst du die gewählte Front: Kräfte, General, Taktik, Angriffsziel und Befehl. Hier steuerst du den ganzen Feldzug.' },
-  { chap: 'gefuehrt', sel: '#frontwin input[value="prepare"]', title: 'Schritt 3: Angriff vorbereiten', text: 'Wähle „Angriff vorbereiten“. In etwa 7 Tagen baut sich bis zu +60 % Angriffsbonus auf.', wait: (c) => polFronts(c).some((f) => f.side[c.sim.player].order !== 'hold') },
-  { chap: 'gefuehrt', sel: '#tactic-select', title: 'Schritt 4: Taktik wählen', text: 'Wähle eine Taktik, zum Beispiel „Blitzkrieg“ (schnelle Panzerkeile) oder „Starke Luftunterstützung“. Der Text darunter erklärt Vor- und Nachteile. Du kannst auch „Weiter“ drücken und bei „Ausgewogen“ bleiben.', wait: (c) => polFronts(c).some((f) => (f.side[c.sim.player].tactic || 'standard') !== 'standard') },
-  { chap: 'gefuehrt', sel: '#frontwin', title: 'Einsatz und Schwerpunkt', text: 'Unter „Einsatz und Schwerpunkt“ legst du fest, wie viel Prozent der Divisionen angreifen – der Rest hält die Linie. Mit „Schwerpunkt setzen“ klickst du ein Ziel an: Ein Stoßpfeil erscheint, und die Abschnitte in seiner Nähe bekommen den Großteil der Angriffskraft.' },
+  { chap: 'gefuehrt', sel: '#map', title: 'Deine Truppen auf der Karte', text: 'Jedes Medaillon ist eine Gruppe Divisionen an ihrem Standort; die Zahl auf dem Band ist ihre Anzahl. Die Reserve marschiert jetzt sichtbar zur Grenze – die gestrichelte Linie zeigt den Weg und die Ankunft.' },
+  { chap: 'gefuehrt', sel: '#map', title: 'Schritt 3: Truppen auswählen', text: 'Klicke auf ein eigenes Medaillon (z. B. eine Garnison in einer Stadt). Mit Umschalt + Ziehen wählst du mehrere Gruppen auf einmal aus.', wait: (c) => c.renderer.selection?.size > 0 },
+  { chap: 'gefuehrt', sel: '#selbar', title: 'Schritt 4: Truppen schicken', text: 'Unten siehst du die Auswahl. Klicke jetzt mit der rechten Maustaste auf die Grenze zu Polen: Die Divisionen marschieren dorthin. Rechtsklick ins eigene Land verlegt sie nur dorthin.', wait: (c) => c.sim.divisions.some((d) => c.renderer.selection?.has(d.id) && (d.transit || (d.goal !== null && d.goal >= 0))) },
+  { chap: 'gefuehrt', sel: '#frontwin', title: 'Das Frontfenster', text: 'Rechts siehst du die gewählte Front: oben eigene gegen gegnerische Divisionen, darunter die drei Befehle Halten, Vorbereiten und Angreifen. Mehr braucht es meist nicht.' },
+  { chap: 'gefuehrt', sel: '[data-action="order-prepare"]', title: 'Schritt 5: Vorbereiten', text: 'Klicke auf „Vorbereiten“. In etwa 7 Tagen baut sich bis zu +60 % Angriffsbonus auf – der Balken darunter zeigt den Stand.', wait: (c) => polFronts(c).some((f) => f.side[c.sim.player].order !== 'hold') },
+  { chap: 'gefuehrt', sel: '#tactic-select', title: 'Schritt 6: Taktik wählen', text: 'Wähle eine Taktik, zum Beispiel „Blitzkrieg“ (schnelle Panzerkeile) oder „Starke Luftunterstützung“. Der Text darunter erklärt Vor- und Nachteile. Du kannst auch „Weiter“ drücken und bei „Ausgewogen“ bleiben.', wait: (c) => polFronts(c).some((f) => (f.side[c.sim.player].tactic || 'standard') !== 'standard') },
+  { chap: 'gefuehrt', sel: 'details[data-d="mehr"]', title: 'Für später: Erweitert', text: 'Unter „Erweitert“ liegen Feinheiten wie Haltelinie, Einsatzstärke, Schwerpunkt und Luftangriffe. Für den Anfang brauchst du sie nicht.' },
   { chap: 'gefuehrt', sel: '#map', title: 'Der Gegner schaut zu', text: 'Ein Aufmarsch bleibt nicht unbemerkt: Nach einigen Tagen verlegt auch Polen Truppen an die Grenze, und die Beziehung sinkt. Wer zu lange wartet, trifft auf eine befestigte Front.' },
   { chap: 'gefuehrt', sel: '#lage', title: 'Mehrere Fronten', text: 'Gegen Polen gibt es zwei Grenzfronten: Westpolen und Ostpreußen. Links in der Lage wählst du sie aus. Bereite am besten beide vor.' },
-  { chap: 'gefuehrt', sel: '#time', title: 'Schritt 5: Zeit laufen lassen', text: 'Starte die Zeit mit der Leertaste oder einem Klick auf 2×. Beobachte, wie die Marschmarken zur Grenze wandern und der Angriffsbonus wächst.', wait: (c) => c.clock.speed > 0 },
+  { chap: 'gefuehrt', sel: '#time', title: 'Schritt 7: Zeit laufen lassen', text: 'Starte die Zeit mit der Leertaste oder einem Klick auf 2×. Beobachte, wie die Marschmarken zur Grenze wandern und der Angriffsbonus wächst.', wait: (c) => c.clock.speed > 0 },
   { chap: 'gefuehrt', sel: '#frontwin', title: 'Warten auf den Aufmarsch', text: (c) => { const fs = polFronts(c); const t = c.sim.divisions.filter((d) => d.nation === c.sim.player && d.transit && fs.some((f) => f.id === d.transit.to)).length; const pr = Math.max(0, ...fs.map((f) => f.side[c.sim.player].prep)); return `Noch ${t} Divisionen unterwegs · Angriffsbonus +${Math.round(pr * 60)} %. Sobald alle angekommen sind und der Bonus über 40 % liegt, geht es weiter.`; }, wait: (c) => { const fs = polFronts(c); return !c.sim.divisions.some((d) => d.nation === c.sim.player && d.transit && fs.some((f) => f.id === d.transit.to)) && fs.some((f) => f.side[c.sim.player].prep >= 0.66); } },
   { chap: 'gefuehrt', sel: '#time', title: 'Kurz anhalten', text: 'Halte die Zeit an (Leertaste oder ❚❚). Vor großen Entscheidungen lohnt sich die Pause.', wait: (c) => c.clock.speed === 0 },
-  { chap: 'gefuehrt', sel: '#frontwin', title: 'Angriffsziel (optional)', text: 'Unter „Angriffsziel“ kannst du „Bis zur Haltelinie“ wählen und eine Linie auf die Karte klicken – dann stoßen die Truppen nur bis dorthin vor. Für den Anfang reicht „Ganzes Land“.' },
-  { chap: 'gefuehrt', sel: '[data-action="war-attack"]', title: 'Schritt 6: Krieg erklären', text: 'Klicke auf „Krieg erklären und angreifen“ und bestätige mit einem zweiten Klick. Alle vorbereiteten Grenzfronten greifen gleichzeitig an. Achtung: Großbritannien und Frankreich haben Polen ab 31. März ihren Schutz zugesagt.', wait: (c) => c.sim.isWar(c.sim.player, POL(c)) },
-  { chap: 'gefuehrt', sel: '#time', title: 'Schritt 7: Der Angriff läuft', text: 'Lass die Zeit laufen. Eroberte Felder füllen sich, der Draht wandert nach vorn, die Lage links zeigt Durchbruch, Vormarsch oder festgefahren.', wait: (c) => c.clock.speed > 0 },
+  { chap: 'gefuehrt', sel: '[data-action="war-attack"]', title: 'Schritt 8: Angreifen', text: 'Klicke auf „Angreifen“ und bestätige mit einem zweiten Klick – damit erklärst du den Krieg. Alle vorbereiteten Grenzfronten greifen gleichzeitig an. Achtung: Großbritannien und Frankreich haben Polen ab 31. März ihren Schutz zugesagt.', wait: (c) => c.sim.isWar(c.sim.player, POL(c)) },
+  { chap: 'gefuehrt', sel: '#time', title: 'Schritt 9: Der Angriff läuft', text: 'Lass die Zeit laufen. Eroberte Felder füllen sich, der Draht wandert nach vorn, die Lage links zeigt Durchbruch, Vormarsch oder festgefahren.', wait: (c) => c.clock.speed > 0 },
   { chap: 'gefuehrt', sel: '#map', title: 'Denk an den Westen', text: 'Erklären Frankreich und Großbritannien den Krieg, entsteht eine Westfront. Lass sie nie leer – sonst marschieren die Franzosen ein. Ein rot blinkender Rahmen an der Marke warnt dich. Mit Rechtsklick auf eine Front schickst du Truppen dorthin.' },
-  { chap: 'gefuehrt', sel: '#modes', title: 'Schritt 8: Wirtschaft', text: 'Drücke Taste 2 oder klicke auf „Wirtschaft“.', wait: (c) => c.renderer.mode === 'economy' },
+  { chap: 'gefuehrt', mode: 'front', sel: '#map', title: 'Städte als Basis', text: 'Klicke auf eine eigene Stadt: Dort baust du eine Kaserne (dann kannst du dort Divisionen ausheben) oder eine Festung (befestigt das Umland).' },
+  { chap: 'gefuehrt', sel: '#modes', title: 'Schritt 10: Wirtschaft', text: 'Drücke Taste 2 oder klicke auf „Wirtschaft“.', wait: (c) => c.renderer.mode === 'economy' },
   { chap: 'gefuehrt', mode: 'economy', sel: '#econ', title: 'Die Wirtschaft', text: 'Hier stellst du Mobilisierung und Panzeranteil der Rüstung ein und baust Fabriken, Rüstungswerke und Forschungsanstalten. Ausrüstung füllt geschwächte Divisionen wieder auf.' },
-  { chap: 'gefuehrt', mode: 'economy', sel: '#econ', title: 'Schritt 9: Forschung', text: 'Klicke oben in der Leiste auf den Reiter „Forschung“.', wait: (c) => c.econ.tab === 'forschung' },
+  { chap: 'gefuehrt', mode: 'economy', sel: '#econ', title: 'Schritt 11: Forschung', text: 'Klicke oben in der Leiste auf den Reiter „Forschung“.', wait: (c) => c.econ.tab === 'forschung' },
   { chap: 'gefuehrt', mode: 'economy', sel: '#econ', title: 'Die Forschung', text: 'Jede Anstalt forscht in einem Schwerpunkt: Heer, Luftwaffe, Industrie oder Sonderwaffen. Mehr Budget heißt schneller. Wissenschaftler helfen, wenn eine passende Anstalt in ihrer Region steht.' },
-  { chap: 'gefuehrt', mode: 'front', sel: '#goal-chip', title: 'Schritt 10: Nationales Ziel', text: 'Klicke oben auf „Ziel wählen“ und starte ein Ziel, zum Beispiel „Wiederaufrüstung“. Nach einigen Wochen gibt es einen dauerhaften Vorteil.', wait: (c) => !!c.sim.goals?.current || (c.sim.goals?.done || []).length > 0 },
+  { chap: 'gefuehrt', mode: 'front', sel: '#goal-chip', title: 'Schritt 12: Nationales Ziel', text: 'Klicke oben auf „Ziel wählen“ und starte ein Ziel, zum Beispiel „Wiederaufrüstung“. Nach einigen Wochen gibt es einen dauerhaften Vorteil.', wait: (c) => !!c.sim.goals?.current || (c.sim.goals?.done || []).length > 0 },
   { chap: 'gefuehrt', sel: '#modes', title: 'Geheimdienst und Diplomatie', text: 'Taste 3 öffnet den Geheimdienst (Agenten, Sabotage, Aufklärung), Taste 4 die Diplomatie (Pakte, Bündnisse, Anschluss). Beim ersten Besuch biete ich dir dort eine kurze Erklärung an.' },
   { chap: 'gefuehrt', sel: null, title: 'Du bist bereit', text: 'Das Wichtigste kennst du jetzt. Mit H öffnest du jederzeit die Kapitel zu jedem Bereich. Viel Erfolg!' },
 ];
@@ -368,8 +371,8 @@ const STEPS = [
   // Aufmarsch und Angriff
   { chap: 'aufmarsch', mode: 'front', sel: '#map', title: 'Land anklicken', text: 'Klicke ein Nachbarland an, zum Beispiel Frankreich oder Polen. Das Länderfenster zeigt Beziehung, geschätzte Armee und alle Aktionen.' },
   { chap: 'aufmarsch', sel: '#map', title: 'Aufmarsch an der Grenze', text: '„Aufmarsch an der Grenze“ legt schon im Frieden eine Grenzfront mit Stacheldraht an. Die Reserve marschiert dorthin – das dauert je nach Entfernung und Bahnausbau einige Tage.' },
-  { chap: 'aufmarsch', sel: '#map', title: 'Truppen auf der Karte', text: 'Jede Front trägt eine Marke: links deine Divisionen, rechts die geschätzten des Gegners. Ein rot blinkender Rahmen heißt: Gegner deutlich stärker oder Front leer. Wandernde Marken zeigen Verlegungen mit Resttagen, an der Hauptstadt steht die Reserve.' },
-  { chap: 'aufmarsch', sel: '#panel', title: 'Verlegen', text: 'Im Frontfenster holst du Divisionen aus der Reserve (+1, +5) oder verlegst 1, 5, 10 oder alle zu einer anderen Front; die Dauer steht auf dem Knopf. Schneller: Front wählen und eine andere Front mit Rechtsklick anklicken.' },
+  { chap: 'aufmarsch', sel: '#map', title: 'Truppen auf der Karte', text: 'Medaillons zeigen deine Divisionen dort, wo sie stehen. Klick wählt eine Gruppe aus, Umschalt + Ziehen mehrere, Rechtsklick auf eine Front schickt sie dorthin. Gegner siehst du nur in der Nähe deiner Fronten.'  },
+  { chap: 'aufmarsch', sel: '#panel', title: 'Verlegen', text: 'Marschiert wird über eigenes Gebiet: auf der Bahn schnell, zu Fuß langsam, im Gebirge noch langsamer. Die gestrichelte Linie zeigt Route und Ankunftstag. Im Frontfenster holt „Reserve heranführen“ die fünf nächsten Reservedivisionen.'  },
   { chap: 'aufmarsch', sel: '#panel', title: 'Vorbereiten oder halten', text: '„Angriff vorbereiten“ baut in etwa 7 Tagen bis zu +60 % Angriffsbonus auf. „Halten und befestigen“ gräbt die Truppen ein: Stacheldraht wird dichter, ab hoher Befestigung mit Holzpfählen.' },
   { chap: 'aufmarsch', sel: '#panel', title: 'Taktik', text: 'Blitzkrieg: Panzerkeile stoßen tief vor, brauchen aber Panzer und Nachschub. Starke Luftunterstützung: mehr Durchschlag, weniger Verluste, kostet Geld. Zangenangriff: begünstigt Kessel. Materialschlacht: langsam, aber verlustarm.' },
   { chap: 'aufmarsch', sel: '#panel', title: 'Einsatz und Schwerpunkt', text: 'Einsatz 25–100 %: so viele Divisionen greifen an, der Rest hält. Schwerpunkt: ein Klick auf die Karte setzt einen Stoßpfeil, die Abschnitte in seiner Nähe erhalten den Großteil der Angriffskraft.' },
@@ -539,5 +542,117 @@ export class Tutorial {
     if (vis && r.width > window.innerWidth * 0.6 && r.height > window.innerHeight * 0.6) { x = (window.innerWidth - bw) / 2; y = window.innerHeight - bh - 70; }
     box.style.left = `${Math.max(10, Math.min(window.innerWidth - bw - 10, x))}px`;
     box.style.top = `${Math.max(10, Math.min(window.innerHeight - bh - 10, y))}px`;
+  }
+}
+
+// ------------------------------------------------------------------ Auswahl (Richtung A)
+/** Leiste unten: ausgewählte Divisionen mit Zusammensetzung, Stärke, Zustand und Befehlen. */
+export class SelectionBar {
+  constructor({ sim, onHold, onClear, onFront }) {
+    this.sim = sim;
+    $('selbar').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-sel]');
+      if (!b) return;
+      if (b.dataset.sel === 'hold') onHold();
+      else if (b.dataset.sel === 'clear') onClear();
+      else if (b.dataset.sel === 'front') onFront(Number(b.dataset.f));
+    });
+  }
+
+  render(sel) {
+    const el = $('selbar');
+    const sim = this.sim;
+    const divs = sim.divisions.filter((d) => sel.has(d.id));
+    if (!divs.length) { el.hidden = true; return; }
+    const tanks = divs.filter((d) => d.tank > 0.25).length;
+    const str = divs.reduce((s, d) => s + (d.men / d.maxMen) * 0.5 + Math.min(d.men / d.maxMen, (d.equip ?? 100) / 100) * 0.5, 0) / divs.length;
+    const moving = divs.filter((d) => d.transit || (d.goal !== null && d.goal >= 0));
+    const fronts = new Map();
+    for (const d of divs) if (d.front && !d.transit) fronts.set(d.front, (fronts.get(d.front) || 0) + 1);
+    const eta = moving.length ? Math.max(1, ...moving.map((d) => (d.path ? Math.ceil(sim.unitEta(d)) : d.transit ? d.transit.arrive - sim.day : 1))) : 0;
+    const where = moving.length
+      ? `${moving.length} auf dem Marsch · Ankunft in ${eta} ${eta === 1 ? 'Tag' : 'Tagen'}`
+      : fronts.size ? [...fronts.keys()].map((f) => sim.fronts.get(f)?.name).filter(Boolean).join(', ') : 'in Reserve';
+    const fid = fronts.size === 1 ? [...fronts.keys()][0] : 0;
+    el.innerHTML = `<div class="sb-main"><b>${divs.length} ${divs.length === 1 ? 'Division' : 'Divisionen'}</b>
+        <span>${divs.length - tanks} Infanterie · ${tanks} Panzer · Stärke ${Math.round(str * 100)} %</span>
+        <span class="sb-where">${esc(where)}</span></div>
+      <div class="sb-acts">
+        ${fid ? `<button type="button" data-sel="front" data-f="${fid}">Front öffnen</button>` : ''}
+        <button type="button" data-sel="hold">Anhalten</button>
+        <button type="button" data-sel="clear">Abwählen</button>
+      </div>
+      <p class="sb-hint">Rechtsklick auf eine Front: dorthin marschieren und kämpfen · Rechtsklick ins eigene Land: dorthin verlegen · Umschalt + Ziehen: mehrere auswählen</p>`;
+    el.hidden = false;
+  }
+}
+
+// ------------------------------------------------------------------ Stadtfenster (Richtung A)
+/** Eigene Stadt als Basis: Garnison, Kaserne, Festung, Division ausheben. Bewusst knapp gehalten. */
+export class CityPanel {
+  constructor({ sim, onChange }) {
+    this.sim = sim;
+    this.cell = -1;
+    this.onChange = onChange;
+    this.msg = '';
+    $('citywin').addEventListener('click', (e) => {
+      if (e.target.closest('.p-close')) { this.hide(); return; }
+      const b = e.target.closest('[data-city]');
+      if (!b || b.disabled) return;
+      const sim = this.sim;
+      const p = sim.player;
+      const act = b.dataset.city;
+      if (act === 'raise') {
+        const d = raiseDivision(sim, p, 0, this.cell);
+        this.msg = d ? `${d.name} steht in der Stadt bereit.` : 'Zu wenig Personal oder Ausrüstung.';
+      } else {
+        const x = buildInCity(sim, p, act, this.cell);
+        this.msg = x ? `${sim.bal.economy.buildings[act].label} im Bau.` : 'Nicht möglich.';
+      }
+      this.onChange();
+      this.render();
+    });
+  }
+
+  get open() { return !$('citywin').hidden; }
+
+  show(cell, x, y) {
+    this.cell = cell;
+    this.msg = '';
+    this.render();
+    const el = $('citywin');
+    el.hidden = false;
+    el.style.left = `${Math.max(8, Math.min(window.innerWidth - el.offsetWidth - 8, x + 14))}px`;
+    el.style.top = `${Math.max(56, Math.min(window.innerHeight - el.offsetHeight - 8, y - 20))}px`;
+  }
+
+  hide() { $('citywin').hidden = true; this.cell = -1; }
+
+  render() {
+    if (this.cell < 0) return;
+    const sim = this.sim;
+    const p = sim.player;
+    const c = sim.cities[sim.cityAt[this.cell]];
+    if (!c || sim.owner[this.cell] !== p) { this.hide(); return; }
+    const B = sim.bal.economy.buildings;
+    const here = sim.buildingsAt.get(this.cell) || [];
+    const has = (t) => here.find((b) => b.type === t);
+    const near = sim.divisions.filter((d) => d.nation === p && !d.transit && Math.hypot(d.cell % sim.cols - c.col, Math.floor(d.cell / sim.cols) - c.row) <= 2).length;
+    const row = (t) => {
+      const b = has(t);
+      return `<li><span>${esc(B[t].label)}</span><span class="${b?.done ? 'ok' : ''}">${b ? (b.done ? 'vorhanden' : `im Bau ${Math.round(b.progress * 100)} %`) : '–'}</span></li>`;
+    };
+    const money = sim.econ.get(p)?.money ?? 0;
+    const raiseOk = canRaiseAt(sim, p, this.cell) && canRaiseDivision(sim, p);
+    const isCap = sim.capital.get(p) === this.cell;
+    $('citywin').innerHTML = `<div class="p-head"><b>${esc(c.name)}</b><button type="button" class="p-close" aria-label="Schließen">×</button></div>
+      <p class="p-line">${isCap ? 'Hauptstadt · ' : ''}Garnison: ${near} Div.</p>
+      <ul class="c-list">${row('kaserne')}${row('festung')}</ul>
+      <div class="p-acts">
+        <button type="button" class="main" data-city="raise" ${raiseOk ? '' : 'disabled'} title="${canRaiseAt(sim, p, this.cell) ? 'Neue Division erscheint hier' : 'Braucht eine Kaserne (oder die Hauptstadt)'}">Division ausheben</button>
+        ${has('kaserne') ? '' : `<button type="button" data-city="kaserne" ${money >= B.kaserne.cost / B.kaserne.days ? '' : 'disabled'}>Kaserne bauen<br><small>${B.kaserne.cost} · ${B.kaserne.days} Tage</small></button>`}
+        ${has('festung') ? '' : `<button type="button" data-city="festung" ${money >= B.festung.cost / B.festung.days ? '' : 'disabled'}>Festung bauen<br><small>${B.festung.cost} · ${B.festung.days} Tage</small></button>`}
+      </div>
+      <p class="p-msg" role="status">${esc(this.msg)}</p>`;
   }
 }

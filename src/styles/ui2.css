@@ -153,3 +153,39 @@
 #map-canvas.drawing { cursor: crosshair; }
 #tutorial .tut-box { width: min(430px, 92vw); }
 #tutorial .tut-nav span { white-space: nowrap; }
+
+/* Richtung A: Auswahlleiste */
+#selbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 64px; z-index: 30; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: space-between;
+  width: min(720px, calc(100vw - 32px)); padding: 10px 14px; background: linear-gradient(180deg, #34261a, #241a11); color: #E4D9BC; border: 2px solid #C8A156; box-shadow: 0 12px 34px rgba(0,0,0,0.6); font-size: 13.5px; }
+#selbar .sb-main { display: flex; flex-direction: column; gap: 2px; }
+#selbar .sb-main b { color: #f0d28c; font-size: 15px; }
+#selbar .sb-where { color: #c9b98f; }
+#selbar .sb-acts { display: flex; gap: 6px; }
+#selbar button { font: inherit; font-size: 13px; padding: 6px 12px; cursor: pointer; background: rgba(0,0,0,0.3); color: inherit; border: 1px solid rgba(200,161,86,0.55); }
+#selbar button:hover { border-color: #f0c66a; }
+#selbar .sb-hint { flex-basis: 100%; margin: 0; font-size: 12px; opacity: 0.7; }
+#toast { z-index: 35; }
+body:has(#selbar:not([hidden])) #toast { bottom: auto; top: 70px; }
+
+/* Stadtfenster (Richtung A) */
+#citywin {
+  position: fixed; z-index: 22; width: 280px; padding: 12px 14px; background: rgba(36, 26, 18, 0.97); color: #E4D9BC;
+  border: 1px solid #C8A156; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.65); font-size: 13.5px;
+}
+#citywin[hidden] { display: none; }
+#citywin .p-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+#citywin .p-head img { width: 36px; height: 24px; object-fit: cover; }
+#citywin .p-head b { font-family: "IM Fell English SC", Georgia, serif; font-size: 18px; font-weight: 400; color: #f0dca8; flex: 1; }
+#citywin .p-close { background: none; border: 0; color: inherit; font-size: 18px; cursor: pointer; }
+#citywin .p-line { opacity: 0.85; margin: 2px 0; }
+#citywin .p-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px; }
+#citywin .p-acts button { font: inherit; font-size: 12.5px; padding: 6px 4px; cursor: pointer; background: rgba(0, 0, 0, 0.35); color: inherit; border: 1px solid rgba(200, 161, 86, 0.5); }
+#citywin .p-acts button.war { border-color: #c0503a; }
+#citywin .p-acts button.confirm { background: #a8321f; color: #fff; }
+#citywin .p-acts button.main { background: linear-gradient(180deg, #d9b56a, #a8823f); color: #1A1C14; grid-column: 1 / -1; }
+#citywin .p-acts button:disabled { opacity: 0.35; cursor: default; }
+#citywin .p-msg { margin-top: 6px; color: #f0dca8; min-height: 1em; font-size: 12.5px; }
+#citywin .p-acts button.plan, .dl-acts button.plan { border-color: #b9a36a; color: #f1e2b4; }
+#citywin .c-list { margin: 6px 0; padding: 0; list-style: none; font-size: 13px; }
+#citywin .c-list li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+#citywin .c-list .ok { color: #8fc46a; }

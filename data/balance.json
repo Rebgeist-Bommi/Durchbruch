@@ -694,6 +694,22 @@
         "cost": 150,
         "days": 60,
         "upkeep": 0.2
+      },
+      "kaserne": {
+        "label": "Kaserne",
+        "cost": 120,
+        "days": 30,
+        "upkeep": 0.05,
+        "city": true
+      },
+      "festung": {
+        "label": "Festung",
+        "cost": 220,
+        "days": 60,
+        "upkeep": 0.1,
+        "city": true,
+        "radius": 3,
+        "fort": 0.85
       }
     },
     "siteWeights": {
@@ -1777,5 +1793,17 @@
       "prepDecay": 0.6,
       "moneyPerDivDay": 0
     }
+  },
+  "movement": {
+    "_todo": "Spielwerte (Felder à 9 km je Tag)",
+    "infantryCellsPerDay": 2.5,
+    "tankCellsPerDay": 4,
+    "railCellsPerDay": 18,
+    "mountainFactor": 2,
+    "seaCellsPerDay": 8,
+    "frontReach": 3.5,
+    "spreadCells": 12,
+    "routesPerDay": 12,
+    "pathGreed": 5
   }
 }

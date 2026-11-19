@@ -190,6 +190,7 @@ export function runEconomy(sim) {
       if (n === sim.player) sim.log('build', `${cfg.label} in ${b.siteName} fertiggestellt.`, b.cell);
     }
   }
+  applyFortresses(sim);
   replenish(sim);
   for (const [n, e] of sim.econ) {
     if (e.ai && sim.nations.get(n)?.status === 'aktiv' && (sim.day + n) % 7 === 0) aiEconomy(sim, n, e);
@@ -230,6 +231,46 @@ function replenish(sim) {
   }
 }
 
+/**
+ * Stadtbauten (Richtung A, Stronghold-Anteil): Kaserne und Festung werden direkt in einer eigenen
+ * Stadt (Rang ≤ 3) errichtet. Gibt das Gebäude zurück oder null (nicht möglich / schon vorhanden).
+ */
+export function buildInCity(sim, n, type, cell) {
+  const cfg = sim.bal.economy.buildings[type];
+  if (!cfg?.city || sim.owner[cell] !== n || sim.cityAt[cell] < 0) return null;
+  if ((sim.buildingsAt.get(cell) || []).some((b) => b.type === type)) return null;
+  const c = sim.cities[sim.cityAt[cell]];
+  const b = { id: sim.nextBuildingId++, type, cell, nation: n, site: 1, health: 1, progress: 0, done: false, siteName: c.name, started: sim.day, guard: 0 };
+  addBuilding(sim, b);
+  if (n === sim.player) sim.log('build', `${cfg.label} in ${c.name} begonnen (${cfg.days} Tage).`, cell);
+  return b;
+}
+
+/** Stadt mit fertiger Kaserne (oder Hauptstadt): dort können Divisionen ausgehoben werden. */
+export function canRaiseAt(sim, n, cell) {
+  if (sim.owner[cell] !== n) return false;
+  if (sim.capital.get(n) === cell) return true;
+  return (sim.buildingsAt.get(cell) || []).some((b) => b.type === 'kaserne' && b.done && b.health > 0.3);
+}
+
+/** Festungen: Befestigung im Umkreis wächst täglich bis zum Festungswert (mal Zustand). */
+function applyFortresses(sim) {
+  const F = sim.bal.economy.buildings.festung;
+  for (const b of sim.buildings) {
+    if (b.type !== 'festung' || !b.done || sim.owner[b.cell] !== b.nation) continue;
+    const c0 = b.cell % sim.cols;
+    const r0 = Math.floor(b.cell / sim.cols);
+    const target = F.fort * b.health;
+    for (let dr = -F.radius; dr <= F.radius; dr++) for (let dc = -F.radius; dc <= F.radius; dc++) {
+      if (dr * dr + dc * dc > F.radius * F.radius) continue;
+      const r = r0 + dr; const c = c0 + dc;
+      if (r < 0 || c < 0 || r >= sim.rows || c >= sim.cols) continue;
+      const i = r * sim.cols + c;
+      if (sim.owner[i] === b.nation && sim.fort[i] < target) sim.fort[i] = Math.min(target, sim.fort[i] + 0.05);
+    }
+  }
+}
+
 export function canRaiseDivision(sim, n) {
   const e = sim.econ.get(n);
   const E = sim.bal.economy;
@@ -237,7 +278,7 @@ export function canRaiseDivision(sim, n) {
 }
 
 /** Neue Division aufstellen (in die Reserve). Fehlt Personal oder Ausrüstung, ist sie unvollständig. */
-export function raiseDivision(sim, n, tank) {
+export function raiseDivision(sim, n, tank, cell = null) {
   const e = sim.econ.get(n);
   if (!canRaiseDivision(sim, n)) return null;
   const E = sim.bal.economy;
@@ -249,7 +290,7 @@ export function raiseDivision(sim, n, tank) {
   sim.raisedCount = sim.raisedCount || new Map();
   sim.raisedCount.set(n, (sim.raisedCount.get(n) || 0) + 1);
   const air = cfg?.newAir ?? 0.1;
-  const d = { id: sim.nextDivisionId++, nation: n, name: `${count + 1}. ${cfg?.label || 'Div.'}`, men, maxMen: max, equip: eq, tank, air, front: 0, transit: null };
+  const d = { id: sim.nextDivisionId++, nation: n, name: `${count + 1}. ${cfg?.label || 'Div.'}`, men, maxMen: max, equip: eq, tank, air, front: 0, transit: null, cell: cell ?? sim.capital.get(n) ?? -1, path: null, prog: 0, goal: null, trail: null, slot: -1 };
   sim.divisions.push(d);
   e.pool -= men;
   if (n === sim.player) sim.log('division', `${d.name} aufgestellt (${Math.round(men / 1000)}.000 Mann, Ausrüstung ${Math.round((eq / E.equipmentPerDivision) * 100)} %, Panzer ${Math.round(tank * 100)} %).`);

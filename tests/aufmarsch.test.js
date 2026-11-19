@@ -109,3 +109,49 @@ test('KI reagiert auf den Aufmarsch: Frankreich verstärkt die Grenze, Beziehung
   assert.equal(sim.wars.length, 0);
   void rel0;
 });
+
+test('Richtung A: Divisionen marschieren sichtbar, Bahn ist schneller als Fußmarsch, Marschbefehl ins Hinterland', async () => {
+  const { stepCost, findPath } = await import('../src/sim/movement.js');
+  const sim = newSim({ atWar: false });
+  const pol = sim.idx('POL');
+  const d = sim.reserveOf(sim.player)[0] || sim.divisions.find((x) => x.nation === sim.player && !x.transit);
+  assert.ok(d.cell >= 0, 'Division hat einen Standort');
+  // Bahnfeld gegen Feld ohne Bahn
+  const rail = [...Array(sim.N).keys()].find((c) => sim.owner[c] === sim.player && sim.railState[c] === 1 && sim.nb.subarray(c * 4, c * 4 + 4).some((j) => j >= 0 && sim.railState[j] === 1 && sim.owner[j] === sim.player));
+  const j = [...sim.nb.subarray(rail * 4, rail * 4 + 4)].find((x) => x >= 0 && sim.railState[x] === 1 && sim.owner[x] === sim.player);
+  assert.ok(stepCost(sim, d, rail, j) < 0.1, 'Bahn: deutlich unter 1/10 Tag je Feld');
+  // Aufmarsch: Divisionen brauchen Tage und kommen an
+  const ids = planDeployment(sim, sim.player, pol);
+  const f = sim.fronts.get(ids[0]);
+  const start = sim.divisions.filter((x) => x.nation === sim.player && x.transit).map((x) => [x.id, x.cell]);
+  assert.ok(start.length > 10);
+  sim.tick();
+  const moved = start.filter(([id, c]) => sim.divisions.find((x) => x.id === id).cell !== c).length;
+  assert.ok(moved > 5, `${moved} Divisionen haben sich bewegt`);
+  for (let k = 0; k < 20; k++) sim.tick();
+  assert.ok(sim.divisionsOn(f.id, sim.player).length >= 10, 'an der Grenze angekommen');
+  // Marschbefehl ins Hinterland (Reserve, Ziel: Hauptstadt)
+  const cap = sim.capital.get(sim.player);
+  const g = sim.divisionsOn(f.id, sim.player)[0];
+  assert.equal(sim.orderUnits([g.id], { cell: cap }), 1);
+  assert.equal(g.front, 0);
+  assert.ok(findPath(sim, g, g.cell, g.goal), 'Route vorhanden');
+  for (let k = 0; k < 25; k++) sim.tick();
+  assert.ok(Math.hypot(g.cell % sim.cols - cap % sim.cols, Math.floor(g.cell / sim.cols) - Math.floor(cap / sim.cols)) <= 3, 'Ziel erreicht');
+});
+
+test('Richtung A: Kaserne und Festung in der Stadt, Division erscheint in der Stadt', async () => {
+  const { buildInCity, canRaiseAt, raiseDivision } = await import('../src/sim/economy.js');
+  const sim = newSim({ atWar: false });
+  const p = sim.player;
+  const city = sim.cities.find((c) => sim.owner[c.cell] === p && c.rank <= 2 && sim.capital.get(p) !== c.cell);
+  assert.equal(canRaiseAt(sim, p, city.cell), false);
+  assert.ok(buildInCity(sim, p, 'kaserne', city.cell));
+  assert.ok(buildInCity(sim, p, 'festung', city.cell));
+  assert.equal(buildInCity(sim, p, 'kaserne', city.cell), null, 'nur einmal je Stadt');
+  for (let k = 0; k < 80; k++) sim.tick();
+  assert.ok(canRaiseAt(sim, p, city.cell), 'Kaserne fertig');
+  assert.ok(sim.fort[city.cell] > 0.5, `Festung befestigt das Umland (${sim.fort[city.cell].toFixed(2)})`);
+  const d = raiseDivision(sim, p, 0, city.cell);
+  assert.ok(d && d.cell === city.cell, 'neue Division steht in der Stadt');
+});
